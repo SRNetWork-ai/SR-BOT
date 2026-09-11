@@ -1,0 +1,25 @@
+# تحلیل استاتیک کد با PHPStan
+#
+# نصب (روی سیستم توسعه — نه روی هاست):
+#   composer require --dev phpstan/phpstan
+#   یا دانلود مستقیم phpstan.phar از github.com/phpstan/phpstan/releases
+#
+# اجرا:
+#   vendor/bin/phpstan analyse -c phpstan.neon.dist
+#   یا: php phpstan.phar analyse -c phpstan.neon.dist
+#
+# سطح را می‌توانید مرحله‌به‌مرحله بالا ببرید (0 تا 9).
+parameters:
+    level: 3
+    paths:
+        - app
+        - admin
+        - miniapp
+        - cron
+        - index.php
+    excludePaths:
+        - storage
+    scanFiles:
+        - app/Helpers.php
+        - app/bootstrap.php
+    reportUnmatchedIgnoredErrors: false

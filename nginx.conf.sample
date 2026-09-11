@@ -1,0 +1,42 @@
+# ------------------------------------------------------------
+# SR-BOT — نمونه کانفیگ nginx
+# فایل .htaccess فقط روی Apache اثر دارد. اگر وب‌سرور شما nginx است،
+# این نمونه را در server block سایت خود بگذارید و مسیرها را مطابق سرور تنظیم کنید.
+# بدون این قواعد، پوشه‌های حساس مثل storage و app از وب قابل دسترسی می‌مانند!
+# ------------------------------------------------------------
+server {
+    listen 443 ssl http2;
+    server_name bot.example.com;
+
+    # ssl_certificate     /etc/letsencrypt/live/bot.example.com/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/bot.example.com/privkey.pem;
+
+    root /var/www/sr-bot;      # مسیر پروژه را اینجا تنظیم کنید
+    index index.php;
+
+    client_max_body_size 64m;
+
+    # --- مسیرهای حساس: دسترسی وب کاملاً بسته ---
+    location ~ ^/(app|storage|cron|tools|docs)/ { deny all; }
+
+    # فایل‌های مخفی و پیکربندی
+    location ~ /\. { deny all; }
+
+    # پسوندهای خطرناک یا غیرلازم روی وب
+    location ~* \.(sql|zip|log|md|sh|neon|dist|sample|lock|bak)$ { deny all; }
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        # سوکت PHP-FPM خود را تنظیم کنید — مثال: php8.2-fpm
+        fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+        fastcgi_read_timeout 120;
+    }
+}
+
+# نکته: دانلود فایل‌های بکاپ از داخل پنل مدیریت انجام می‌شود و به مسیر مستقیم نیاز ندارد؛
+# بستن پسوند zip و sql روی وب مشکلی در کارکرد پنل ایجاد نمی‌کند.
