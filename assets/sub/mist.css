@@ -1,0 +1,170 @@
+/* ============================================================
+   SUB THEME: MIST  —  روشن، مینیمال، آرام
+   ============================================================ */
+:root{
+  --bg:#eef1f7; --pane:#ffffff; --ink:#141a26;
+  --dim:#59627a; --mut:#8b93a7; --line:#e2e7f0;
+  --acc:#3b6cf6; --acc2:#7aa2ff;
+  --ok:#0f9d58; --warn:#c47f00; --err:#d13b4a;
+  --ez:cubic-bezier(.22,.61,.36,1);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:Vazirmatn,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  color:var(--ink); background:var(--bg); min-height:100vh; line-height:1.85;
+  padding:26px 14px calc(34px + env(safe-area-inset-bottom));
+  -webkit-tap-highlight-color:transparent; -webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(760px 420px at 88% -6%, rgba(122,162,255,.22), transparent 62%),
+    radial-gradient(680px 400px at 6% 2%, rgba(59,108,246,.12), transparent 60%);
+  background-attachment:fixed;
+}
+.wrap{max-width:560px;margin:0 auto;position:relative;z-index:1;display:grid;gap:16px}
+
+/* ---------- کارت ---------- */
+.card{
+  background:var(--pane); border:1px solid var(--line); border-radius:20px;
+  padding:20px 18px; box-shadow:0 2px 4px rgba(20,26,38,.03), 0 14px 34px -22px rgba(20,26,38,.28);
+  transition:box-shadow .22s var(--ez), transform .22s var(--ez);
+}
+.card:hover{box-shadow:0 3px 6px rgba(20,26,38,.04), 0 20px 44px -24px rgba(20,26,38,.34); transform:translateY(-2px)}
+.card.hi{border-color:#c9d8ff; background:linear-gradient(180deg,#f7faff,#ffffff)}
+
+/* ---------- هدر ---------- */
+.top{display:flex;align-items:center;gap:11px;margin-bottom:16px}
+.logo{
+  width:42px;height:42px;flex:none;border-radius:14px;display:grid;place-items:center;font-size:20px;
+  background:linear-gradient(140deg,var(--acc),var(--acc2)); color:#fff;
+  box-shadow:0 8px 18px -10px rgba(59,108,246,.75);
+}
+.tt{font-size:16px;font-weight:800;flex:1;min-width:0;letter-spacing:-.2px}
+.st{
+  font-size:11px;font-weight:700;padding:5px 12px;border-radius:99px;white-space:nowrap;
+  border:1px solid transparent;
+}
+.st.ok{color:var(--ok);background:rgba(15,157,88,.10);border-color:rgba(15,157,88,.24)}
+.st.warn{color:var(--warn);background:rgba(196,127,0,.10);border-color:rgba(196,127,0,.26)}
+.st.err{color:var(--err);background:rgba(209,59,74,.09);border-color:rgba(209,59,74,.24)}
+
+/* ---------- برچسب ---------- */
+.lbl{font-size:11.5px;color:var(--mut);margin:16px 0 7px;font-weight:600}
+.lbl:first-child{margin-top:0}
+
+/* ---------- نوار مصرف ---------- */
+.bar{
+  position:relative;height:30px;border-radius:99px;background:#eef2f9;
+  border:1px solid var(--line);overflow:hidden;display:flex;align-items:center;
+}
+.bar i{
+  display:block;height:100%;border-radius:99px;
+  background:linear-gradient(90deg,var(--acc2),var(--acc));
+  transition:width .9s var(--ez);
+}
+.bar i.md{background:linear-gradient(90deg,#ffd08a,#f0a326)}
+.bar i.hi{background:linear-gradient(90deg,#ff9aa6,#e04256)}
+.bar b{
+  position:absolute;inset-inline-start:0;inset-inline-end:0;text-align:center;
+  font-size:11.5px;font-weight:800;color:#26304a;
+}
+
+/* ---------- شبکه ---------- */
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:15px}
+.cell{
+  background:#f7f9fd;border:1px solid var(--line);border-radius:14px;padding:12px 9px;text-align:center;
+  transition:border-color .18s, transform .18s var(--ez), background .18s;
+}
+.cell:hover{border-color:#bcd0ff;background:#fff;transform:translateY(-2px)}
+.cell .k{display:block;font-size:10.5px;color:var(--mut);margin-bottom:4px}
+.cell .v{display:block;font-size:13.5px;font-weight:800;color:var(--ink)}
+.cell .v.b{color:var(--acc)}
+.cell .v.g{color:var(--ok)}
+.cell .v.r{color:var(--err)}
+
+/* ---------- جعبهٔ متن ---------- */
+.box{
+  background:#f5f7fc;border:1px solid var(--line);border-radius:13px;
+  padding:12px 13px;font-size:11.5px;line-height:1.95;
+  word-break:break-all;color:#2a3245;direction:ltr;text-align:left;
+  max-height:160px;overflow:auto;
+}
+.box+.btn{margin-top:9px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+/* ---------- دکمه ---------- */
+.btn{
+  display:block;width:100%;margin-top:11px;padding:13px 15px;border:0;border-radius:14px;cursor:pointer;
+  font-family:inherit;font-size:13px;font-weight:800;color:#fff;
+  background:linear-gradient(135deg,var(--acc),#5b8cff);
+  box-shadow:0 10px 22px -14px rgba(59,108,246,.85);
+  transition:transform .16s var(--ez), box-shadow .16s, filter .16s;
+}
+.btn:hover{transform:translateY(-2px);box-shadow:0 16px 30px -16px rgba(59,108,246,.9)}
+.btn:active{transform:translateY(0)}
+.btn.gh{
+  background:#fff;color:var(--acc);border:1px solid #cddbff;box-shadow:none;
+}
+.btn.gh:hover{background:#f4f8ff;border-color:var(--acc);box-shadow:0 8px 18px -14px rgba(59,108,246,.6)}
+
+/* ---------- یادداشت و هشدار ---------- */
+.note{font-size:11px;color:var(--mut);margin-top:11px;line-height:1.95}
+.al{
+  margin-top:14px;padding:12px 14px;border-radius:13px;font-size:12px;line-height:1.95;
+  background:rgba(59,108,246,.07);border:1px solid rgba(59,108,246,.20);color:#27406e;
+}
+.al.err{background:rgba(209,59,74,.07);border-color:rgba(209,59,74,.22);color:#8c2733}
+
+/* ---------- آکاردئون ---------- */
+details{margin:0}
+summary{cursor:pointer;font-size:13px;font-weight:700;list-style:none}
+summary::-webkit-details-marker{display:none}
+.acc{padding:0;overflow:hidden}
+.accs{
+  display:flex;align-items:center;gap:11px;padding:17px 18px;cursor:pointer;list-style:none;
+}
+.accs::-webkit-details-marker{display:none}
+.acci{
+  width:38px;height:38px;flex:none;border-radius:12px;display:grid;place-items:center;font-size:18px;
+  background:#eef3ff;border:1px solid #dbe5ff;
+}
+.acct{flex:1;min-width:0;display:grid;gap:2px}
+.acct b{font-size:13px;font-weight:800}
+.acct i{font-style:normal;font-size:11px;color:var(--mut)}
+.accx{color:var(--mut);font-size:13px;transition:transform .22s var(--ez)}
+.acc[open] .accx{transform:rotate(180deg)}
+.accb{padding:0 18px 18px}
+
+/* ---------- برنامه‌ها ---------- */
+.apps{display:grid;grid-template-columns:1fr;gap:9px;margin-top:4px}
+.app2{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fafbfe}
+.app2[open]{background:#fff;border-color:#c9d8ff}
+.app{
+  display:flex;align-items:center;gap:10px;padding:12px 13px;text-decoration:none;color:inherit;cursor:pointer;
+  list-style:none;background:transparent;border:0;
+}
+.app::-webkit-details-marker{display:none}
+.app .ai{font-size:19px;line-height:1;flex:none}
+.app .at{min-width:0;flex:1;display:grid;gap:1px}
+.app .at b{font-size:12.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr;text-align:start}
+.app .at i{font-style:normal;font-size:10.5px;color:var(--mut)}
+.app .ad{flex:none;color:var(--mut);font-size:12px;transition:transform .22s var(--ez)}
+.app2[open] .ad{transform:rotate(180deg)}
+.pfs{padding:0 13px 13px;display:grid;gap:7px}
+.pfh{font-size:10.5px;color:var(--mut);padding:2px 0 4px}
+.pf{
+  display:flex;align-items:center;justify-content:space-between;gap:9px;
+  padding:11px 13px;border-radius:11px;text-decoration:none;color:var(--ink);
+  background:#f4f7fd;border:1px solid var(--line);
+  transition:border-color .16s, background .16s, transform .16s var(--ez);
+}
+.pf:hover{border-color:var(--acc);background:#fff;transform:translateX(-3px)}
+.pfn{font-size:12px;font-weight:700}
+.pfd{font-size:11px;color:var(--acc);font-weight:700;white-space:nowrap}
+
+.brow2{display:grid;gap:9px;margin-top:2px}
+#b64box{position:absolute;inset-inline-start:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
+
+@media (max-width:430px){
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .card{padding:17px 15px;border-radius:18px}
+}

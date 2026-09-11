@@ -1,0 +1,193 @@
+/* ============================================================
+   SUB THEME: CARBON  —  صنعتی، گوشه‌تیز، نارنجی فلزی
+   ============================================================ */
+:root{
+  --bg:#0d0d0f; --pane:#161619; --pane2:#1d1d21; --ink:#ececef;
+  --dim:#9a9aa4; --mut:#6b6b76; --line:#2c2c33; --line2:#3a3a44;
+  --acc:#ff6a00; --acc2:#ffa040;
+  --ok:#3ddc84; --warn:#ffc043; --err:#ff4d4f;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:Vazirmatn,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  color:var(--ink); background:var(--bg); min-height:100vh; line-height:1.8;
+  padding:20px 12px calc(30px + env(safe-area-inset-bottom));
+  -webkit-tap-highlight-color:transparent; -webkit-font-smoothing:antialiased;
+}
+/* بافت فلز کربنی */
+body::before{
+  content:""; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.5;
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,.018) 0 2px, transparent 2px 4px),
+    repeating-linear-gradient(-45deg, rgba(0,0,0,.25) 0 2px, transparent 2px 4px);
+}
+.wrap{max-width:580px;margin:0 auto;position:relative;z-index:1;display:grid;gap:12px}
+
+/* ---------- کارت ---------- */
+.card{
+  background:var(--pane); border:1px solid var(--line); border-radius:2px;
+  padding:18px 16px; position:relative;
+  box-shadow:6px 6px 0 rgba(0,0,0,.45);
+  transition:box-shadow .16s linear, transform .16s linear;
+}
+.card::before{
+  content:""; position:absolute; inset-block-start:0; inset-inline-start:0;
+  width:4px; height:100%; background:var(--acc);
+}
+.card:hover{transform:translate(-2px,-2px);box-shadow:9px 9px 0 rgba(0,0,0,.5)}
+.card.hi::before{background:linear-gradient(180deg,var(--acc),var(--acc2))}
+.card.hi{border-color:var(--line2)}
+
+/* ---------- هدر ---------- */
+.top{display:flex;align-items:center;gap:11px;margin-bottom:15px;
+  border-block-end:2px solid var(--line);padding-block-end:12px}
+.logo{
+  width:40px;height:40px;flex:none;border-radius:2px;display:grid;place-items:center;font-size:19px;
+  background:var(--acc);color:#12100e;
+  box-shadow:3px 3px 0 rgba(0,0,0,.5);
+}
+.tt{font-size:15px;font-weight:900;flex:1;min-width:0;letter-spacing:.4px;text-transform:uppercase}
+.st{
+  font-size:10px;font-weight:900;padding:5px 11px;border-radius:2px;white-space:nowrap;
+  letter-spacing:1px;text-transform:uppercase;border:2px solid currentColor;
+}
+.st.ok{color:var(--ok);background:rgba(61,220,132,.10)}
+.st.warn{color:var(--warn);background:rgba(255,192,67,.10)}
+.st.err{color:var(--err);background:rgba(255,77,79,.10)}
+
+/* ---------- برچسب ---------- */
+.lbl{font-size:10.5px;color:var(--mut);margin:16px 0 7px;font-weight:800;
+  letter-spacing:1.4px;text-transform:uppercase}
+.lbl:first-child{margin-top:0}
+
+/* ---------- نوار مصرف ---------- */
+.bar{
+  position:relative;height:28px;border-radius:2px;background:#0a0a0c;
+  border:2px solid var(--line2);overflow:hidden;display:flex;align-items:center;
+}
+.bar i{
+  display:block;height:100%;border-radius:0;
+  background:var(--acc);
+  background-image:repeating-linear-gradient(-45deg, rgba(0,0,0,.22) 0 8px, transparent 8px 16px);
+  transition:width .8s linear;
+}
+.bar i.md{background-color:var(--warn)}
+.bar i.hi{background-color:var(--err)}
+.bar b{
+  position:absolute;inset-inline-start:0;inset-inline-end:0;text-align:center;
+  font-family:var(--mono);font-size:11.5px;font-weight:900;color:#fff;
+  text-shadow:0 1px 2px rgba(0,0,0,.85);letter-spacing:1px;
+}
+
+/* ---------- شبکه ---------- */
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;margin-top:15px;
+  background:var(--line);border:2px solid var(--line)}
+.cell{
+  background:var(--pane2);border:0;border-radius:0;padding:13px 8px;text-align:center;
+  position:relative;transition:background .14s linear;
+}
+.cell::after{
+  content:"";position:absolute;inset-block-end:0;inset-inline-start:0;
+  width:0;height:2px;background:var(--acc);transition:width .2s linear;
+}
+.cell:hover{background:#242429}
+.cell:hover::after{width:100%}
+.cell .k{display:block;font-size:9.5px;color:var(--mut);margin-bottom:4px;
+  letter-spacing:.8px;text-transform:uppercase;font-weight:700}
+.cell .v{display:block;font-family:var(--mono);font-size:13px;font-weight:800;letter-spacing:-.2px}
+.cell .v.b{color:var(--acc)}
+.cell .v.g{color:var(--ok)}
+.cell .v.r{color:var(--err)}
+
+/* ---------- جعبهٔ متن ---------- */
+.box{
+  background:#0a0a0c;border:2px solid var(--line);border-radius:2px;
+  padding:12px 13px;font-family:var(--mono);font-size:11px;line-height:1.9;
+  word-break:break-all;color:#cfcfd6;direction:ltr;text-align:left;
+  max-height:170px;overflow:auto;
+  border-inline-start:4px solid var(--acc);
+}
+.box::-webkit-scrollbar{width:8px;height:8px}
+.box::-webkit-scrollbar-thumb{background:var(--line2);border-radius:0}
+.box+.btn{margin-top:9px}
+.mono{font-family:var(--mono)}
+
+/* ---------- دکمه ---------- */
+.btn{
+  display:block;width:100%;margin-top:11px;padding:13px 15px;border-radius:2px;cursor:pointer;
+  font-family:inherit;font-size:12.5px;font-weight:900;letter-spacing:1px;text-transform:uppercase;
+  color:#12100e;background:var(--acc);border:2px solid var(--acc);
+  box-shadow:4px 4px 0 rgba(0,0,0,.5);
+  transition:transform .13s linear, box-shadow .13s linear, background .13s;
+}
+.btn:hover{background:var(--acc2);border-color:var(--acc2);transform:translate(-2px,-2px);box-shadow:6px 6px 0 rgba(0,0,0,.55)}
+.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(0,0,0,.5)}
+.btn.gh{
+  background:transparent;color:var(--ink);border:2px solid var(--line2);box-shadow:4px 4px 0 rgba(0,0,0,.4);
+}
+.btn.gh:hover{border-color:var(--acc);color:var(--acc);background:rgba(255,106,0,.07)}
+
+/* ---------- یادداشت و هشدار ---------- */
+.note{font-size:10.5px;color:var(--mut);margin-top:11px;line-height:1.9}
+.al{
+  margin-top:14px;padding:12px 14px;border-radius:2px;font-size:11.5px;line-height:1.9;
+  background:rgba(255,106,0,.08);border:2px solid rgba(255,106,0,.32);
+  border-inline-start:5px solid var(--acc);color:#ffcfa8;
+}
+.al.err{background:rgba(255,77,79,.08);border-color:rgba(255,77,79,.35);border-inline-start-color:var(--err);color:#ffb3b4}
+
+/* ---------- آکاردئون ---------- */
+details{margin:0}
+summary{cursor:pointer;font-size:12.5px;font-weight:800;list-style:none;letter-spacing:.5px}
+summary::-webkit-details-marker{display:none}
+.acc{padding:0;overflow:hidden}
+.accs{display:flex;align-items:center;gap:11px;padding:16px 16px;cursor:pointer;list-style:none}
+.accs::-webkit-details-marker{display:none}
+.acci{
+  width:38px;height:38px;flex:none;border-radius:2px;display:grid;place-items:center;font-size:17px;
+  background:var(--pane2);border:2px solid var(--line2);
+}
+.acct{flex:1;min-width:0;display:grid;gap:2px}
+.acct b{font-size:12.5px;font-weight:900;letter-spacing:.5px;text-transform:uppercase}
+.acct i{font-style:normal;font-size:10.5px;color:var(--mut)}
+.accx{color:var(--acc);font-size:13px;transition:transform .18s linear}
+.acc[open] .accx{transform:rotate(180deg)}
+.accb{padding:0 16px 16px}
+
+/* ---------- برنامه‌ها ---------- */
+.apps{display:grid;grid-template-columns:1fr;gap:8px;margin-top:4px}
+.app2{border:2px solid var(--line);border-radius:2px;overflow:hidden;background:var(--pane2)}
+.app2[open]{border-color:var(--line2)}
+.app{
+  display:flex;align-items:center;gap:10px;padding:12px 13px;text-decoration:none;color:inherit;cursor:pointer;
+  list-style:none;background:transparent;border:0;
+}
+.app::-webkit-details-marker{display:none}
+.app .ai{font-size:18px;line-height:1;flex:none}
+.app .at{min-width:0;flex:1;display:grid;gap:1px}
+.app .at b{font-size:12px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr;text-align:start}
+.app .at i{font-style:normal;font-size:10px;color:var(--mut)}
+.app .ad{flex:none;color:var(--acc);font-size:12px;transition:transform .18s linear}
+.app2[open] .ad{transform:rotate(180deg)}
+.pfs{padding:0 13px 13px;display:grid;gap:6px}
+.pfh{font-size:10px;color:var(--mut);padding:2px 0 4px;letter-spacing:.8px;text-transform:uppercase;font-weight:700}
+.pf{
+  display:flex;align-items:center;justify-content:space-between;gap:9px;
+  padding:11px 13px;border-radius:2px;text-decoration:none;color:var(--ink);
+  background:#0f0f12;border:2px solid var(--line);
+  border-inline-start:3px solid var(--line2);
+  transition:border-inline-start-color .14s linear, background .14s, transform .14s linear;
+}
+.pf:hover{border-inline-start-color:var(--acc);background:#17171b;transform:translateX(-3px)}
+.pfn{font-size:12px;font-weight:800}
+.pfd{font-size:10.5px;color:var(--acc);font-weight:800;white-space:nowrap;letter-spacing:.5px;text-transform:uppercase}
+
+.brow2{display:grid;gap:9px;margin-top:2px}
+#b64box{position:absolute;inset-inline-start:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
+
+@media (max-width:430px){
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .card{padding:16px 14px}
+}
