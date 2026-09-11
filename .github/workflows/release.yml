@@ -1,0 +1,86 @@
+name: Release
+
+# با زدن تگ v* (مثل v0.1.0-beta.1) اجرا می‌شود:
+#   git tag v0.1.0-beta.1 && git push origin v0.1.0-beta.1
+# خروجی: زیپ قابل نصب + SHA256SUMS + ریلیز گیت‌هاب (pre-release اگر تگ شامل beta/rc/alpha باشد)
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g. v0.1.0-beta.1)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, curl, mbstring, json, zip
+          coverage: none
+
+      - name: Lint before packaging
+        run: bash tools/lint.sh
+
+      - name: Read version info
+        id: v
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          BUILD=$(php -r 'echo json_decode(file_get_contents("version.json"), true)["build"] ?? "";')
+          VER=$(php -r 'echo json_decode(file_get_contents("version.json"), true)["version"] ?? "";')
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          if echo "$TAG" | grep -Eqi 'alpha|beta|rc|pre'; then echo "pre=true" >> "$GITHUB_OUTPUT"; else echo "pre=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Build zip
+        run: |
+          set -e
+          NAME="SR-BOT-${{ steps.v.outputs.tag }}-${{ steps.v.outputs.build }}"
+          mkdir -p dist/"$NAME"
+          # git archive به export-ignore در .gitattributes احترام می‌گذارد (بدون .github و فایل‌های توسعه)
+          git archive --format=tar HEAD | tar -x -C dist/"$NAME"
+          rm -f dist/"$NAME"/config.php
+          mkdir -p dist/"$NAME"/storage/{updates,backups,logs,receipts,tmp}
+          cd dist
+          zip -qr "$NAME.zip" "$NAME" -x '*.DS_Store'
+          sha256sum "$NAME.zip" > SHA256SUMS
+          ls -la
+          echo "ASSET=dist/$NAME.zip" >> "$GITHUB_ENV"
+
+      - name: Extract changelog for this build
+        id: notes
+        run: |
+          BUILD="${{ steps.v.outputs.build }}"
+          # بلوک «## <build> — …» از CHANGELOG.md تا بلوک بعدی
+          awk -v b="## $BUILD" 'index($0,b)==1{f=1} f&&/^## /&&index($0,b)!=1{exit} f' CHANGELOG.md > RELEASE_NOTES.md || true
+          if [ ! -s RELEASE_NOTES.md ]; then echo "Release ${{ steps.v.outputs.tag }} (build $BUILD)" > RELEASE_NOTES.md; fi
+          {
+            echo
+            echo '---'
+            echo '**نصب / به‌روزرسانی:** فایل zip را در پنل مدیریت ← به‌روزرسانی ← «نصب از فایل» بدهید، یا روی دکمهٔ «بررسی نسخهٔ جدید» بزنید تا مستقیم از همین مخزن نصب شود.'
+            echo
+            echo '`config.php` و پوشهٔ `storage/` هرگز جایگزین نمی‌شوند.'
+          } >> RELEASE_NOTES.md
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.v.outputs.tag }}
+          name: SR-BOT ${{ steps.v.outputs.tag }} (${{ steps.v.outputs.build }})
+          body_path: RELEASE_NOTES.md
+          prerelease: ${{ steps.v.outputs.pre == 'true' }}
+          files: |
+            dist/*.zip
+            dist/SHA256SUMS

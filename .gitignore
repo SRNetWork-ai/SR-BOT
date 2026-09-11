@@ -1,0 +1,48 @@
+# ---- SR-BOT .gitignore (fixed80) ----
+# پیکربندی واقعی سرور — هرگز در مخزن قرار نگیرد
+/config.php
+/storage/installed.lock
+
+# داده‌های زمان اجرا (لاگ، بکاپ، فایل‌های به‌روزرسانی، رسیدها، فایل‌های موقت)
+/storage/**
+!/storage/.htaccess
+!/storage/.gitkeep
+!/storage/receipts/
+!/storage/receipts/.htaccess
+!/storage/tmp/
+!/storage/tmp/.htaccess
+!/storage/updates/
+!/storage/updates/.gitkeep
+!/storage/backups/
+!/storage/backups/.gitkeep
+!/storage/logs/
+!/storage/logs/.gitkeep
+
+# بسته‌های ساخته‌شده
+*.zip
+*.tar.gz
+/dist/
+/build/
+
+# ابزارهای توسعه
+/vendor/
+/node_modules/
+composer.lock
+phpstan.neon
+.phpunit.result.cache
+.php-cs-fixer.cache
+
+# ویرایشگرها و سیستم‌عامل
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# فایل‌های محلی
+.env
+.env.*
+*.local.php
+*.log

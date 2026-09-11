@@ -1,0 +1,82 @@
+# ==========================================================
+#  تنظیمات امنیتی ربات فروش کانفیگ (مخصوص هاست اشتراکی)
+# ==========================================================
+
+Options -Indexes
+DirectoryIndex index.php index.html
+AddDefaultCharset UTF-8
+
+# ---------- فایل‌های حساس ----------
+<FilesMatch "^(config\.php|config\.sample\.php|install\.sh|composer\.json|composer\.lock|README\.md|cli\.php|version\.json)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+<FilesMatch "\.(sql|log|lock|ini|md|bak|old|sh|yml|yaml|env|zip|tar|gz)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# ---------- فایل‌های مخفی (.env ، .git ، .htpasswd و غیره) ----------
+<FilesMatch "^\.">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# ---------- جلوگیری از دسترسی به پوشه‌های داخلی ----------
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^(app|database|cron|storage|\.git|\.github|vendor|node_modules)(/|$) - [F,L]
+  # جلوگیری از اجرای PHP در پوشهٔ آپلودها و دارایی‌ها
+  RewriteRule ^(assets|uploads)/.*\.(php|phtml|phar|php[0-9]?)$ - [F,L]
+
+  # ---------- لینک زیبای اشتراک ----------
+  #   BASE/sub/CODE          →  sub.php?id=CODE
+  #   BASE/sub/CODE/json     →  sub.php?id=CODE&fmt=json   (همچنین raw ، html ، base64)
+  # لینک قدیمی sub.php?id=CODE همچنان کار می‌کند.
+  RewriteRule ^sub/([A-Za-z0-9_\-]{6,64})/(json|raw|html|base64|dl)/?$ sub.php?id=$1&fmt=$2 [L,QSA,NC]
+  RewriteRule ^sub/([A-Za-z0-9_\-]{6,64})/?$                        sub.php?id=$1        [L,QSA]
+</IfModule>
+
+# ---------- کش فایل‌های استاتیک ----------
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css "access plus 7 days"
+  ExpiresByType application/javascript "access plus 7 days"
+  ExpiresByType image/png "access plus 30 days"
+  ExpiresByType image/svg+xml "access plus 30 days"
+</IfModule>
+
+# ---------- هدرهای امنیتی ----------
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+  Header always set Cross-Origin-Opener-Policy "same-origin"
+  # حذف هدرهای افشاکنندهٔ نسخهٔ سرور
+  Header always unset X-Powered-By
+  Header unset X-Powered-By
+</IfModule>
+
+# ---------- حداقل نسخه PHP (در صورت پشتیبانی هاست) ----------
+<IfModule mod_php.c>
+  php_value upload_max_filesize 16M
+  php_value post_max_size 20M
+  php_value max_execution_time 300
+</IfModule>

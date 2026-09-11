@@ -1,0 +1,73 @@
+name: "\\U0001F41B گزارش باگ / Bug report"
+description: یک مشکل یا خطا در ربات، پنل وب یا مینی‌اپ را گزارش کنید
+title: "[Bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ممنون که وقت می‌گذارید. لطفاً **متن دقیق خطا** را کپی کنید و هیچ توکن، رمز یا اطلاعات دیتابیس را در گزارش نگذارید.
+  - type: dropdown
+    id: area
+    attributes:
+      label: بخش
+      options:
+        - ربات تلگرام
+        - پنل مدیریت وب
+        - مینی‌اپ
+        - پنل نمایندگی
+        - اتصال پنل (x-ui / 3x-ui / Marzban / PasarGuard)
+        - به‌روزرسانی / بکاپ
+        - درگاه پرداخت
+        - نصب
+        - دیگر
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: نسخه / بیلد
+      description: از پنل وب ← به‌روزرسانی یا فایل version.json (مثل 0.0.1-beta / fixed80)
+      placeholder: "0.0.1-beta / fixed80"
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: محیط
+      description: نسخهٔ PHP، نوع هاست/سرور، نوع و نسخهٔ پنل
+      placeholder: "PHP 8.2 / Ubuntu 22 + nginx / 3x-ui 2.4.x"
+  - type: textarea
+    id: steps
+    attributes:
+      label: مراحل بازتولید
+      placeholder: |
+        1. پنل وب ← پنل‌ها ← افزودن …
+        2. دکمهٔ … را زدم
+        3. خطای … نمایش داده شد
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: متن دقیق خطا
+      description: پیام خطای ربات/پنل و اگر ممکن است چند خط از storage/logs (بدون توکن/رمز)
+      render: text
+  - type: textarea
+    id: expected
+    attributes:
+      label: رفتار مورد انتظار
+  - type: textarea
+    id: shots
+    attributes:
+      label: اسکرین‌شات
+      description: تصویر را همین‌جا بکشید و رها کنید
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: بررسی قبل از ارسال
+      options:
+        - label: روی آخرین نسخه تست کردم
+          required: true
+        - label: هیچ توکن، رمز یا اطلاعات حساسی در گزارش نیست
+          required: true

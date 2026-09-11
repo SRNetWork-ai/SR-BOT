@@ -1,0 +1,38 @@
+# پایان خط یکدست (LF) برای همهٔ فایل‌های متنی
+* text=auto eol=lf
+
+*.php   text eol=lf diff=php
+*.js    text eol=lf
+*.css   text eol=lf
+*.md    text eol=lf
+*.sql   text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.sh    text eol=lf
+*.sample text eol=lf
+.htaccess text eol=lf
+
+# فایل‌های دودویی
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.zip   binary
+
+# این موارد در بستهٔ خروجی (git archive / زیپ ریلیز) قرار نمی‌گیرند
+.github/            export-ignore
+.gitattributes      export-ignore
+.gitignore          export-ignore
+docs/refactor-plan.md export-ignore
+CONTRIBUTING.md     export-ignore
+phpstan.neon.dist   export-ignore
+
+# زبان مخزن در GitHub Linguist
+*.php linguist-language=PHP
+assets/* linguist-vendored=false

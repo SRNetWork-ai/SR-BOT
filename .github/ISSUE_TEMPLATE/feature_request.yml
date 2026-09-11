@@ -1,0 +1,36 @@
+name: "\\u2728 پیشنهاد قابلیت / Feature request"
+description: یک قابلیت تازه یا بهبود پیشنهاد دهید
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: بخش
+      options:
+        - ربات تلگرام
+        - پنل مدیریت وب
+        - مینی‌اپ
+        - پنل نمایندگی
+        - اتصال پنل‌ها
+        - درگاه پرداخت
+        - گزارش‌ها و لاگ
+        - دیگر
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: مشکلی که می‌خواهید حل شود
+      placeholder: الان برای … باید … کار را دستی انجام دهم
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: راه‌حل پیشنهادی
+      placeholder: یک دکمه در … که …
+  - type: textarea
+    id: alt
+    attributes:
+      label: راه‌حل‌های جایگزین / توضیحات بیشتر

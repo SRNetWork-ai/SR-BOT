@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "\\U0001F512 گزارش مشکل امنیتی / Security issue"
+    url: https://github.com/SRNetWork-ai/SR-BOT/security/advisories/new
+    about: مشکلات امنیتی را عمومی نکنید؛ از گزارش خصوصی استفاده کنید (مطابق SECURITY.md)
+  - name: "\\U0001F4D6 راهنمای نصب و عیب‌یابی"
+    url: https://github.com/SRNetWork-ai/SR-BOT#readme
+    about: قبل از ثبت مشکل، بخش «عیب‌یابی سریع» README را ببینید
