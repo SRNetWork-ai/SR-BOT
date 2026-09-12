@@ -50,6 +50,6 @@ jobs:
           if git diff --cached --quiet; then
             echo 'nothing to commit'
           else
-            git commit -m "${MSG:-fix(panel): normalize client payload types for Go panels}"
+            git commit -m "${MSG:-feat(user): delete disconnected configs + refund in bot and mini-app}"
             git push
           fi
