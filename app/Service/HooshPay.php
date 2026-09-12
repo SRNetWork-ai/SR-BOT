@@ -443,7 +443,7 @@ class HooshPay
 
         /* ---------- پرداخت موفق ---------- */
         if ($paid) {
-            $res = Wallet::approve((int)$tx['id'], null);
+            $res = Wallet::approve((int)$tx['id'], null, false);
 
             $note = 'HooshPay – پرداخت‌شده';
             if ($track !== '') $note .= ' – پیگیری ' . $track;
@@ -479,7 +479,7 @@ class HooshPay
 
         /* ---------- مرده: منقضی / لغو / ناموفق ---------- */
         if (in_array($stNow, self::DEAD, true)) {
-            Wallet::reject((int)$tx['id'], null, 'HooshPay: ' . self::statusFa($stNow));
+            Wallet::reject((int)$tx['id'], null, 'HooshPay: ' . self::statusFa($stNow), false);
             if ($user) {
                 try {
                     Tg::send((int)$user['tg_id'],

@@ -143,8 +143,9 @@ $m_avg        = $m_ordNow > 0 ? $m_saleNow / $m_ordNow : 0.0;
 
 /* کیف پول و تراکنش */
 $m_wallet     = (float)$d_val('SELECT COALESCE(SUM(balance),0) FROM {p}users');
-$m_payPending = (int)$d_val("SELECT COUNT(*) FROM {p}transactions WHERE status = 'pending'");
-$m_paySum     = (float)$d_val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'pending'");
+/* fixed84: فاکتورهای درگاه خودکار جزو «رسیدهای در انتظار» نیستند */
+$m_payPending = (int)$d_val("SELECT COUNT(*) FROM {p}transactions WHERE status = 'pending' AND method NOT IN ('hooshpay','nowpay')");
+$m_paySum     = (float)$d_val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'pending' AND method NOT IN ('hooshpay','nowpay')");
 $m_depNow     = (float)$d_val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND created_at >= DATE_SUB(NOW(), INTERVAL {$d_days} DAY)");
 $m_depToday   = (float)$d_val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND DATE(created_at) = CURDATE()");
 
@@ -307,7 +308,7 @@ $d_expiring = $d_all(
 $d_receipts = $d_all(
     "SELECT t.id, t.amount, t.method, t.created_at, t.tg_id, u.first_name
        FROM {p}transactions t LEFT JOIN {p}users u ON u.id = t.user_id
-      WHERE t.status = 'pending' ORDER BY t.id DESC LIMIT 5");
+      WHERE t.status = 'pending' AND t.method NOT IN ('hooshpay','nowpay') ORDER BY t.id DESC LIMIT 5");
 
 $d_panels = $d_all('SELECT * FROM {p}panels ORDER BY sort ASC, id ASC');
 

@@ -193,4 +193,55 @@ class Tg
     }
 
     public static function removeKb(): array { return ['remove_keyboard' => true]; }
+    /* ==================== fixed84: مهر زدن روی پیام‌ها ==================== */
+
+    /** ویرایش کپشن پیام عکس‌دار (کارت رسید) */
+    public static function editCaption($chatId, $messageId, string $caption, $keyboard = null): array
+    {
+        if (class_exists('Txt')) {
+            try { $caption = Txt::apply($caption); } catch (Throwable $e) {}
+        }
+        $p = [
+            'chat_id'    => $chatId,
+            'message_id' => $messageId,
+            'caption'    => mb_substr($caption, 0, 1000),
+            'parse_mode' => 'HTML',
+        ];
+        if ($keyboard !== null) $p['reply_markup'] = $keyboard;
+        return self::api('editMessageCaption', $p);
+    }
+
+    /** تغییر یا حذف دکمه‌های شیشه‌ای یک پیام */
+    public static function editMarkup($chatId, $messageId, $keyboard = null): array
+    {
+        return self::api('editMessageReplyMarkup', [
+            'chat_id'      => $chatId,
+            'message_id'   => $messageId,
+            'reply_markup' => $keyboard ?? ['inline_keyboard' => []],
+        ]);
+    }
+
+    /**
+     * متن/کپشن یک پیام را جایگزین و دکمه‌هایش را حذف می‌کند (بدون ارسال پیام جدید).
+     * editMessageText روی پیام عکس‌دار کار نمی‌کند؛ پس کپشن و در نهایت فقط دکمه‌ها ویرایش می‌شود.
+     */
+    public static function stamp($chatId, $messageId, string $text, $keyboard = null): bool
+    {
+        if ((int)$messageId <= 0) return false;
+        $kb = $keyboard ?? ['inline_keyboard' => []];
+        $r  = self::api('editMessageText', [
+            'chat_id'      => $chatId,
+            'message_id'   => $messageId,
+            'text'         => mb_substr($text, 0, 4000),
+            'parse_mode'   => 'HTML',
+            'disable_web_page_preview' => true,
+            'reply_markup' => $kb,
+        ]);
+        if (!empty($r['ok'])) return true;
+        $c = self::editCaption($chatId, $messageId, $text, $kb);
+        if (!empty($c['ok'])) return true;
+        $m = self::editMarkup($chatId, $messageId, $kb);
+        return !empty($m['ok']);
+    }
+
 }

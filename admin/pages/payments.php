@@ -14,6 +14,9 @@ $TYPES = [
     'referral' => ['پاداش زیرمجموعه', '🤝'],
 ];
 $METHODS = [
+    /* fixed84: درگاه‌های خودکار هم برچسب درست داشته باشند */
+    'hooshpay' => ['هوش‌پی (خودکار)', '🪙'],
+    'nowpay'   => ['نوپیمنتس (خودکار)', '🤖'],
     'card'   => ['کارت به کارت', '💳'],
     'crypto' => ['پرداخت ارزی', '🌐'],
     'wallet' => ['کیف پول', '👛'],
@@ -76,7 +79,7 @@ if ($fileTx) {
 
 /* ==================== فیلترها ==================== */
 $tab = (string)($_GET['tab'] ?? 'pending');
-if (!in_array($tab, ['pending', 'all', 'orders', 'stats'], true)) $tab = 'pending';
+if (!in_array($tab, ['pending', 'gateway', 'all', 'orders', 'stats'], true)) $tab = 'pending';
 
 $fSt   = (string)($_GET['st'] ?? '');
 $fMe   = (string)($_GET['me'] ?? '');
@@ -95,7 +98,7 @@ if ($fTo   !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fTo))   $fTo   = '';
 $hasFilter = ($fSt !== '' || $fMe !== '' || $fTy !== '' || $fFrom !== '' || $fTo !== '' || $fMin !== '' || $fQ !== '');
 
 /** ساخت شرط‌های SQL بر اساس فیلترها */
-$buildWhere = function (bool $onlyPending) use ($fSt, $fMe, $fTy, $fFrom, $fTo, $fMin, $fQ): array {
+$buildWhere = function (bool $onlyPending, string $scope = '') use ($fSt, $fMe, $fTy, $fFrom, $fTo, $fMin, $fQ): array {
     $w = [];
     $p = [];
     if ($onlyPending) {
@@ -104,6 +107,10 @@ $buildWhere = function (bool $onlyPending) use ($fSt, $fMe, $fTy, $fFrom, $fTo, 
         $w[] = 't.status = :st';
         $p[':st'] = $fSt;
     }
+    /* fixed84: صف رسیدهای دستی از فاکتورهای درگاه خودکار جدا شد */
+    $autoList = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay'";
+    if ($scope === 'manual') $w[] = 't.method NOT IN (' . $autoList . ')';
+    if ($scope === 'auto')   $w[] = 't.method IN (' . $autoList . ')';
     if ($fMe !== '') { $w[] = 't.method = :me'; $p[':me'] = $fMe; }
     if ($fTy !== '') { $w[] = 't.type = :ty';   $p[':ty'] = $fTy; }
     if ($fFrom !== '') { $w[] = 'DATE(t.created_at) >= :df'; $p[':df'] = $fFrom; }
@@ -172,6 +179,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
     }
 
     /* ---------- عملیات گروهی ---------- */
+    /* fixed84: استعلام وضعیت فاکتور از درگاه خودکار */
+    if ($act === 'poll' && $id) { need('payments.approve', 'payments');
+        $tx = DB::one('SELECT * FROM {p}transactions WHERE id = :id', [':id' => $id]);
+        if (!$tx) { flash('err', 'تراکنش پیدا نشد.'); back('payments', $ret); }
+        $mth = strtolower((string)$tx['method']);
+        $pr  = ['ok' => false, 'message' => 'استعلام برای این روش پرداخت ممکن نیست.'];
+        if ($mth === 'hooshpay' && class_exists('HooshPay'))   $pr = HooshPay::poll($tx);
+        elseif ($mth === 'nowpay' && class_exists('NowPay'))   $pr = NowPay::poll($tx);
+        flash(!empty($pr['ok']) ? 'ok' : 'err', h((string)($pr['message'] ?? '-')));
+        back('payments', $ret);
+    }
+
     if ($act === 'bulk') {
         $ids  = array_values(array_unique(array_map('intval', (array)($_POST['ids'] ?? []))));
         $ids  = array_filter($ids, fn($x) => $x > 0);
@@ -224,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
         $lvl   = 'err';
 
         if ($apply && $dec === 'approve') {
-            $w = Wallet::approve($id, (int)$ADMIN['id']);
+            $w = Wallet::approve($id, (int)$ADMIN['id'], false);
             if (!empty($w['ok'])) {
                 $lvl  = 'ok';
                 $txt .= '<br>✅ هش درست بود — تراکنش تایید و کیف پول شارژ شد.';
@@ -238,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
             }
         } elseif ($apply && $dec === 'reject') {
             $reason = trim(str_replace("\n", ' ', (string)($r['message'] ?? '')));
-            $w = Wallet::reject($id, (int)$ADMIN['id'], 'هش‌چکر: ' . $reason);
+            $w = Wallet::reject($id, (int)$ADMIN['id'], 'هش‌چکر: ' . $reason, false);
             if (!empty($w['ok'])) {
                 $lvl  = 'ok';
                 $txt .= '<br>❌ هش معتبر نبود — تراکنش رد شد.';
@@ -268,8 +287,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
 }
 
 /* ==================== آمار ==================== */
-$cntPend  = (int)DB::val("SELECT COUNT(*) FROM {p}transactions WHERE status = 'pending'", [], 0);
-$sumPend  = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'pending'", [], 0);
+/* fixed84: رسیدهای دستی و فاکتورهای درگاه جدا شمرده می‌شوند */
+$autoIn   = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay'";
+$cntPend  = (int)DB::val("SELECT COUNT(*) FROM {p}transactions WHERE status = 'pending' AND method NOT IN ($autoIn)", [], 0);
+$sumPend  = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'pending' AND method NOT IN ($autoIn)", [], 0);
+$cntAuto  = (int)DB::val("SELECT COUNT(*) FROM {p}transactions WHERE status = 'pending' AND method IN ($autoIn)", [], 0);
 $sumToday = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND DATE(decided_at) = CURDATE()", [], 0);
 $sumWeek  = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND decided_at >= (CURDATE() - INTERVAL 6 DAY)", [], 0);
 $sumMonth = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND decided_at >= (CURDATE() - INTERVAL 29 DAY)", [], 0);
@@ -286,7 +308,7 @@ $decided  = $cntAppr + $cntRej;
 $apprPct  = $decided > 0 ? (int)round($cntAppr * 100 / $decided) : 0;
 
 /* قدیمی‌ترین تراکنش در انتظار */
-$oldPend = DB::one("SELECT created_at FROM {p}transactions WHERE status = 'pending' ORDER BY id ASC LIMIT 1");
+$oldPend = DB::one("SELECT created_at FROM {p}transactions WHERE status = 'pending' AND method NOT IN ($autoIn) ORDER BY id ASC LIMIT 1");
 $waitTxt = '—';
 if ($oldPend && !empty($oldPend['created_at'])) {
     $mins = (int)max(0, (time() - strtotime((string)$oldPend['created_at'])) / 60);
@@ -510,6 +532,8 @@ if ($oldPend && !empty($oldPend['created_at'])) {
 <div class="pay-nav">
   <a class="pay-nv <?= $tab === 'pending' ? 'on' : '' ?>" href="index.php?p=payments&amp;tab=pending">
     <span class="i">⏳</span> در انتظار <span class="n"><?= fa_num($cntPend) ?></span></a>
+  <a class="pay-nv <?= $tab === 'gateway' ? 'on' : '' ?>" href="index.php?p=payments&amp;tab=gateway">
+    <span class="i">🪙</span> درگاه خودکار <span class="n"><?= fa_num($cntAuto) ?></span></a>
   <a class="pay-nv <?= $tab === 'all' ? 'on' : '' ?>" href="index.php?p=payments&amp;tab=all">
     <span class="i">🧾</span> تراکنش‌ها</a>
   <a class="pay-nv <?= $tab === 'orders' ? 'on' : '' ?>" href="index.php?p=payments&amp;tab=orders">
@@ -565,7 +589,7 @@ if ($oldPend && !empty($oldPend['created_at'])) {
 <?php
 /* ==================== تب: در انتظار ==================== */
 if ($tab === 'pending'):
-    [$where, $params] = $buildWhere(true);
+    [$where, $params] = $buildWhere(true, 'manual');
     $rows = DB::all("SELECT t.*, u.first_name, u.username, u.tg_id AS utg, u.balance
                      FROM {p}transactions t LEFT JOIN {p}users u ON u.id = t.user_id
                      $where ORDER BY t.id ASC LIMIT 200", $params);
@@ -672,6 +696,61 @@ if ($tab === 'pending'):
       <input type="hidden" name="reason" id="po_reason" value="">
     </form>
   <?php endif; ?>
+
+<?php
+/* fixed84 ==================== tab: gateway invoices ==================== */
+elseif ($tab === 'gateway'):
+    [$where, $params] = $buildWhere(true, 'auto');
+    $rows = DB::all("SELECT t.*, u.first_name, u.username, u.tg_id AS utg
+                     FROM {p}transactions t LEFT JOIN {p}users u ON u.id = t.user_id
+                     $where ORDER BY t.id DESC LIMIT 200", $params);
+    $gwHours = max(1, (int)DB::setting('gw_stale_hours', '6'));
+?>
+  <div class="card mt3">
+    <div class="card-head">
+      <div><div class="card-title">🪙 فاکتورهای درگاه خودکار</div>
+        <div class="card-sub">این‌ها رسید دستی نیستند و تایید مدیر لازم ندارند؛ با پرداخت کاربر، کیف پول خودکار شارژ می‌شود.</div></div>
+    </div>
+    <div class="hint">فاکتورهای پرداخت‌نشده پس از <?= fa_num($gwHours) ?> ساعت خودکار لغو می‌شوند. با «استعلام» وضعیت همین لحظه از درگاه گرفته می‌شود.</div>
+    <?php if (!$rows): ?>
+      <div class="empty"><div class="ic">🎉</div>فاکتور بازمانده‌ای از درگاه‌ها نیست.</div>
+    <?php else: ?>
+      <div class="table-wrap"><table class="responsive">
+        <thead><tr><th>#</th><th>کاربر</th><th>درگاه</th><th>مبلغ</th><th>شناسه فاکتور</th><th>ثبت</th><th>توضیح</th><th></th></tr></thead>
+        <tbody>
+        <?php foreach ($rows as $t): ?>
+          <tr>
+            <td class="mono"><?= fa_num((int)$t['id']) ?></td>
+            <td>
+              <a href="index.php?p=users&amp;u=<?= (int)$t['user_id'] ?>"><b><?= h((string)($t['first_name'] ?: 'کاربر')) ?></b></a>
+              <div class="muted mono" style="font-size:11.5px"><?= fa_num((string)$t['utg']) ?></div>
+            </td>
+            <td style="font-size:12px"><?= h($methodLabel((string)$t['method'])) ?></td>
+            <td><b><?= money((float)$t['amount']) ?></b></td>
+            <td class="mono" style="font-size:11px;max-width:150px;word-break:break-all"><?= h(mb_substr((string)($t['txid'] ?? ''), 0, 28)) ?></td>
+            <td class="muted" style="font-size:11.5px"><?= h(to_jalali((string)$t['created_at'], true)) ?></td>
+            <td class="muted" style="font-size:11.5px"><?= h(mb_substr((string)($t['note'] ?? '—'), 0, 40)) ?></td>
+            <td class="acts">
+              <?php if (can('payments.approve')): ?>
+                <button class="btn btn-sm btn-primary" type="button" data-pay-one="poll" data-id="<?= (int)$t['id'] ?>">🔁 استعلام</button>
+              <?php endif; ?>
+              <?php if (can('payments.reject')): ?>
+                <button class="btn btn-sm btn-red" type="button" data-pay-one="reject" data-id="<?= (int)$t['id'] ?>">❌ لغو فاکتور</button>
+              <?php endif; ?>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody></table></div>
+
+      <form method="post" id="payOneForm" class="hidden-form" style="display:none">
+        <?= csrf_field() ?>
+        <input type="hidden" name="act" id="po_act" value="">
+        <input type="hidden" name="id"  id="po_id"  value="">
+        <input type="hidden" name="apply" id="po_apply" value="">
+        <input type="hidden" name="reason" id="po_reason" value="">
+      </form>
+    <?php endif; ?>
+  </div>
 
 <?php
 /* ==================== تب: همهٔ تراکنش‌ها ==================== */

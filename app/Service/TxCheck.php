@@ -98,11 +98,11 @@ class TxCheck
         ]);
 
         if ($dec === 'approve') {
-            $r = Wallet::approve($txId, null);
+            $r = Wallet::approve($txId, null, false);
             if (empty($r['ok'])) $dec = 'manual';
         } elseif ($dec === 'reject') {
             $reason = trim(str_replace("\n", ' ', (string)($chk['message'] ?? '')));
-            $r = Wallet::reject($txId, null, 'هش‌چکر: ' . $reason);
+            $r = Wallet::reject($txId, null, 'هش‌چکر: ' . $reason, false);
             if (empty($r['ok'])) $dec = 'manual';
         }
 

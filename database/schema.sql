@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS {p}transactions (
   `txid` VARCHAR(190) NULL,
   `receipt_file` VARCHAR(255) NULL,
   `note` VARCHAR(255) NULL,
+  `admin_msg` TEXT NULL,
   `admin_id` BIGINT NULL,
   `created_at` DATETIME NOT NULL,
   `decided_at` DATETIME NULL,
@@ -455,7 +456,8 @@ INSERT IGNORE INTO {p}settings (`k`,`v`) VALUES
  ('rs_l2_credit','500000'),
  ('rs_panels',''),
  ('rs_note',''),
- ('rs_requests_open','1');
+ ('rs_requests_open','1'),
+ ('gw_stale_hours','6');
 
 -- ============================================================
 -- احراز کارت بانکی (کارت به کارت)

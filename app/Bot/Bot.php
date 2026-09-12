@@ -1637,7 +1637,7 @@ class Bot
 
                 /* هش درست بود: تایید و شارژ */
                 if ($dec === 'approve') {
-                    $ap = Wallet::approve($txId2, null);
+                    $ap = Wallet::approve($txId2, null, false);
                     if (!empty($ap['ok'])) {
                         Tg::send($chatId, "\xe2\x9c\x85 <b>تراکنش شما به‌صورت خودکار تایید شد</b>\n"
                             . "\xf0\x9f\x94\x97 هش روی شبکه بررسی و تایید شد.\n"
@@ -1660,7 +1660,7 @@ class Bot
                 /* هش اشتباه بود: رد خودکار */
                 if ($dec === 'reject') {
                     $reason = trim(str_replace("\n", ' ', (string)($chk['message'] ?? '')));
-                    $rj = Wallet::reject($txId2, null, "هش‌چکر: " . $reason);
+                    $rj = Wallet::reject($txId2, null, "هش‌چکر: " . $reason, false);
                     if (!empty($rj['ok'])) {
                         Tg::send($chatId, "\xe2\x9d\x8c <b>تراکنش شما رد شد</b>\n"
                             . "\xf0\x9f\x94\x8e نتیجهٔ بررسی هش: " . $reason . "\n"

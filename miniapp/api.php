@@ -1365,7 +1365,7 @@ switch ($action) {
 
             if (empty($invHp['ok'])) {
                 try {
-                    Wallet::reject($txHp, null, 'HooshPay: ' . (string)($invHp['message'] ?? ''));
+                    Wallet::reject($txHp, null, 'HooshPay: ' . (string)($invHp['message'] ?? ''), false);
                 } catch (Throwable $e) {
                 }
                 ma_fail((string)($invHp['message'] ?? 'ساخت فاکتور هوش‌پی ناموفق بود.'));
@@ -1476,11 +1476,11 @@ switch ($action) {
         $bad  = false;
 
         if ($dec === 'approve') {
-            $ap = Wallet::approve($txNew, null);
+            $ap = Wallet::approve($txNew, null, false);
             $auto = !empty($ap['ok']);
         } elseif ($dec === 'reject') {
             $reason = trim(str_replace("\n", ' ', (string)($chk['message'] ?? '')));
-            $rj = Wallet::reject($txNew, null, "هش‌چکر: " . $reason);
+            $rj = Wallet::reject($txNew, null, "هش‌چکر: " . $reason, false);
             $bad = !empty($rj['ok']);
         }
 

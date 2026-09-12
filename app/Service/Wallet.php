@@ -6,6 +6,21 @@ declare(strict_types=1);
  */
 class Wallet
 {
+    /* fixed84: روش‌های پرداخت خودکار (درگاه) — رسید دستی ندارند و نباید در صف تایید مدیر بیایند */
+    public const AUTO_METHODS = ['hooshpay', 'nowpay'];
+
+    /** آیا این روش پرداخت، درگاه خودکار است؟ */
+    public static function isAuto(?string $method): bool
+    {
+        return in_array(strtolower(trim((string)$method)), self::AUTO_METHODS, true);
+    }
+
+    /** لیست روش‌های خودکار برای شرط‌های SQL */
+    public static function autoSqlList(): string
+    {
+        return "'" . implode("','", self::AUTO_METHODS) . "'";
+    }
+
     public static function balance(int $userId): int
     {
         return (int)DB::val('SELECT balance FROM {p}users WHERE id = :id', [':id' => $userId], 0);
@@ -90,11 +105,13 @@ class Wallet
     {
         return DB::all('SELECT t.*, u.tg_id, u.first_name, u.username FROM {p}transactions t
             JOIN {p}users u ON u.id = t.user_id
-            WHERE t.status = :s AND t.type = :t ORDER BY t.id DESC LIMIT ' . (int)$limit,
+            WHERE t.status = :s AND t.type = :t
+              AND t.method NOT IN (' . self::autoSqlList() . ')
+            ORDER BY t.id DESC LIMIT ' . (int)$limit,
             [':s' => 'pending', ':t' => 'deposit']);
     }
 
-    public static function approve(int $txId, $adminId = null): array
+    public static function approve(int $txId, $adminId = null, bool $notify = true): array
     {
         /* آیدی عددی تلگرامِ مدیر ممکن است از ظرفیت ستون INT در دیتابیس‌های قدیمی بزرگ‌تر باشد؛
            در آن حالت UPDATE با خطای Out of range برمی‌گشت و تراکنش «در انتظار» می‌ماند. */
@@ -112,9 +129,18 @@ class Wallet
         try {
             // تغییر وضعیت به‌صورت اتمیک: اگر مدیر دیگری هم‌زمان همین تراکنش را تایید کند،
             // rowCount صفر می‌شود و کیف پول دوبار شارژ نمی‌گردد.
-            $n = DB::q("UPDATE {p}transactions SET `status` = 'approved', `admin_id` = :ad, `decided_at` = :dt
-                        WHERE `id` = :id AND `status` = 'pending'",
-                [':ad' => $adminId, ':dt' => now(), ':id' => $txId])->rowCount();
+            try {
+                $n = DB::q("UPDATE {p}transactions SET `status` = 'approved', `admin_id` = :ad, `decided_at` = :dt
+                            WHERE `id` = :id AND `status` = 'pending'",
+                    [':ad' => $adminId, ':dt' => now(), ':id' => $txId])->rowCount();
+            } catch (Throwable $eAd) {
+                /* fixed84: اگر ستون admin_id قدیمی (INT) باشد، تایید نباید شکست بخورد
+                   و رسید در پنل وب «در انتظار» بماند */
+                app_log('wallet', 'approve admin_id fallback: ' . $eAd->getMessage());
+                $n = DB::q("UPDATE {p}transactions SET `status` = 'approved', `admin_id` = NULL, `decided_at` = :dt
+                            WHERE `id` = :id AND `status` = 'pending'",
+                    [':dt' => now(), ':id' => $txId])->rowCount();
+            }
             if ($n !== 1) {
                 if ($own && $pdo->inTransaction()) $pdo->rollBack();
                 return ['ok' => false, 'message' => 'این تراکنش هم‌اکنون توسط مدیر دیگری بررسی شد.'];
@@ -166,10 +192,13 @@ class Wallet
         }
 
         self::logDecision($tx, 'approved', $adminId);
-        return ['ok' => true, 'message' => 'تراکنش تایید و کیف پول شارژ شد.', 'tx' => $tx];
+        /* fixed84: مهر «تایید شده» روی کارت رسید + حذف دکمه‌ها + خبر دادن به کاربر */
+        $stamped = self::stampAdminCards($tx, 'approved', $adminId);
+        if ($notify) self::notifyDecision($tx, 'approved');
+        return ['ok' => true, 'message' => 'تراکنش تایید و کیف پول شارژ شد.', 'tx' => $tx, 'stamped' => $stamped];
     }
 
-    public static function reject(int $txId, $adminId = null, string $reason = ''): array
+    public static function reject(int $txId, $adminId = null, string $reason = '', bool $notify = true): array
     {
         if (is_numeric($adminId) && (float)$adminId > 2147483647) $adminId = 0;
 
@@ -181,7 +210,10 @@ class Wallet
             'note' => mb_substr(trim(((string)$tx['note']) . ' | رد: ' . $reason), 0, 250),
         ], 'id = :id', [':id' => $txId]);
         self::logDecision($tx, 'rejected', $adminId, $reason);
-        return ['ok' => true, 'message' => 'تراکنش رد شد.', 'tx' => $tx];
+        /* fixed84: مهر «رد شده» روی کارت رسید + حذف دکمه‌ها + خبر دادن به کاربر */
+        $stamped = self::stampAdminCards($tx, 'rejected', $adminId, $reason);
+        if ($notify) self::notifyDecision($tx, 'rejected', $reason);
+        return ['ok' => true, 'message' => 'تراکنش رد شد.', 'tx' => $tx, 'stamped' => $stamped];
     }
 
     /* ==================== گزارش تصمیم تراکنش در گروه لاگ ==================== */
@@ -309,6 +341,7 @@ class Wallet
             ]));
         }
 
+        self::stampAdminCards($tx, 'reverted', $adminId);
         return ['ok' => true, 'message' => 'تایید لغو شد و مبلغ از کیف پول کسر گردید.', 'tx' => $tx, 'balance' => $bal];
     }
 
@@ -332,4 +365,103 @@ class Wallet
     {
         return (int)round($usd * self::rate());
     }
+    /* ==================== fixed84: کارت رسید مدیر ==================== */
+
+    /** شناسهٔ پیام کارت رسیدی که برای مدیر ارسال شده را نگه می‌دارد */
+    public static function rememberAdminCard(int $txId, $chatId, $msgId): void
+    {
+        $msgId = (int)$msgId;
+        if ($txId <= 0 || $msgId <= 0) return;
+        try {
+            $row  = DB::one('SELECT `admin_msg` FROM {p}transactions WHERE id = :i', [':i' => $txId]);
+            $list = jdec((string)($row['admin_msg'] ?? ''), []);
+            if (!is_array($list)) $list = [];
+            foreach ($list as $m) {
+                if ((string)($m['c'] ?? '') === (string)$chatId && (int)($m['m'] ?? 0) === $msgId) return;
+            }
+            $list[] = ['c' => (string)$chatId, 'm' => $msgId];
+            if (count($list) > 20) $list = array_slice($list, -20);
+            DB::update('transactions', ['admin_msg' => jenc($list)], 'id = :i', [':i' => $txId]);
+        } catch (Throwable $e) {
+            /* ستون admin_msg در دیتابیس‌های به‌روزنشده وجود ندارد — بی‌اهمیت */
+        }
+    }
+
+    /**
+     * روی همهٔ کارت‌های ارسال‌شده به مدیران مهر «تایید شده / رد شده» می‌زند و
+     * دکمه‌های ✅/❌ را حذف می‌کند — چه تصمیم از ربات گرفته شده باشد، چه از پنل وب یا درگاه.
+     * @return int تعداد پیام‌هایی که مهر خوردند
+     */
+    public static function stampAdminCards(array $tx, string $action, $adminId = null, string $reason = ''): int
+    {
+        $txId = (int)($tx['id'] ?? 0);
+        if ($txId <= 0) return 0;
+
+        try {
+            $row  = DB::one('SELECT `admin_msg` FROM {p}transactions WHERE id = :i', [':i' => $txId]);
+            $list = jdec((string)($row['admin_msg'] ?? ''), []);
+        } catch (Throwable $e) {
+            return 0;
+        }
+        if (!is_array($list) || !$list) return 0;
+
+        if ($action === 'approved')     $head = '✅ <b>تایید شده</b>';
+        elseif ($action === 'reverted') $head = '↩️ <b>تایید لغو شد</b>';
+        else                            $head = '❌ <b>رد شده</b>';
+
+        $by = ((int)$adminId > 0) ? ('مدیر <code>' . (int)$adminId . '</code>') : '🤖 سیستم خودکار';
+
+        $lines = [
+            $head,
+            '🧾 درخواست شارژ: <code>#' . $txId . '</code>',
+            '👤 کاربر: <code>' . (int)($tx['tg_id'] ?? 0) . '</code>',
+            '💰 مبلغ: <b>' . money((int)($tx['amount'] ?? 0)) . ' ' . currency() . '</b>',
+            '🛠 توسط: ' . $by,
+            '🕒 ' . to_jalali(now(), true),
+        ];
+        if ($action === 'approved') $lines[] = '💳 کیف پول کاربر شارژ شد.';
+        if ($action === 'rejected') $lines[] = '🚫 مبلغی به کیف پول اضافه نشد.';
+        if ($action === 'reverted') $lines[] = '💸 مبلغ از کیف پول کاربر کسر شد.';
+        if (trim($reason) !== '')   $lines[] = '📝 دلیل: ' . h(mb_substr(trim($reason), 0, 150));
+
+        $txt = implode("\n", $lines);
+        $kb  = ['inline_keyboard' => ($action === 'approved'
+            ? [[Tg::btn('↩️ لغو تایید و برگشت مبلغ', 'adm:undo:' . $txId)]]
+            : [])];
+
+        $n = 0;
+        foreach ($list as $m) {
+            $c = (string)($m['c'] ?? '');
+            $i = (int)($m['m'] ?? 0);
+            if ($c === '' || $i <= 0) continue;
+            try {
+                if (Tg::stamp($c, $i, $txt, $kb)) $n++;
+            } catch (Throwable $e) {
+                /* پیام قدیمی یا حذف‌شده */
+            }
+        }
+        return $n;
+    }
+
+    /** اعلام نتیجهٔ بررسی رسید به کاربر — از هر مسیری که تصمیم گرفته شده باشد */
+    public static function notifyDecision(array $tx, string $action, string $reason = ''): void
+    {
+        $chat = (int)($tx['tg_id'] ?? 0);
+        if ($chat <= 0) return;
+        try {
+            if ($action === 'approved') {
+                Tg::send($chat, "✅ <b>پرداخت شما تایید شد</b>\n"
+                    . '💰 مبلغ ' . money((int)($tx['amount'] ?? 0)) . ' ' . currency() . " به کیف پول شما افزوده شد.\n"
+                    . '🧾 شماره پیگیری: <code>#' . (int)($tx['id'] ?? 0) . '</code>');
+                return;
+            }
+            Tg::send($chat, "❌ <b>پرداخت شما تایید نشد</b>\n"
+                . (trim($reason) !== '' ? '🔎 علت: ' . h(mb_substr(trim($reason), 0, 150)) . "\n" : '')
+                . '🧾 شماره پیگیری: <code>#' . (int)($tx['id'] ?? 0) . "</code>\n"
+                . 'در صورت نیاز با پشتیبانی در تماس باشید.');
+        } catch (Throwable $e) {
+            /* ارسال پیام نباید مانع ثبت تصمیم شود */
+        }
+    }
+
 }

@@ -221,13 +221,12 @@ class AdminBot
             }
 
             case 'ok': {
+                /* fixed84: پیام کاربر و مهر خوردن کارت رسید در Wallet انجام می‌شود */
                 $r = Wallet::approve((int)$arg2, (int)Bot::$u['tg_id']);
                 if (class_exists('Audit')) Audit::log('wallet.approve', ['tx' => (int)$arg2, 'ok' => !empty($r['ok']), 'amount' => (int)($r['tx']['amount'] ?? 0)]);
                 Tg::answerCb($cbId, $r['message'], true);
-                if ($r['ok']) {
-                    $tx = $r['tx'];
-                    Tg::send((int)$tx['tg_id'], "✅ پرداخت شما تایید شد.\n💰 مبلغ " . money((int)$tx['amount']) . ' ' . currency() . ' به کیف پول شما افزوده شد.');
-                    if ($msgId) Tg::edit($chatId, $msgId, '✅ تراکنش #' . (int)$arg2 . ' تایید و کیف پول شارژ شد.');
+                if (!empty($r['ok']) && empty($r['stamped']) && $msgId) {
+                    Tg::stamp($chatId, $msgId, '✅ <b>تایید شده</b>' . "\n" . '🧾 تراکنش <code>#' . (int)$arg2 . '</code> تایید و کیف پول شارژ شد.');
                 }
                 return;
             }
@@ -236,10 +235,8 @@ class AdminBot
                 if (class_exists('Audit')) Audit::log('wallet.reject', ['tx' => (int)$arg2]);
                 $r = Wallet::reject((int)$arg2, (int)Bot::$u['tg_id'], 'رد توسط مدیر');
                 Tg::answerCb($cbId, $r['message'], true);
-                if ($r['ok']) {
-                    $tx = $r['tx'];
-                    Tg::send((int)$tx['tg_id'], "❌ پرداخت شما تایید نشد.\nدر صورت نیاز با پشتیبانی تماس بگیرید.");
-                    if ($msgId) Tg::edit($chatId, $msgId, '❌ تراکنش #' . (int)$arg2 . ' رد شد.');
+                if (!empty($r['ok']) && empty($r['stamped']) && $msgId) {
+                    Tg::stamp($chatId, $msgId, '❌ <b>رد شده</b>' . "\n" . '🧾 تراکنش <code>#' . (int)$arg2 . '</code> رد شد و به کاربر اطلاع داده شد.');
                 }
                 return;
             }
@@ -488,7 +485,9 @@ class AdminBot
 
     private static function sendPaymentCard($chatId, array $tx, string $note = ''): void
     {
-        $method = $tx['method'] === 'crypto' ? '🌐 ارزی' : '💳 کارت به کارت';
+        $mLbl   = ['card' => '💳 کارت به کارت', 'crypto' => '🌐 ارزی', 'wallet' => '👛 کیف پول',
+                   'hooshpay' => '🪙 هوش‌پی (خودکار)', 'nowpay' => '🤖 نوپیمنتس (خودکار)'];
+        $method = $mLbl[(string)$tx['method']] ?? (string)$tx['method'];
 
         /* کارت احرازشده‌ای که کاربر اعلام کرده با آن واریز می‌کند */
         $cardLine = '';
@@ -520,11 +519,14 @@ class AdminBot
             ],
         ]);
         if (!empty($tx['receipt_file'])) {
-            Tg::api('sendPhoto', ['chat_id' => $chatId, 'photo' => (string)$tx['receipt_file'],
+            $res = Tg::api('sendPhoto', ['chat_id' => $chatId, 'photo' => (string)$tx['receipt_file'],
                 'caption' => $txt, 'parse_mode' => 'HTML', 'reply_markup' => jenc($kb)]);
         } else {
-            Tg::send($chatId, $txt, $kb);
+            $res = Tg::send($chatId, $txt, $kb);
         }
+        /* fixed84: شناسهٔ این پیام را نگه می‌داریم تا هنگام تایید/رد (از ربات یا پنل وب)
+           همین کارت مهر بخورد و دکمه‌های تایید/رد حذف شوند */
+        Wallet::rememberAdminCard((int)($tx['id'] ?? 0), $chatId, (int)($res['result']['message_id'] ?? 0));
     }
 
     /** اطلاع‌رسانی درخواست نمایندگی به مدیران */
@@ -565,6 +567,8 @@ class AdminBot
     {
         $tx = DB::one('SELECT t.*, u.username FROM {p}transactions t JOIN {p}users u ON u.id = t.user_id WHERE t.id = :id', [':id' => $txId]);
         if (!$tx) return;
+        /* fixed84: فاکتور درگاه خودکار رسید دستی نیست و به صف تایید مدیر نمی‌رود */
+        if (class_exists('Wallet') && Wallet::isAuto((string)($tx['method'] ?? ''))) return;
         if ($fileId !== null && $fileId !== '' && empty($tx['receipt_file'])) $tx['receipt_file'] = $fileId;
         foreach (self::adminIds() as $id) self::sendPaymentCard($id, $tx, $note);
     }

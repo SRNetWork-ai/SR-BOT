@@ -204,7 +204,7 @@ class NowPay
         }
 
         if (in_array($status, self::PAID, true)) {
-            $res = Wallet::approve((int)$tx['id'], null);
+            $res = Wallet::approve((int)$tx['id'], null, false);
             DB::update('transactions', [
                 'txid' => mb_substr((string)($d['payment_id'] ?? $tx['txid']), 0, 180),
                 'note' => mb_substr($note, 0, 250),
@@ -230,7 +230,7 @@ class NowPay
         }
 
         if (in_array($status, self::DEAD, true)) {
-            Wallet::reject((int)$tx['id'], null, 'NowPayments: ' . self::statusFa($status));
+            Wallet::reject((int)$tx['id'], null, 'NowPayments: ' . self::statusFa($status), false);
             if ($user) {
                 Tg::send((int)$user['tg_id'], "❌ پرداخت ارزی انجام نشد\nوضعیت: " . self::statusFa($status)
                     . "\nدر صورت واریز مبلغ، با پشتیبانی تماس بگیرید.");

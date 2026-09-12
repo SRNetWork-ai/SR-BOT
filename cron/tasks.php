@@ -29,7 +29,7 @@ if (!is_dir(APP_ROOT . '/storage')) @mkdir(APP_ROOT . '/storage', 0755, true);
 $isCli   = PHP_SAPI === 'cli';
 $started = microtime(true);
 $report  = ['synced' => 0, 'expired' => 0, 'warned_expire' => 0, 'warned_traffic' => 0, 'disabled' => 0,
-            'sync_fail' => 0, 'nowpay' => 0, 'recovered' => 0,
+            'sync_fail' => 0, 'nowpay' => 0, 'recovered' => 0, 'hooshpay' => 0, 'gw_expired' => 0,
             'warned_stage2' => 0, 'auto_renewed' => 0, 'auto_nofunds' => 0, 'auto_failed' => 0];
 
 function cron_say(string $msg): void
@@ -96,6 +96,43 @@ if (NowPay::enabled()) {
         }
         usleep(250000);
     }
+}
+
+/* fixed84: استعلام خودکار فاکتورهای هوش‌پی تا صف رسیدهای پنل وب پر نشود */
+if (class_exists('HooshPay') && HooshPay::enabled()) {
+    $hpWait = DB::all("SELECT * FROM {p}transactions
+                       WHERE method = 'hooshpay' AND status = 'pending'
+                         AND created_at > DATE_SUB(NOW(), INTERVAL 2 DAY)
+                       ORDER BY id ASC LIMIT 25");
+    foreach ($hpWait as $tx) {
+        try {
+            $pr = HooshPay::poll($tx);
+            if (!empty($pr['ok'])) {
+                $report['hooshpay']++;
+                cron_say('hooshpay tx #' . (int)$tx['id'] . ' => ' . (string)($pr['message'] ?? 'done'));
+            }
+        } catch (Throwable $e) {
+            cron_say('hooshpay poll failed: ' . $e->getMessage());
+        }
+        usleep(250000);
+    }
+}
+
+/* fixed84: فاکتورهای درگاه که کاربر هرگز پرداخت نکرده، پس از چند ساعت لغو می‌شوند */
+try {
+    $gwHours = max(1, (int)DB::setting('gw_stale_hours', '6'));
+    $gwAuto  = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay'";
+    $gwStale = DB::all("SELECT id FROM {p}transactions
+                        WHERE status = 'pending' AND type = 'deposit' AND method IN ($gwAuto)
+                          AND created_at < DATE_SUB(NOW(), INTERVAL $gwHours HOUR)
+                        ORDER BY id ASC LIMIT 200");
+    foreach ($gwStale as $g) {
+        $rj = Wallet::reject((int)$g['id'], null, 'فاکتور درگاه بدون پرداخت منقضی شد', false);
+        if (!empty($rj['ok'])) $report['gw_expired']++;
+    }
+    if ($report['gw_expired'] > 0) cron_say('gateway invoices canceled: ' . (int)$report['gw_expired']);
+} catch (Throwable $e) {
+    cron_say('gateway cleanup failed: ' . $e->getMessage());
 }
 
 /* ---------------------------------------------------------------

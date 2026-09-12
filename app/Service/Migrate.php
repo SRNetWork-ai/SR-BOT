@@ -94,6 +94,8 @@ class Migrate
         'transactions' => [
             /* کارت احرازشده‌ای که واریز با آن انجام شده است */
             'card_id' => 'INT UNSIGNED NULL',
+            /* fixed84: شناسهٔ پیام کارت رسید در ربات مدیر (برای مهر تایید/رد) */
+            'admin_msg' => 'TEXT NULL',
         ],
     ];
 
