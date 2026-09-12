@@ -2001,7 +2001,7 @@ class Reseller
                     $client['totalGB']    = $newGb > 0 ? gb2bytes($newGb) : 0;
                     $client['expiryTime'] = $newExpire > 0 ? $newExpire * 1000 : 0;
                     $client['enable']     = true;
-                    $key = (string)($client['id'] ?? ($client['password'] ?? $r['client_uuid']));
+                    $key = Xui::clientKey($client, (string)($r['client_uuid']));
                     $res = $xui->updateClient((int)$ib, $key, $client);
                     if (($res['success'] ?? false) === true) $done++;
                     else $err = (string)($res['msg'] ?? 'خطای پنل');

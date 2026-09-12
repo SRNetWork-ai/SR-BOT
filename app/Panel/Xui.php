@@ -342,6 +342,47 @@ class Xui
         }
         return $out;
     }
+    /* ---------- هم‌سان‌سازی کلاینت پیش از ارسال به پنل ---------- */
+
+    /** این مقدار شناسهٔ واقعی کلاینت (UUID/پسورد) است یا شمارهٔ ردیف پنل؟ */
+    public static function isClientKey($v): bool
+    {
+        if (is_array($v) || is_bool($v) || $v === null) return false;
+        $v = trim((string)$v);
+        if ($v === '') return false;
+        return !ctype_digit($v);
+    }
+
+    /** کلید کلاینت برای مسیر API پنل — اول uuid، بعد id، بعد password */
+    public static function clientKey(array $client, string $fallback = ''): string
+    {
+        foreach (['uuid', 'id', 'password'] as $k) {
+            if (self::isClientKey($client[$k] ?? null)) return trim((string)$client[$k]);
+        }
+        return trim($fallback);
+    }
+
+    /**
+     * هم‌سان‌سازی نوع فیلدهای کلاینت.
+     * پنل‌های Go برای id رشته می‌خواهند؛ اگر شمارهٔ ردیف پنل
+     * به‌جای UUID ارسال شود خطای
+     * «json: cannot unmarshal number into Go struct field .id of type string» می‌دهند.
+     * حجم/انقضا هم باید عدد صحیح باشند، نه اعشاری یا رشته.
+     */
+    public static function normClient(array $c, string $key = ''): array
+    {
+        if (isset($c['id']) && !self::isClientKey($c['id'])) unset($c['id']);
+        if (!isset($c['id']) && !isset($c['password']) && self::isClientKey($key)) $c['id'] = trim($key);
+        foreach (['id', 'email', 'password', 'method', 'flow', 'security', 'subId', 'comment'] as $k) {
+            if (isset($c[$k]) && !is_array($c[$k]) && !is_bool($c[$k])) $c[$k] = (string)$c[$k];
+        }
+        foreach (['totalGB', 'expiryTime', 'limitIp', 'reset', 'deviceLimit'] as $k) {
+            if (isset($c[$k]) && !is_array($c[$k])) $c[$k] = (int)$c[$k];
+        }
+        if (isset($c['enable'])) $c['enable'] = (bool)$c['enable'];
+        return $c;
+    }
+
     /**
      * افزودن کلاینت جدید
      * @param float $volumeGb ۰ = نامحدود
@@ -376,6 +417,7 @@ class Xui
         if ($deviceLimit > 0) $client['deviceLimit'] = $deviceLimit;
         /* محدودیت سرعت بر حسب کیلوبایت بر ثانیه؛ کلیدهای ناشناخته توسط پنل نادیده گرفته می‌شوند */
         foreach (self::speedKeys($upKbps, $downKbps) as $sk => $sv) $client[$sk] = $sv;
+        $client = self::normClient($client, $uuid);
         $body = ['id' => $inboundId, 'settings' => jenc(['clients' => [$client]])];
 
         if ($this->isVpnUi()) {
@@ -398,12 +440,13 @@ class Xui
         if ($this->mz) return $this->mz->updateClient($inboundId, $uuid, $client, $inboundIds);
         if ($this->pg) return $this->pg->updateClient($inboundId, $uuid, $client, $inboundIds);
         if ($this->x3) return $this->x3->updateClient($inboundId, $uuid, $client, $inboundIds);
+        $client = self::normClient($client, $uuid);
         $body = ['id' => $inboundId, 'settings' => jenc(['clients' => [$client]])];
         $ids  = self::idList($inboundIds);
         if ($this->isVpnUi() && $ids) {
-            return $this->call('update', ['uuid' => $uuid], self::formBody($body, $ids), 'POST');
+            return $this->call('update', ['uuid' => self::clientKey($client, $uuid)], self::formBody($body, $ids), 'POST');
         }
-        return $this->call('update', ['uuid' => $uuid], $body, 'POST');
+        return $this->call('update', ['uuid' => self::clientKey($client, $uuid)], $body, 'POST');
     }
 
     public function deleteClient(int $inboundId, string $uuid): array
@@ -613,7 +656,7 @@ class Xui
                 if (!$inb) continue;
                 $key = $uuid;
                 $cl  = $this->findClient($ib, $email);
-                if ($cl) $key = (string)($cl['id'] ?? ($cl['password'] ?? $uuid));
+                if ($cl) $key = self::clientKey($cl, $uuid);
                 $l = trim((string)$this->buildConfigLink($inb, (string)$key, $email));
                 if ($l !== '' && preg_match(self::LINK_RE, $l)) $out[] = $l;
             } catch (Throwable $e) {

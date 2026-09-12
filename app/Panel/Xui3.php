@@ -228,7 +228,7 @@ class Xui3
         $r = $this->api('/clients/get/' . rawurlencode($email));
         if (($r['success'] ?? false) !== true || empty($r['obj'])) return null;
         $row = self::rowOf($r['obj']);
-        $key = (string)($row['id'] ?? ($row['password'] ?? ''));
+        $key = Xui::clientKey($row, '');
         if ($key !== '') $this->userMap[$key] = (string)($row['email'] ?? $email);
         return $row;
     }
@@ -245,6 +245,8 @@ class Xui3
             'downloadLimit', 'downLimit', 'limitDown', 'speedLimitDown', 'downSpeed', 'maxDownload', 'downMbps',
         ];
         foreach ($drop as $k) unset($c[$k]);
+        /* شمارهٔ ردیف پنل هرگز به‌جای UUID ارسال نشود */
+        if (isset($c['id']) && !Xui::isClientKey($c['id'])) unset($c['id']);
         return $c;
     }
 
@@ -336,8 +338,11 @@ class Xui3
         if ($email === '') return ['success' => false, 'msg' => 'ایمیل اکانت برای ویرایش مشخص نیست'];
 
         $cur    = $this->clientRow($email) ?? [];
-        $merged = self::cleanClient(array_merge($cur, $client));
+        $full   = array_merge($cur, $client);
+        $merged = self::cleanClient($full);
         $merged['email'] = $email;
+        /* شمارهٔ ردیف پنل حذف و UUID واقعی جای آن می‌نشیند */
+        $merged = Xui::normClient($merged, Xui::clientKey($full, $uuid));
 
         $r = $this->api('/clients/update/' . rawurlencode($email), $merged, 'POST');
         if (($r['success'] ?? false) !== true) {

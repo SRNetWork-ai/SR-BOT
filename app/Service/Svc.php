@@ -637,7 +637,7 @@ class Svc
         $client['totalGB']    = $newVolume > 0 ? gb2bytes($newVolume) : 0;
         $client['expiryTime'] = $newExpire > 0 ? $newExpire * 1000 : 0;
         $client['enable']     = true;
-        $uuidKey = (string)($client['id'] ?? ($client['password'] ?? $service['client_uuid']));
+        $uuidKey = Xui::clientKey($client, (string)($service['client_uuid']));
 
         /* محدودیت سرعت محصول در تمدید هم دوباره اعمال می شود */
         $rUp   = max(0, (int)($product['speed_up'] ?? 0));
@@ -1331,7 +1331,7 @@ class Svc
         $client['enable']     = true;
         $client['totalGB']    = $vol > 0 ? gb2bytes($vol) : 0;
         $client['expiryTime'] = $expTs > 0 ? $expTs * 1000 : 0;
-        $key = (string)($client['id'] ?? ($client['password'] ?? ($service['client_uuid'] ?? '')));
+        $key = Xui::clientKey($client, (string)(($service['client_uuid'] ?? '')));
 
         $upd = $xui->updateClient((int)($service['inbound_id'] ?? 0), $key, $client);
         if (($upd['success'] ?? false) !== true) {
@@ -1496,7 +1496,7 @@ class Svc
                 try {
                     $client = $xui->findClient((int)$ib, (string)$service['client_email']);
                     if (!$client) continue;
-                    $key = $client['id'] ?? ($client['password'] ?? $service['client_uuid']);
+                    $key = Xui::clientKey($client, (string)($service['client_uuid']));
                     $xui->deleteClient((int)$ib, (string)$key);
                 } catch (Throwable $e) {
                     app_log('svc', 'remove: ' . $e->getMessage(), ['inbound' => (int)$ib]);
@@ -1530,7 +1530,7 @@ class Svc
             $client = $xui->findClient((int)$ib, (string)$service['client_email']);
             if (!$client) continue;
             $client['enable'] = $enable;
-            $key = (string)($client['id'] ?? ($client['password'] ?? $service['client_uuid']));
+            $key = Xui::clientKey($client, (string)($service['client_uuid']));
             $r = $xui->updateClient((int)$ib, $key, $client);
             if (($r['success'] ?? false) === true) $done++; else $err = (string)($r['msg'] ?? 'خطا');
         }
