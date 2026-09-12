@@ -1,59 +1,85 @@
-SR-BOT — Proprietary License / مجوز اختصاصی
+SR-BOT — Free-to-Use, No-Resale License
+مجوز SR-BOT — استفادهٔ آزاد، فروش ممنوع
 
-Copyright (c) 2026 SRNetWork. All rights reserved.
-حق نشر © 2026 — مجموعهٔ SRNetWork. تمامی حقوق محفوظ است.
+Copyright (c) 2026 SRNetWork
+Project: https://github.com/SRNetWork-ai/SR-BOT
 
-
+================================================================
 ENGLISH
--------
+================================================================
 
-This software and its source code ("SR-BOT") are the exclusive property of
-SRNetWork. No license, express or implied, is granted to any person or entity,
-except as explicitly agreed in writing by the copyright holder.
+1. GRANT
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and its associated files (the "Software"), to use, install, run,
+copy, modify and redistribute the Software, subject to the conditions below.
 
-Without prior written permission from the copyright holder you may NOT:
+2. NO SALE, NO RESALE
+The Software itself may not be sold, resold, sublicensed for a fee, rented,
+leased, auctioned or otherwise exchanged for money or any other consideration —
+neither on its own nor as part of a bundle, a paid "setup service" or a modified
+edition. Distributing copies of the Software (original or modified) behind a
+paywall, paid channel, paid group, paid membership or any similar payment
+barrier is likewise prohibited.
 
-  1. Sell, resell, rent, lease, sublicense, or otherwise commercially
-     distribute this software or any part of it.
-  2. Copy, republish, mirror, or redistribute the source code, in whole or in
-     part, in public or private repositories or archives.
-  3. Create, publish, or distribute modified or derivative versions.
-  4. Remove, hide, or alter copyright, branding, or attribution notices.
+3. RUNNING A BUSINESS WITH THE SOFTWARE IS ALLOWED
+Using the Software to operate your own business is permitted, including selling
+your own services (for example VPN subscriptions) to your own customers through
+it. What is prohibited is charging anyone for the Software, its source code or
+copies of it.
 
-PERMITTED: a person or organization that obtained a copy legitimately from the
-copyright holder may install and use it on their own servers, including private
-modifications made for their own internal use.
+4. ATTRIBUTION AND NOTICES
+This license file, the copyright notice and the in-product credits (the "SR-BOT"
+name and the copyright line shown in the admin panel and the bot) must be kept
+intact in all copies and in modified versions.
 
+5. REDISTRIBUTION
+Redistribution — including forks and modified versions — is allowed only free of
+charge and only with this license file included unchanged.
+
+6. NO WARRANTY
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
+7. TERMINATION
+Any breach of the conditions above automatically and immediately terminates the
+rights granted by this license.
 
+================================================================
 فارسی
-------
+================================================================
 
-این نرم‌افزار و تمام سورس‌کد آن («SR-BOT») متعلق به مجموعهٔ SRNetWork است و هیچ
-مجوز صریح یا ضمنی برای هیچ شخص یا مجموعه‌ای صادر نشده است، مگر آنکه دارندهٔ حق
-نشر به‌صورت کتبی موافقت کرده باشد.
+۱) اجازهٔ استفاده
+این سورس رایگان است. هر شخصی می‌تواند آن را رایگان دریافت، نصب، اجرا، کپی،
+تغییر و بازنشر کند، مشروط به رعایت شرط‌های زیر.
 
-بدون اجازهٔ کتبیِ قبلی، موارد زیر ممنوع است:
+۲) فروش و بازفروش ممنوع
+فروش، بازفروش، اجاره، مزایده یا دریافت هر مبلغ و هر نوع مابه‌ازا برای خودِ سورس
+ممنوع است؛ چه به‌تنهایی و چه در قالب بستهٔ ترکیبی، «خدمات نصب» پولی یا نسخهٔ
+تغییریافته. قرار دادن سورس (اصلی یا تغییریافته) پشت پی‌وال، کانال پولی، گروه
+پولی، عضویت پولی یا هر سد پرداختی مشابه هم ممنوع است.
 
-  ۱. فروش، بازفروش، اجاره، واگذاری یا هر نوع توزیع تجاری این سورس یا بخشی از آن.
-  ۲. کپی، بازانتشار یا میرورکردن سورس (کامل یا بخشی از آن) در مخازن عمومی یا خصوصی.
-  ۳. ساخت، انتشار یا توزیع نسخه‌های تغییریافته و مشتق‌شده.
-  ۴. حذف، پنهان‌کردن یا تغییر اعلان‌های حق نشر، برند و انتساب.
+۳) کسب‌وکار با این سورس آزاد است
+راه‌اندازی کسب‌وکار با این سورس مجاز است؛ یعنی می‌توانید سرویس خودتان (مثلاً
+اشتراک وی‌پی‌ان) را به مشتریان خودتان بفروشید. آنچه ممنوع است، پول گرفتن برای
+خودِ سورس، کد آن یا نسخه‌هایش است.
 
-مجاز است: شخص یا مجموعه‌ای که نسخه را به‌صورت قانونی از دارندهٔ حق نشر دریافت
-کرده، می‌تواند آن را روی سرورهای خودش نصب و استفاده کند و تغییرات دلخواه را برای
-استفادهٔ داخلی خودش اعمال نماید.
+۴) حفظ نام و اعلان‌ها
+این فایل مجوز، اعلان حق‌تکثیر و اعتبارهای درون‌برنامه‌ای (نام «SR-BOT» و خط
+حق‌تکثیری که در پنل و ربات نمایش داده می‌شود) باید در همهٔ نسخه‌ها، از جمله
+نسخه‌های تغییریافته، دست‌نخورده بماند.
 
-این نرم‌افزار «همان‌گونه که هست» ارائه می‌شود و هیچ‌گونه ضمانتی، صریح یا ضمنی،
-بابت آن وجود ندارد. مسئولیت هرگونه خسارت یا زیان ناشی از استفاده، بر عهدهٔ
-استفاده‌کننده است.
+۵) بازنشر
+بازنشر — شامل فورک و نسخهٔ تغییریافته — فقط به‌صورت رایگان و فقط همراه با همین
+فایل مجوز (بدون تغییر) مجاز است.
 
+۶) سلب ضمانت
+این نرم‌افزار «همان‌گونه که هست» ارائه می‌شود و هیچ ضمانتی، صریح یا ضمنی، ندارد.
+مسئولیت هرگونه خسارت یا ادعای ناشی از استفاده یا عدم استفاده از آن بر عهدهٔ
+پدیدآورنده یا دارندهٔ حق‌تکثیر نیست.
 
-Contact / تماس: https://github.com/SRNetWork-ai
+۷) پایان مجوز
+نقض هر یک از شرط‌های بالا، اجازه‌های این مجوز را خودکار و فوری باطل می‌کند.

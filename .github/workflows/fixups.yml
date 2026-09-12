@@ -1,0 +1,49 @@
+name: Maintenance fixups
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fixups.yml'
+      - '.github/scripts/fixups.py'
+  workflow_dispatch:
+    inputs:
+      min_php:
+        description: 'min_php written into version.json'
+        required: false
+        default: '8.1'
+      build:
+        description: 'build written into version.json (empty = keep current)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fixups
+  cancel-in-progress: false
+
+jobs:
+  fixups:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply fixups
+        env:
+          MIN_PHP: ${{ github.event.inputs.min_php }}
+          NEW_BUILD: ${{ github.event.inputs.build }}
+        run: python3 .github/scripts/fixups.py
+
+      - name: Commit and push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'nothing to commit'
+          else
+            git commit -m 'chore: sync metadata (min_php, license link, dashboard CSRF note)'
+            git push
+          fi

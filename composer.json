@@ -1,0 +1,25 @@
+{
+  "name": "srnetwork/sr-bot",
+  "description": "SR-BOT — Telegram shop bot and web admin panel for x-ui / 3x-ui, Marzban and PasarGuard",
+  "type": "project",
+  "license": "proprietary",
+  "homepage": "https://github.com/SRNetWork-ai/SR-BOT",
+  "require": {
+    "php": ">=8.1",
+    "ext-pdo": "*",
+    "ext-curl": "*",
+    "ext-mbstring": "*",
+    "ext-json": "*",
+    "ext-zip": "*"
+  },
+  "require-dev": {
+    "phpstan/phpstan": "^1.11"
+  },
+  "scripts": {
+    "lint": "bash tools/lint.sh",
+    "analyse": "phpstan analyse -c phpstan.neon.dist"
+  },
+  "config": {
+    "sort-packages": true
+  }
+}
