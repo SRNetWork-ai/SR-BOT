@@ -12,7 +12,11 @@ on:
         required: false
         default: '8.1'
       build:
-        description: 'build written into version.json (empty = keep current)'
+        description: 'build written into version.json (empty = script default)'
+        required: false
+        default: ''
+      message:
+        description: 'commit message (empty = default)'
         required: false
         default: ''
 
@@ -37,6 +41,8 @@ jobs:
         run: python3 .github/scripts/fixups.py
 
       - name: Commit and push
+        env:
+          MSG: ${{ github.event.inputs.message }}
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -44,6 +50,6 @@ jobs:
           if git diff --cached --quiet; then
             echo 'nothing to commit'
           else
-            git commit -m 'chore: sync metadata (min_php, license link, dashboard CSRF note)'
+            git commit -m "${MSG:-fix(panel): normalize client payload types for Go panels}"
             git push
           fi
