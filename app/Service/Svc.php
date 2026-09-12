@@ -1667,6 +1667,111 @@ class Svc
         return (float)max(0, min(100, (float)DB::setting('usr_del_fee_pct', '0')));
     }
 
+    /** fixed83: اجازهٔ حذف «کانفیگ‌های قطع» توسط خود کاربر (مستقل از حذف سرویس فعال) */
+    public static function deadDelEnabled(): bool { return (string)DB::setting('usr_dead_del', '1') === '1'; }
+
+    /** آیا این کانفیگ «قطع» است؟ منقضی، غیرفعال، حذف‌شده از پنل یا حجم تمام‌شده */
+    public static function isDead(array $s): bool
+    {
+        $st = (string)($s['status'] ?? '');
+        if ($st === 'deleted') return false;
+        if (in_array($st, ['expired', 'disabled', 'missing'], true)) return true;
+
+        $exp = strtotime((string)($s['expire_at'] ?? '')) ?: 0;
+        if ($exp > 0 && $exp <= time()) return true;
+
+        $tot = (float)($s['volume_gb'] ?? 0);
+        if ($tot > 0 && (float)bytes2gb((int)($s['used_bytes'] ?? 0), 4) >= $tot) return true;
+
+        return false;
+    }
+
+    /** برچسب دلیل قطع‌شدن برای نمایش به کاربر */
+    public static function deadLabel(array $s): string
+    {
+        $st = (string)($s['status'] ?? '');
+        if ($st === 'missing') return '🚫 حذف‌شده از پنل';
+        if ($st === 'disabled') return '⛔️ غیرفعال';
+
+        $exp = strtotime((string)($s['expire_at'] ?? '')) ?: 0;
+        if ($st === 'expired' || ($exp > 0 && $exp <= time())) return '⏳ منقضی';
+
+        $tot = (float)($s['volume_gb'] ?? 0);
+        if ($tot > 0 && (float)bytes2gb((int)($s['used_bytes'] ?? 0), 4) >= $tot) return '📉 حجم تمام‌شده';
+
+        return '⛔️ قطع';
+    }
+
+    /** کانفیگ‌های قطع‌شدهٔ یک کاربر — کانفیگ نمایندگی جدا مدیریت می‌شود */
+    public static function deadForUser(int $userId, bool $includeReseller = false): array
+    {
+        $out = [];
+        foreach (self::forUser($userId, false, $includeReseller) as $s) {
+            if (self::isDead($s)) $out[] = $s;
+        }
+        return $out;
+    }
+
+    /** حذف گروهی کانفیگ‌های قطع‌شده با عودت وجه طبق سیاست مدیر */
+    public static function purgeDeadForUser(array $user, array $ids = []): array
+    {
+        if (!self::deadDelEnabled()) {
+            return ['ok' => false, 'count' => 0, 'failed' => 0, 'refund' => 0,
+                'refund_txt' => money(0), 'names' => [],
+                'message' => 'حذف کانفیگ‌های قطع توسط مدیر غیرفعال شده است.'];
+        }
+
+        $want = [];
+        foreach ($ids as $i) { $i = (int)$i; if ($i > 0) $want[$i] = true; }
+
+        $done = 0; $fail = 0; $back = 0; $names = [];
+        foreach (self::deadForUser((int)($user['id'] ?? 0)) as $s) {
+            $sid = (int)($s['id'] ?? 0);
+            if ($want && !isset($want[$sid])) continue;
+            try {
+                $r = self::userDelete($user, $sid);
+            } catch (Throwable $e) {
+                $fail++;
+                app_log('svc', 'purgeDead: ' . $e->getMessage(), ['svc' => $sid]);
+                continue;
+            }
+            if (!empty($r['ok'])) {
+                $done++;
+                $back += (int)($r['refund'] ?? 0);
+                $names[] = (string)($s['client_email'] ?? '');
+            } else {
+                $fail++;
+            }
+        }
+
+        if ($done === 0) {
+            return ['ok' => false, 'count' => 0, 'failed' => $fail, 'refund' => 0,
+                'refund_txt' => money(0), 'names' => [],
+                'message' => $fail > 0
+                    ? 'حذف کانفیگ‌های قطع انجام نشد؛ دوباره تلاش کنید.'
+                    : 'کانفیگ قطع‌شده‌ای ندارید.'];
+        }
+
+        $msg = '✅ ' . en_num((string)$done) . ' کانفیگ قطع‌شده حذف شد.';
+        if ($back > 0) $msg .= chr(10) . '💰 مبلغ ' . money($back) . ' ' . currency() . ' به کیف پول شما برگشت داده شد.';
+        if ($fail > 0) $msg .= chr(10) . '⚠️ ' . en_num((string)$fail) . ' مورد حذف نشد؛ بعداً دوباره تلاش کنید.';
+        $msg .= chr(10) . '🗑 موارد حذف‌شده تا ' . en_num((string)self::trashDays()) . ' روز در سطل زباله می‌مانند.';
+
+        if (class_exists('Logs')) {
+            try {
+                Logs::send('services', Logs::fmt('🧹 حذف کانفیگ‌های قطع توسط کاربر', [
+                    'کاربر'  => (string)($user['tg_id'] ?? ''),
+                    'تعداد'  => (string)$done,
+                    'عودت'   => money($back) . ' ' . currency(),
+                ]));
+            } catch (Throwable $e) {
+            }
+        }
+
+        return ['ok' => true, 'count' => $done, 'failed' => $fail, 'refund' => $back,
+            'refund_txt' => money($back), 'names' => $names, 'message' => $msg];
+    }
+
     /** مبلغ پرداخت شده برای یک سرویس (آخرین سفارش پرداخت شده) */
     public static function paidFor(array $s): int
     {
@@ -1747,11 +1852,14 @@ class Svc
     /** حذف سرویس خریداری شده توسط خود کاربر با عودت وجه */
     public static function userDelete(array $user, int $svcId): array
     {
-        if (!self::userDelEnabled()) return ['ok' => false, 'message' => 'حذف سرویس توسط مدیر غیرفعال شده است.'];
-
         $s = self::find($svcId);
         if (!$s || (int)($s['user_id'] ?? 0) !== (int)($user['id'] ?? 0)) {
             return ['ok' => false, 'message' => 'این سرویس پیدا نشد یا متعلق به شما نیست.'];
+        }
+
+        /* fixed83: سرویس فعال با اجازهٔ مدیر، کانفیگ قطع‌شده با اجازهٔ «حذف کانفیگ‌های قطع» */
+        if (!self::userDelEnabled() && !(self::deadDelEnabled() && self::isDead($s))) {
+            return ['ok' => false, 'message' => 'حذف سرویس توسط مدیر غیرفعال شده است.'];
         }
         if ((string)($s['status'] ?? '') === 'deleted') return ['ok' => false, 'message' => 'این سرویس قبلاً حذف شده است.'];
         if ((int)($s['is_reseller'] ?? 0) === 1) return ['ok' => false, 'message' => 'کانفیگ نمایندگی از پنل نمایندگی حذف می‌شود.'];

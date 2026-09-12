@@ -66,6 +66,8 @@ $GROUPS = [
                 'n' => 'مبلغ طرح از کیف پول کسر می‌شود و طرح‌های همان سرور نمایش داده می‌شوند.'],
             ['k' => 'usr_del_enabled', 'l' => 'کاربر بتواند سرویس خریداری‌شده را حذف کند', 't' => 'bool', 'd' => '0',
                 'n' => 'تا وقتی خاموش است، دکمهٔ حذف در مینی‌اپ دیده نمی‌شود.'],
+            ['k' => 'usr_dead_del', 'l' => 'کاربر بتواند کانفیگ‌های قطع را حذف کند', 't' => 'bool', 'd' => '1',
+                'n' => 'کانفیگ منقضی/غیرفعال/حجم‌تمام‌شده؛ مستقل از گزینهٔ بالا کار می‌کند و عودت طبق همان سیاست حساب می‌شود.'],
             ['k' => 'usr_del_refund', 'l' => 'عودت وجه هنگام حذف', 't' => 'bool', 'd' => '1',
                 'n' => 'خاموش = سرویس حذف می‌شود ولی پولی برنمی‌گردد.'],
             ['k' => 'usr_del_mode', 'l' => 'روش محاسبهٔ مبلغ عودتی', 't' => 'select', 'd' => 'fair',
@@ -129,7 +131,7 @@ $TAB_GROUPS = [
     'actions' => ['deliver', 'ops', 'autodel'],
     'buttons' => ['buttons'],
 ];
-$QUICK = ['sub_deliver', 'sub_pretty', 'sub_name_client', 'deliver_msg_miniapp', 'deliver_msg_reseller', 'usr_renew_enabled', 'usr_del_enabled', 'usr_del_refund'];
+$QUICK = ['sub_deliver', 'sub_pretty', 'sub_name_client', 'deliver_msg_miniapp', 'deliver_msg_reseller', 'usr_renew_enabled', 'usr_del_enabled', 'usr_dead_del', 'usr_del_refund'];
 
 $tab = (string)($_GET['tab'] ?? $_POST['tab'] ?? 'simple');
 if (!isset($TABS[$tab])) $tab = 'simple';

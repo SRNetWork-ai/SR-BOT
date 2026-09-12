@@ -314,9 +314,13 @@ function ma_service_row(array $s): array
         'can_renew'  => class_exists('Svc') && method_exists('Svc', 'userRenewEnabled') && Svc::userRenewEnabled()
             && (string)DB::setting('ma_btn_renew', '1') === '1'
             && (int)($s['is_test'] ?? 0) !== 1 && (int)($s['is_reseller'] ?? 0) !== 1 && (string)($s['status'] ?? '') !== 'deleted',
-        'can_del'    => class_exists('Svc') && method_exists('Svc', 'userDelEnabled') && Svc::userDelEnabled()
+        'can_del'    => class_exists('Svc') && method_exists('Svc', 'userDelEnabled')
+            && (Svc::userDelEnabled()
+                || (method_exists('Svc', 'deadDelEnabled') && Svc::deadDelEnabled() && Svc::isDead($s)))
             && (string)DB::setting('ma_btn_del', '1') === '1'
             && (int)($s['is_reseller'] ?? 0) !== 1 && (string)($s['status'] ?? '') !== 'deleted',
+        'is_dead'    => class_exists('Svc') && method_exists('Svc', 'isDead') ? Svc::isDead($s) : false,
+        'dead_txt'   => class_exists('Svc') && method_exists('Svc', 'deadLabel') && Svc::isDead($s) ? Svc::deadLabel($s) : '',
         'can_sync'   => (string)DB::setting('ma_btn_sync', '1') === '1',
         'can_tut'    => (string)DB::setting('ma_btn_tut', '1') === '1',
         /* فقط خطوط کانفیگ معتبر برگردانده می شود، نه متن خام */
@@ -824,7 +828,11 @@ switch ($action) {
             [':u' => $UID, ':d' => 'deleted']);
         $out = [];
         foreach ($rows as $s) $out[] = ma_service_row($s);
-        ma_out(['ok' => true, 'services' => $out]);
+        /* fixed83: شمارش کانفیگ‌های قطع برای دکمهٔ پاک‌سازی گروهی */
+        $deadN = 0;
+        if (method_exists('Svc', 'isDead')) foreach ($rows as $s) if (Svc::isDead($s)) $deadN++;
+        ma_out(['ok' => true, 'services' => $out, 'dead' => $deadN,
+            'dead_on' => method_exists('Svc', 'deadDelEnabled') ? Svc::deadDelEnabled() : false]);
     }
 
     case 'service': {
@@ -937,7 +945,7 @@ switch ($action) {
     case 'svc_del_quote': {
         $s = Svc::find((int)($in['id'] ?? 0));
         if (!$s || (int)($s['user_id'] ?? 0) !== $UID) ma_fail('سرویس پیدا نشد.', 404);
-        if (!Svc::userDelEnabled()) ma_fail('حذف سرویس توسط مدیر غیرفعال شده است.');
+        if (!Svc::userDelEnabled() && !(Svc::deadDelEnabled() && Svc::isDead($s))) ma_fail('حذف سرویس توسط مدیر غیرفعال شده است.');
 
         $q = Svc::deleteQuote($s);
         ma_out([
@@ -970,6 +978,57 @@ switch ($action) {
             'ok'      => true,
             'message' => (string)$r['message'],
             'refund'  => (int)($r['refund'] ?? 0),
+            'balance' => ma_money((int)($fresh['balance'] ?? 0)),
+        ]);
+    }
+
+    /* fixed83: کانفیگ‌های قطع — فهرست و مبلغ عودتی */
+    case 'svc_dead': {
+        $items = []; $sum = 0;
+        foreach (Svc::deadForUser($UID) as $s) {
+            $q = Svc::deleteQuote($s);
+            $sum += (int)$q['refund'];
+            $items[] = [
+                'id'         => (int)$s['id'],
+                'name'       => (string)$s['client_email'],
+                'status_txt' => Svc::deadLabel($s),
+                'refund'     => (int)$q['refund'],
+                'refund_txt' => ma_money((int)$q['refund']),
+                'note'       => (string)$q['note'],
+            ];
+        }
+        ma_out([
+            'ok'         => true,
+            'enabled'    => Svc::deadDelEnabled(),
+            'count'      => count($items),
+            'items'      => $items,
+            'refund'     => $sum,
+            'refund_txt' => ma_money($sum),
+        ]);
+    }
+
+    /* fixed83: حذف گروهی کانفیگ‌های قطع با عودت وجه */
+    case 'svc_purge_dead': {
+        if ((string)($in['confirm'] ?? '') !== 'yes') ma_fail('برای حذف، تایید لازم است.');
+
+        $me  = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
+        $ids = [];
+        if (isset($in['ids']) && is_array($in['ids'])) foreach ($in['ids'] as $i) $ids[] = (int)$i;
+
+        try {
+            $r = Svc::purgeDeadForUser($me, $ids);
+        } catch (Throwable $e) {
+            app_log('miniapp', 'svc_purge_dead: ' . $e->getMessage());
+            ma_fail('حذف انجام نشد.');
+        }
+        if (empty($r['ok'])) ma_fail((string)($r['message'] ?? 'کانفیگ قطع‌شده‌ای حذف نشد.'));
+
+        $fresh = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
+        ma_out([
+            'ok'      => true,
+            'message' => (string)$r['message'],
+            'count'   => (int)$r['count'],
+            'refund'  => (int)$r['refund'],
             'balance' => ma_money((int)($fresh['balance'] ?? 0)),
         ]);
     }

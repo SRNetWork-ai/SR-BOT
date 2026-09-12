@@ -1643,6 +1643,11 @@ body.light .amt3 .v{-webkit-text-fill-color:initial;background:none}
     h += '<div class="sv-q"><input id="svQ" type="search" placeholder="🔍 جستجو در نام سرویس…" value="' +
       esc(S.svcQ || '') + '"></div>';
     h += '<div class="svf" id="svF"></div><div id="svList"></div>';
+    /* fixed83: پاک‌سازی گروهی کانفیگ‌های قطع (منقضی/غیرفعال/حجم تمام‌شده) */
+    var deadN = list.filter(function (s) { return s.is_dead && s.can_del !== false; }).length;
+    if (deadN > 0) {
+      h += '<button type="button" class="btn gh w" data-dead="1" style="margin-top:4px">🧹 حذف کانفیگ‌های قطع (' + fa(deadN) + ')</button>';
+    }
     h += '<button type="button" class="btn gh w" data-go="shop" style="margin-top:4px">🛒 خرید سرویس تازه</button>';
 
     $('view').innerHTML = h;
@@ -1891,6 +1896,43 @@ body.light .amt3 .v{-webkit-text-fill-color:initial;background:none}
       if (!r.ok) {
         toast(r.message, 'err');
         if (btn) { btn.disabled = false; btn.textContent = '🗑 تلاش دوباره'; }
+        return;
+      }
+      toast(r.message, 'ok');
+      closeSheet();
+      try { go('services'); } catch (e) {}
+    });
+  }
+
+  /* ================= حذف کانفیگ‌های قطع (fixed83) ================= */
+  function deadSheet() {
+    api('svc_dead').then(function (r) {
+      if (!r.ok) { toast(r.message, 'err'); return; }
+      if (!r.enabled) { toast('حذف کانفیگ‌های قطع توسط مدیر غیرفعال است.', 'err'); return; }
+      if (!r.count) { toast('کانفیگ قطع‌شده‌ای ندارید.', 'ok'); return; }
+
+      var h = '<div class="card tight">';
+      r.items.forEach(function (it) {
+        h += row('⛔️', it.name, it.status_txt || '', it.refund > 0 ? esc(it.refund_txt) : 'بدون عودت');
+      });
+      h += '</div>' +
+        '<div class="card tight" style="margin-top:8px">' +
+          row('🔢', 'تعداد کانفیگ قطع', '', fa(r.count)) +
+          row('💰', 'جمع مبلغ عودتی به کیف پول', '', esc(r.refund_txt)) +
+        '</div>' +
+        '<div class="alert e">این کانفیگ‌ها از سرور پاک می‌شوند و بازگشتی ندارد.</div>' +
+        '<button type="button" class="btn" style="width:100%" data-deadok="1">🧹 تایید حذف ' + fa(r.count) +
+        ' کانفیگ' + (r.refund > 0 ? ' و دریافت ' + esc(r.refund_txt) : '') + '</button>';
+      sheet('🧹 حذف کانفیگ‌های قطع', h);
+    });
+  }
+
+  function doPurgeDead(btn) {
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span>'; }
+    api('svc_purge_dead', { confirm: 'yes' }).then(function (r) {
+      if (!r.ok) {
+        toast(r.message, 'err');
+        if (btn) { btn.disabled = false; btn.textContent = '🧹 تلاش دوباره'; }
         return;
       }
       toast(r.message, 'ok');

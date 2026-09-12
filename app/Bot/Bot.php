@@ -1056,6 +1056,10 @@ class Bot
             case 'svcrn':   Tg::answerCb($cbId); self::renewOptions($chatId, $msgId, (int)$arg); return;
             case 'svcrnok': self::doRenew($chatId, $msgId, $cbId, (int)$arg, (int)$arg2); return;
             case 'svcsync': self::syncService($chatId, $msgId, $cbId, (int)$arg); return;
+            case 'svcdel':     Tg::answerCb($cbId); self::delOptions($chatId, $msgId, (int)$arg); return;
+            case 'svcdelok':   self::doDelete($chatId, $msgId, $cbId, (int)$arg); return;
+            case 'svcpurge':   Tg::answerCb($cbId); self::purgeDeadView($chatId, $msgId); return;
+            case 'svcpurgeok': self::doPurgeDead($chatId, $msgId, $cbId); return;
 
             case 'test': self::sectionTest($chatId); Tg::answerCb($cbId); return;
 
@@ -2939,6 +2943,12 @@ class Bot
                 : 'نامحدود';
             $rows[] = [Tg::btn($icon . ' ' . $s['client_email'] . ' | ' . $left . ' | ' . remaining_human($s['expire_at']), 'svc:' . $s['id'])];
         }
+        /* fixed83: پاک‌سازی گروهی کانفیگ‌های قطع‌شده */
+        $deadN = 0;
+        foreach ($list as $d) if (Svc::isDead($d)) $deadN++;
+        if ($deadN > 0 && Svc::deadDelEnabled()) {
+            $rows[] = [Tg::btn('🧹 حذف کانفیگ‌های قطع (' . fa_num((string)$deadN) . ')', 'svcpurge:0')];
+        }
         $rows[] = Kb::backRow();
         $txt = '📦 <b>سرویس‌های من</b> (' . fa_num(count($list)) . ")\nبرای دیدن جزئیات انتخاب کنید:";
         $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
@@ -2967,8 +2977,13 @@ class Bot
             $top,
             [Tg::btn('📋 مشخصات کامل', 'svcspec:' . $id), Tg::btn('🔄 به‌روزرسانی مصرف', 'svcsync:' . $id)],
             [Tg::btn('♻️ تمدید سرویس', 'svcrn:' . $id)],
-            [Tg::btn('⬅️ سرویس‌های من', 'menu:services')],
         ];
+        /* fixed83: حذف سرویس و عودت وجه — کانفیگ قطع‌شده اجازهٔ جداگانه دارد */
+        $dead = Svc::isDead($s);
+        if (Svc::userDelEnabled() || ($dead && Svc::deadDelEnabled())) {
+            $rows[] = [Tg::btn($dead ? '🗑 حذف کانفیگ قطع‌شده و عودت وجه' : '🗑 حذف سرویس و عودت وجه', 'svcdel:' . $id)];
+        }
+        $rows[] = [Tg::btn('⬅️ سرویس‌های من', 'menu:services')];
         $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
     }
 
@@ -3033,6 +3048,116 @@ class Bot
         Tg::answerCb($cbId, 'در حال به‌روزرسانی...');
         Svc::sync($s);
         self::showService($chatId, $msgId, $id);
+    }
+
+    /* ================= حذف سرویس / کانفیگ قطع‌شده و عودت وجه ================= */
+
+    private static function delOptions($chatId, $msgId, int $id): void
+    {
+        $s = self::myService($id);
+        if (!$s) { Tg::send($chatId, '⚠️ سرویس یافت نشد.'); return; }
+
+        $dead = Svc::isDead($s);
+        if (!Svc::userDelEnabled() && !($dead && Svc::deadDelEnabled())) {
+            Tg::send($chatId, '⚠️ حذف سرویس توسط مدیر غیرفعال شده است.',
+                Tg::ikb([[Tg::btn('⬅️ بازگشت', 'svc:' . $id)]]));
+            return;
+        }
+
+        $q   = Svc::deleteQuote($s);
+        $cur = currency();
+        $txt = "🗑 <b>حذف سرویس و عودت وجه</b>\n" . '<code>─────────────────</code>' . "\n"
+            . '👤 نام کاربری: <code>' . h((string)$s['client_email']) . "</code>\n"
+            . '⚙️ وضعیت: ' . ($dead ? Svc::deadLabel($s) : '✅ فعال') . "\n"
+            . '📈 حجم مصرف‌نشده: ' . ((float)$s['volume_gb'] > 0 ? Svc::volLabel((float)$q['left_gb']) : 'نامحدود') . "\n"
+            . '⏱ زمان باقی‌مانده: ' . fa_num((string)(int)$q['left_days']) . " روز\n"
+            . '💳 پرداختی این سرویس: ' . money((int)$q['pool']) . ' ' . $cur . "\n";
+        if ((int)$q['fee'] > 0) $txt .= '➖ کارمزد حذف: ' . money((int)$q['fee']) . ' ' . $cur . "\n";
+        $txt .= '💰 مبلغ عودتی به کیف پول: <b>' . money((int)$q['refund']) . ' ' . $cur . "</b>\n";
+        if (trim((string)$q['note']) !== '') $txt .= 'ℹ️ ' . h((string)$q['note']) . "\n";
+        $txt .= "\n⚠️ با حذف، اتصال این کانفیگ از سرور پاک می‌شود و بازگشتی ندارد.";
+
+        $rows = [
+            [Tg::btn('🗑 تایید حذف' . ((int)$q['refund'] > 0 ? ' و دریافت ' . money((int)$q['refund']) . ' ' . $cur : ''), 'svcdelok:' . $id)],
+            [Tg::btn('⬅️ بازگشت', 'svc:' . $id)],
+        ];
+        $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
+    }
+
+    private static function doDelete($chatId, $msgId, $cbId, int $id): void
+    {
+        $s = self::myService($id);
+        if (!$s) { Tg::answerCb($cbId, 'سرویس یافت نشد.', true); return; }
+
+        Tg::answerCb($cbId, 'در حال حذف...');
+        $user = DB::one('SELECT * FROM {p}users WHERE id = :id', [':id' => (int)self::$u['id']]) ?: self::$u;
+        try {
+            $r = Svc::userDelete($user, $id);
+        } catch (Throwable $e) {
+            app_log('bot', 'svcdel: ' . $e->getMessage(), ['svc' => $id]);
+            Tg::send($chatId, '❌ حذف انجام نشد؛ دوباره تلاش کنید.');
+            return;
+        }
+        if (empty($r['ok'])) {
+            Tg::send($chatId, '❌ ' . (string)($r['message'] ?? 'حذف انجام نشد.'),
+                Tg::ikb([[Tg::btn('📦 سرویس‌های من', 'menu:services')]]));
+            return;
+        }
+        Tg::send($chatId, (string)$r['message'], Tg::ikb([[Tg::btn('📦 سرویس‌های من', 'menu:services')]]));
+    }
+
+    private static function purgeDeadView($chatId, $msgId): void
+    {
+        if (!Svc::deadDelEnabled()) {
+            Tg::send($chatId, '⚠️ حذف کانفیگ‌های قطع توسط مدیر غیرفعال شده است.',
+                Tg::ikb([[Tg::btn('📦 سرویس‌های من', 'menu:services')]]));
+            return;
+        }
+
+        $dead = Svc::deadForUser((int)self::$u['id']);
+        if (!$dead) {
+            $txt = "✨ کانفیگ قطع‌شده‌ای ندارید.\nهمهٔ سرویس‌های شما فعال هستند.";
+            $kb  = Tg::ikb([[Tg::btn('📦 سرویس‌های من', 'menu:services')]]);
+            $msgId ? Tg::edit($chatId, $msgId, $txt, $kb) : Tg::send($chatId, $txt, $kb);
+            return;
+        }
+
+        $cur = currency();
+        $sum = 0;
+        $lines = [];
+        foreach ($dead as $s) {
+            $q = Svc::deleteQuote($s);
+            $sum += (int)$q['refund'];
+            $lines[] = '• <code>' . h((string)$s['client_email']) . '</code> — ' . Svc::deadLabel($s)
+                . ((int)$q['refund'] > 0 ? ' — 💰 ' . money((int)$q['refund']) . ' ' . $cur : ' — بدون عودت');
+        }
+
+        $txt = "🧹 <b>حذف کانفیگ‌های قطع</b>\n" . '<code>─────────────────</code>' . "\n"
+            . '🔢 تعداد: ' . fa_num((string)count($dead)) . "\n\n"
+            . implode("\n", $lines)
+            . "\n\n" . '💰 جمع مبلغ عودتی: <b>' . money($sum) . ' ' . $cur . '</b>'
+            . "\n⚠️ این کانفیگ‌ها از سرور پاک می‌شوند و بازگشتی ندارند.";
+
+        $rows = [
+            [Tg::btn('🧹 تایید حذف ' . fa_num((string)count($dead)) . ' کانفیگ', 'svcpurgeok:0')],
+            [Tg::btn('⬅️ سرویس‌های من', 'menu:services')],
+        ];
+        $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
+    }
+
+    private static function doPurgeDead($chatId, $msgId, $cbId): void
+    {
+        Tg::answerCb($cbId, 'در حال حذف...');
+        $user = DB::one('SELECT * FROM {p}users WHERE id = :id', [':id' => (int)self::$u['id']]) ?: self::$u;
+        try {
+            $r = Svc::purgeDeadForUser($user);
+        } catch (Throwable $e) {
+            app_log('bot', 'svcpurge: ' . $e->getMessage());
+            Tg::send($chatId, '❌ حذف انجام نشد؛ دوباره تلاش کنید.');
+            return;
+        }
+        Tg::send($chatId, (empty($r['ok']) ? '⚠️ ' : '') . (string)($r['message'] ?? ''),
+            Tg::ikb([[Tg::btn('📦 سرویس‌های من', 'menu:services')]]));
     }
 
     private static function renewOptions($chatId, $msgId, int $id): void
