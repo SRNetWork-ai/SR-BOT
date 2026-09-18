@@ -50,6 +50,6 @@ jobs:
           if git diff --cached --quiet; then
             echo 'nothing to commit'
           else
-            git commit -m "${MSG:-fix(payments): stamp admin receipt cards, split automatic gateway invoices}"
+            git commit -m "${MSG:-feat(logs): self-healing telegram topics, offline queue, dedup and silent topics}"
             git push
           fi
