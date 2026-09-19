@@ -252,6 +252,18 @@ class Health
             }
         }
 
+        /* fixed85: سلامت صف و آخرین خطای گزارش‌ها */
+        if (class_exists('Logs') && Logs::chat() !== '') {
+            $lst = Logs::stats();
+            $lqn = (int)($lst['queue'] ?? 0);
+            $out[] = self::it('صف گزارش‌های معلق', fa_num((string)$lqn), $lqn > 0 ? 'warn' : 'ok',
+                $lqn > 0 ? 'با اجرای کرانجاب یا دکمهٔ «ارسال صف معلق» ارسال می‌شوند.' : '');
+            if ((string)($lst['last_err'] ?? '') !== '') {
+                $out[] = self::it('آخرین خطای ارسال گزارش', mb_substr((string)$lst['last_err'], 0, 120), 'warn',
+                    'دسترسی ربات در گروه و فعال بودن حالت Topics را بررسی کنید.');
+            }
+        }
+
         $fc    = trim((string)DB::setting('force_channel', ''));
         $out[] = self::it('عضویت اجباری کانال', $fc !== '' ? $fc : 'غیرفعال');
 

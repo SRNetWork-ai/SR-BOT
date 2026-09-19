@@ -287,7 +287,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
         back('settings', ['tab' => 'rate']);
     }
 
-    if (in_array($act, ['logs', 'logs_setup', 'logs_setup_rebuild', 'logs_test'], true)) {
+    if (in_array($act, ['logs', 'logs_setup', 'logs_setup_rebuild', 'logs_test', 'logs_test_one', 'logs_repair', 'logs_flush'], true)) { /* fixed85 */
         need('settings.logs', 'settings');
         // اگر فرم گزارشات ارسال شده باشد، اول ذخیره می‌کنیم تا شناسه گروه از دست نرود
         if (isset($_POST['log_chat_id'])) {
@@ -303,11 +303,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
             $off = [];
             foreach (array_keys(Logs::TOPICS) as $lk) if (!isset($_POST['ev_' . $lk])) $off[] = $lk;
             Logs::setOff($off);
+            /* fixed85: تاپیک‌های بی‌صدا + ضد تکرار + ساخت خودکار تاپیک */
+            $sil = [];
+            foreach (array_keys(Logs::TOPICS) as $lk) if (isset($_POST['sl_' . $lk])) $sil[] = $lk;
+            Logs::setSilent($sil);
+            DB::setSetting('log_dedup_min', (string)max(0, min(1440, pint('log_dedup_min', 3))));
+            DB::setSetting('log_auto_topic', pchk('log_auto_topic'));
             DB::loadSettings(true);
         }
         if ($act === 'logs') {
             $info = Logs::chatInfo();
             flash(!empty($info['ok']) ? 'ok' : 'err', 'تنظیمات گزارشات ذخیره شد. ' . (string)($info['message'] ?? ''));
+        } elseif ($act === 'logs_repair') { /* fixed85 */
+            $r = Logs::repairTopics();
+            flash(!empty($r['ok']) ? 'ok' : 'err', (string)$r['message']);
+        } elseif ($act === 'logs_flush') {
+            $r = Logs::flushQueue(50);
+            flash('ok', '🚚 صف گزارش‌ها: ' . fa_num((string)(int)($r['sent'] ?? 0)) . ' ارسال شد، '
+                . fa_num((string)(int)($r['left'] ?? 0)) . ' در صف ماند'
+                . ((int)($r['dropped'] ?? 0) > 0 ? '، ' . fa_num((string)(int)$r['dropped']) . ' منقضی شد' : '') . '.');
+        } elseif ($act === 'logs_test_one') {
+            $tk = (string)preg_replace('/[^a-z_]/', '', (string)($_POST['tkey'] ?? ''));
+            $r  = Logs::testOne($tk);
+            flash(!empty($r['ok']) ? 'ok' : 'err', (string)$r['message']);
         } elseif ($act === 'logs_test') {
             $r = Logs::testAll();
             flash(!empty($r['ok']) ? 'ok' : 'err', (string)$r['message']);
@@ -699,6 +717,8 @@ $backups = is_dir(APP_ROOT . '/storage/backups')
 $ri = Rates::info();
 $lt = Logs::threads();
 $loff = Logs::off();
+$lsil = Logs::silent();   /* fixed85 */
+$lstat = Logs::stats();   /* fixed85 */
 
 /* داده‌های پیام همگانی */
 $bcCount  = can('settings.broadcast') ? Broadcast::allCounts() : [];
@@ -1507,17 +1527,39 @@ $s_tabs[] = ['sec',  '🔑', 'رمز و پشتیبان', 'تغییر رمز و �
 
       <div class="section-title">تاپیک‌ها و رویدادها</div>
       <div class="table-wrap"><table class="responsive">
-        <thead><tr><th>گزارش</th><th>شناسه تاپیک</th><th>وضعیت</th></tr></thead>
+        <thead><tr><th>گزارش</th><th>شناسه تاپیک</th><th>وضعیت</th><th>بدون اعلان</th></tr></thead>
         <tbody>
         <?php foreach (Logs::TOPICS as $lk => $lv): ?>
           <tr>
             <td><?= h((string)$lv[0]) ?></td>
             <td class="mono"><?= isset($lt[$lk]) ? h(fa_num((string)$lt[$lk])) : '<span class="muted">ساخته نشده</span>' ?></td>
             <td><label class="check"><input type="checkbox" name="ev_<?= h((string)$lk) ?>" value="1" <?= in_array($lk, $loff, true) ? '' : 'checked' ?>><span>ارسال شود</span></label></td>
+            <td><label class="check"><input type="checkbox" name="sl_<?= h((string)$lk) ?>" value="1" <?= in_array($lk, $lsil, true) ? 'checked' : '' ?>><span>بی‌صدا</span></label></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
       </table></div>
+
+      <div class="section-title">🛡 پایداری ارسال گزارش‌ها</div>
+      <div class="form-grid g2">
+        <div class="field"><label>فاصلهٔ ضدتکرار (دقیقه)</label>
+          <input class="mono" type="number" name="log_dedup_min" min="0" max="1440" value="<?= (int)$SET('log_dedup_min', 3) ?>">
+          <div class="hint">پیام کاملاً یکسان در این بازه دوباره ارسال نمی‌شود — <b>۰ = خاموش</b></div></div>
+        <div class="field"><label>ساخت خودکار تاپیک</label>
+          <label class="check" style="margin-top:8px"><input type="checkbox" name="log_auto_topic" value="1" <?= (int)$SET('log_auto_topic', 1) ? 'checked' : '' ?>>
+            <span>اگر تاپیکی نبود یا حذف شد، خودکار ساخته شود</span></label></div>
+        <div class="field"><label>تست یک تاپیک مشخص</label>
+          <select name="tkey">
+            <?php foreach (Logs::TOPICS as $tk1 => $tv1): ?>
+              <option value="<?= h((string)$tk1) ?>"><?= h((string)$tv1[0]) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <div class="hint">با دکمهٔ «تست تاپیک انتخابی» یک پیام آزمایشی فقط در همین تاپیک ارسال می‌شود</div></div>
+      </div>
+      <div class="alert a-info mt3">
+        📊 امروز: <b><?= fa_num((string)(int)$lstat['ok']) ?></b> ارسال موفق ـ <b><?= fa_num((string)(int)$lstat['err']) ?></b> ناموفق ـ صف معلق: <b><?= fa_num((string)(int)$lstat['queue']) ?></b>
+        <?php if ((string)$lstat['last_err'] !== ''): ?><br>آخرین خطا: <span class="mono"><?= h(mb_substr((string)$lstat['last_err'], 0, 160)) ?></span><?php endif; ?>
+      </div>
 
       <div class="section-title">⏱ بازهٔ گزارش‌های دوره‌ای (ساعت)</div>
       <div class="hint" style="margin-bottom:8px">هر گزارش هر چند ساعت یک‌بار ارسال شود؛ <b>۰ = خاموش</b>. اجرای دقیق به فعال بودن کرانجاب وابسته است. زمان‌بندی بکاپ خودکار جداگانه در بخش «پشتیبان‌گیری» تنظیم می‌شود.</div>
@@ -1547,6 +1589,9 @@ $s_tabs[] = ['sec',  '🔑', 'رمز و پشتیبان', 'تغییر رمز و �
         <button class="btn btn-green" name="act" value="logs_setup">🧩 ذخیره + ساخت خودکار تاپیک‌ها</button>
         <button class="btn" name="act" value="logs_setup_rebuild" data-confirm="تاپیک‌ها دوباره ساخته شوند؟">♻️ ساخت مجدد همه</button>
         <button class="btn btn-ghost" name="act" value="logs_test">🧪 ارسال پیام تست</button>
+        <button class="btn btn-ghost" name="act" value="logs_test_one">🎯 تست تاپیک انتخابی</button>
+        <button class="btn" name="act" value="logs_repair">🩺 بررسی و ترمیم تاپیک‌ها</button>
+        <button class="btn" name="act" value="logs_flush">🚚 ارسال صف معلق (<?= fa_num((string)(int)$lstat['queue']) ?>)</button>
       </div>
     </form>
   </div>

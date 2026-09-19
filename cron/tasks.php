@@ -29,7 +29,7 @@ if (!is_dir(APP_ROOT . '/storage')) @mkdir(APP_ROOT . '/storage', 0755, true);
 $isCli   = PHP_SAPI === 'cli';
 $started = microtime(true);
 $report  = ['synced' => 0, 'expired' => 0, 'warned_expire' => 0, 'warned_traffic' => 0, 'disabled' => 0,
-            'sync_fail' => 0, 'nowpay' => 0, 'recovered' => 0, 'hooshpay' => 0, 'gw_expired' => 0,
+            'sync_fail' => 0, 'nowpay' => 0, 'recovered' => 0, 'hooshpay' => 0, 'gw_expired' => 0, 'log_queue' => 0,
             'warned_stage2' => 0, 'auto_renewed' => 0, 'auto_nofunds' => 0, 'auto_failed' => 0];
 
 function cron_say(string $msg): void
@@ -133,6 +133,17 @@ try {
     if ($report['gw_expired'] > 0) cron_say('gateway invoices canceled: ' . (int)$report['gw_expired']);
 } catch (Throwable $e) {
     cron_say('gateway cleanup failed: ' . $e->getMessage());
+}
+
+/* fixed85: ارسال گزارش‌های معلق تلگرام (صف آفلاین لاگ) */
+try {
+    if (class_exists('Logs') && Logs::enabled() && Logs::queueSize() > 0) {
+        $lq = Logs::flushQueue(40);
+        $report['log_queue'] = (int)($lq['sent'] ?? 0);
+        cron_say('log queue: ' . (int)($lq['sent'] ?? 0) . ' sent, ' . (int)($lq['left'] ?? 0) . ' left');
+    }
+} catch (Throwable $e) {
+    cron_say('log queue flush failed: ' . $e->getMessage());
 }
 
 /* ---------------------------------------------------------------
