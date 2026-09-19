@@ -42,6 +42,11 @@ if (PHP_SAPI !== 'cli' && class_exists('Guard')) {
     Guard::headers(strpos((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/admin/') !== false ? 'panel' : 'web');
 }
 
+/* 0.0.2 #4: محدودیت نرخ درخواست پنل مدیریت (وب‌هوک ربات محدود نمی‌شود) */
+if (PHP_SAPI !== 'cli' && class_exists('RateLimit')) {
+    RateLimit::guardWeb();
+}
+
 /* ------------------------------------------------ لاگ یکپارچه خطاها */
 
 function app_report_error(string $kind, string $msg, string $file = '', int $line = 0): void
