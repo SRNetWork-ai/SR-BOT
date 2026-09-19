@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""fixed86 - 0.0.2 security batch #1 (headers, sensitive paths, installer lock)."""
-import io, json, os, re, sys
+"""fixed87 - 0.0.2 security batch #2: encrypt secrets at rest."""
+import io, json, os, sys
 
 ROOT = os.environ.get("SRC_ROOT") or os.getcwd()
-BUILD = (os.environ.get("NEW_BUILD") or "fixed86").strip() or "fixed86"
+BUILD = (os.environ.get("NEW_BUILD") or "fixed87").strip() or "fixed87"
 
 CACHE = {}
 NEW = {}
@@ -30,82 +30,104 @@ def rep(path, old, new, expect=1, marker=None):
     NEW[path] = True
 
 
-def insert_after_open(path, block, marker=None):
-    s = load(path)
-    if marker and marker in s:
-        return
-    m = re.match(r"\A<\?php[^\n]*\n(?:\s*declare\(\s*strict_types\s*=\s*1\s*\);[^\n]*\n)?", s)
-    if not m:
-        ERRORS.append("%s: php open tag not found" % path)
-        return
-    CACHE[path] = s[:m.end()] + block + s[m.end():]
-    NEW[path] = True
-
-
-# ==================================================== 1) bootstrap: هدرهای امنیتی
+# =========================================== 1) DB: باز کردن رمز هنگام خواندن
 rep(
-    "app/bootstrap.php",
-    "    foreach ($paths as $p) {\n        if (is_file($p)) { require_once $p; return; }\n    }\n});\n",
-    "    foreach ($paths as $p) {\n        if (is_file($p)) { require_once $p; return; }\n    }\n});\n"
-    "\n"
-    "/* 0.0.2 #12: هدرهای امنیتی پایه روی همهٔ ورودی‌های وب */\n"
-    "if (PHP_SAPI !== 'cli' && class_exists('Guard')) {\n"
-    "    Guard::headers(strpos((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/admin/') !== false ? 'panel' : 'web');\n"
-    "}\n",
-    marker="Guard::headers(",
+    "app/DB.php",
+    """            foreach (self::all('SELECT `k`,`v` FROM {p}settings') as $row) {
+                self::$settings[$row['k']] = $row['v'];
+            }""",
+    """            foreach (self::all('SELECT `k`,`v` FROM {p}settings') as $row) {
+                $v = $row['v'];
+                /* 0.0.2 #2: مقدارهای رمزنگاری‌شده هنگام خواندن باز می‌شوند */
+                if (is_string($v) && strncmp($v, 'enc:v1:', 7) === 0 && class_exists('Crypt')) {
+                    $v = Crypt::dec($v);
+                }
+                self::$settings[$row['k']] = $v;
+            }""",
+    marker="Crypt::dec(",
 )
 
-# ======================================================= 2) قفل نصاب پس از نصب
-INSTALL_GUARD = (
-    "\n"
-    "/* 0.0.2 #13: قفل نصاب پس از نصب — نصب دوباره فقط با باز کردن دستی قفل */\n"
-    "(static function (): void {\n"
-    "    $root   = dirname(__DIR__);\n"
-    "    $cfg    = $root . '/config.php';\n"
-    "    $unlock = $root . '/storage/tmp/install.unlock';\n"
-    "    if (!is_file($cfg) || is_file($unlock)) return;\n"
-    "    /* در جریان یک نصب تازه، config.php همین چند دقیقه پیش ساخته شده است */\n"
-    "    if (time() - (int)@filemtime($cfg) < 1800) return;\n"
-    "    http_response_code(403);\n"
-    "    if (!headers_sent()) header('Content-Type: text/html; charset=utf-8');\n"
-    "    echo '<!doctype html><meta charset=\"utf-8\"><title>نصب قفل است</title>'\n"
-    "        . '<div style=\"font:15px/2.1 Tahoma,sans-serif;direction:rtl;max-width:640px;margin:60px auto;padding:24px;border:1px solid #ddd;border-radius:14px\">'\n"
-    "        . '<h2 style=\"margin:0 0 10px\">🔒 نصاب قفل شده است</h2>'\n"
-    "        . '<p>این برنامه قبلاً نصب شده است. برای جلوگیری از نصب دوبارهٔ مخرب، پوشهٔ نصب بسته شد.</p>'\n"
-    "        . '<p>اگر واقعاً می‌خواهید نصاب را دوباره اجرا کنید:</p>'\n"
-    "        . '<ol><li>پوشهٔ <code>install/</code> را از سرور حذف کنید (امن‌ترین کار)</li>'\n"
-    "        . '<li>یا فایل خالی <code>storage/tmp/install.unlock</code> را بسازید و بعد از کار حذفش کنید</li></ol>'\n"
-    "        . '</div>';\n"
-    "    exit;\n"
-    "})();\n"
-)
-insert_after_open("install/index.php", INSTALL_GUARD, marker="install.unlock")
+# ============================================ 2) DB: رمزنگاری هنگام ذخیره‌سازی
+rep(
+    "app/DB.php",
+    """        self::q('INSERT INTO {p}settings (`k`,`v`) VALUES (:k,:v) ON DUPLICATE KEY UPDATE `v` = :v2', [
+            ':k' => $key, ':v' => $value, ':v2' => $value,
+        ]);
+        self::$settings[$key] = $value;""",
+    """        /* 0.0.2 #2: اسرار (توکن، کلید درگاه، رمز پنل و …) رمزنگاری‌شده ذخیره می‌شوند */
+        $store = $value;
+        if ($value !== '' && self::isSecretKey($key) && class_exists('Crypt')
+            && Crypt::available() && !Crypt::isEnc($value)) {
+            $store = Crypt::enc($value);
+        }
 
-# ============================================ 3) صفحهٔ سلامت: افشای فایل حساس
+        self::q('INSERT INTO {p}settings (`k`,`v`) VALUES (:k,:v) ON DUPLICATE KEY UPDATE `v` = :v2', [
+            ':k' => $key, ':v' => $store, ':v2' => $store,
+        ]);
+        self::$settings[$key] = $value;""",
+    marker="self::isSecretKey($key)",
+)
+
+# ================================================= 3) DB: توابع کمکی رمزنگاری
+rep(
+    "app/DB.php",
+    "    /** اجرای فایل SQL (نصب/به‌روزرسانی) */",
+    """    /** آیا این کلید تنظیمات «راز» است و باید رمزنگاری شود؟ */
+    public static function isSecretKey(string $k): bool
+    {
+        return (bool)preg_match(
+            '/(^|_)(token|secret|apikey|api_key|password|passwd|pass|merchant|privkey|private_key)(_|$)/i',
+            $k
+        );
+    }
+
+    /** رمزنگاری یک‌بارهٔ اسرارِ قدیمی که به‌صورت متن ساده ذخیره شده‌اند */
+    public static function encryptExistingSecrets(): int
+    {
+        if (!class_exists('Crypt') || !Crypt::available() || !Crypt::hasKey()) return 0;
+
+        $n = 0;
+        foreach (self::all('SELECT `k`,`v` FROM {p}settings') as $row) {
+            $k = (string)$row['k'];
+            $v = (string)$row['v'];
+            if ($v === '' || Crypt::isEnc($v) || !self::isSecretKey($k)) continue;
+            self::setSetting($k, $v);
+            $n++;
+        }
+
+        return $n;
+    }
+
+    /** اجرای فایل SQL (نصب/به‌روزرسانی) */""",
+    marker="encryptExistingSecrets",
+)
+
+# ==================================== 4) صفحهٔ سلامت: وضعیت رمزنگاری + مهاجرت
 rep(
     "app/Service/Health.php",
-    "        /* fixed85: سلامت صف و آخرین خطای گزارش‌ها */",
-    "        /* 0.0.2 #1: آیا فایل‌های حساس از روی وب خوانده می‌شوند؟ */\n"
-    "        if (class_exists('Guard')) {\n"
-    "            $gx   = Guard::exposure();\n"
-    "            $gopn = (array)($gx['open'] ?? []);\n"
-    "            if ($gopn) {\n"
-    "                $out[] = self::it('فایل‌های حساس روی وب', implode('، ', array_keys($gopn)), 'warn',\n"
-    "                    'این مسیرها از اینترنت قابل خواندن‌اند. قواعد فایل nginx.conf.sample را روی سرور اعمال کنید یا مطمئن شوید .htaccess فعال است.');\n"
-    "            } elseif ((int)($gx['checked'] ?? 0) > 0) {\n"
-    "                $out[] = self::it('محافظت فایل‌های حساس', 'برقرار', 'ok', '');\n"
-    "            }\n"
-    "            $gi = Guard::installer();\n"
-    "            if (!empty($gi['present'])) {\n"
-    "                $out[] = self::it('پوشهٔ نصب روی سرور', !empty($gi['unlocked']) ? 'قفل باز است!' : 'قفل است', 'warn',\n"
-    "                    !empty($gi['unlocked'])\n"
-    "                        ? 'فایل storage/tmp/install.unlock را حذف کنید تا نصاب دوباره قفل شود.'\n"
-    "                        : 'برای امنیت بیشتر، پوشهٔ install را از سرور حذف کنید.');\n"
-    "            }\n"
-    "        }\n"
-    "\n"
-    "        /* fixed85: سلامت صف و آخرین خطای گزارش‌ها */",
-    marker="0.0.2 #1:",
+    "        /* 0.0.2 #1: آیا فایل‌های حساس از روی وب خوانده می‌شوند؟ */",
+    """        /* 0.0.2 #2: رمزنگاری اسرار در دیتابیس */
+        if (class_exists('Crypt')) {
+            if (!Crypt::available()) {
+                $out[] = self::it('رمزنگاری اسرار', 'غیرفعال', 'warn',
+                    'افزونهٔ openssl روی سرور فعال نیست؛ توکن‌ها و کلیدها به‌صورت متن ساده ذخیره می‌شوند.');
+            } else {
+                try {
+                    if ((string)DB::setting('secrets_encrypted', '') !== '1') {
+                        $enc = DB::encryptExistingSecrets();
+                        DB::setSetting('secrets_encrypted', '1');
+                        if (function_exists('app_log')) app_log('sec', 'secrets encrypted: ' . $enc);
+                    }
+                    $out[] = self::it('رمزنگاری اسرار', 'فعال', 'ok',
+                        'توکن ربات‌ها، کلید درگاه‌ها و رمزهای ذخیره‌شده در تنظیمات، رمزنگاری‌شده نگهداری می‌شوند.');
+                } catch (Throwable $e) {
+                    $out[] = self::it('رمزنگاری اسرار', 'خطا', 'warn', $e->getMessage());
+                }
+            }
+        }
+
+        /* 0.0.2 #1: آیا فایل‌های حساس از روی وب خوانده می‌شوند؟ */""",
+    marker="0.0.2 #2: رمزنگاری اسرار",
 )
 
 # ==================================================================== version
@@ -125,9 +147,9 @@ with io.open(VJ, encoding="utf-8") as fh:
     v = json.load(fh)
 
 entry = (
-    "🔐 سخت‌سازی امنیتی ۰.۰.۲ (گام ۱): هدرهای امنیتی روی همهٔ صفحه‌ها و بستن فریم برای پنل مدیریت، "
-    "بستن دسترسی وب به پوشه‌های app/cron/database/storage/tools/docs، نمونهٔ nginx کامل‌تر با لینک زیبای ساب، "
-    "قفل خودکار نصاب پس از نصب و بررسی خودکار «فایل‌های حساس روی وب» در صفحهٔ سلامت سیستم."
+    "🔐 سخت‌سازی امنیتی ۰.۰.۲ (گام ۲): توکن ربات‌ها، کلید درگاه‌های پرداخت و رمزهای ذخیره‌شده در تنظیمات "
+    "با AES-256-GCM رمزنگاری می‌شوند؛ کلید رمزنگاری خودکار ساخته و در config.php (یا storage/.appkey) نگهداری می‌شود، "
+    "اسرار قدیمی یک‌بار به‌صورت خودکار رمزنگاری می‌شوند و وضعیت آن در صفحهٔ سلامت سیستم نمایش داده می‌شود."
 )
 
 log = v.get("changelog") or []
