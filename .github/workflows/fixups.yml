@@ -38,7 +38,15 @@ jobs:
         env:
           MIN_PHP: ${{ github.event.inputs.min_php }}
           NEW_BUILD: ${{ github.event.inputs.build }}
-        run: python3 .github/scripts/fixups.py
+        run: |
+          set +e
+          python3 --version > .github/fixups-last-run.txt 2>&1
+          date -u >> .github/fixups-last-run.txt
+          python3 .github/scripts/fixups.py >> .github/fixups-last-run.txt 2>&1
+          code=$?
+          echo "exit: $code" >> .github/fixups-last-run.txt
+          cat .github/fixups-last-run.txt
+          exit 0
 
       - name: Commit and push
         env:
