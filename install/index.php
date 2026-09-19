@@ -1,6 +1,27 @@
 <?php
 declare(strict_types=1);
 
+/* 0.0.2 #13: قفل نصاب پس از نصب — نصب دوباره فقط با باز کردن دستی قفل */
+(static function (): void {
+    $root   = dirname(__DIR__);
+    $cfg    = $root . '/config.php';
+    $unlock = $root . '/storage/tmp/install.unlock';
+    if (!is_file($cfg) || is_file($unlock)) return;
+    /* در جریان یک نصب تازه، config.php همین چند دقیقه پیش ساخته شده است */
+    if (time() - (int)@filemtime($cfg) < 1800) return;
+    http_response_code(403);
+    if (!headers_sent()) header('Content-Type: text/html; charset=utf-8');
+    echo '<!doctype html><meta charset="utf-8"><title>نصب قفل است</title>'
+        . '<div style="font:15px/2.1 Tahoma,sans-serif;direction:rtl;max-width:640px;margin:60px auto;padding:24px;border:1px solid #ddd;border-radius:14px">'
+        . '<h2 style="margin:0 0 10px">🔒 نصاب قفل شده است</h2>'
+        . '<p>این برنامه قبلاً نصب شده است. برای جلوگیری از نصب دوبارهٔ مخرب، پوشهٔ نصب بسته شد.</p>'
+        . '<p>اگر واقعاً می‌خواهید نصاب را دوباره اجرا کنید:</p>'
+        . '<ol><li>پوشهٔ <code>install/</code> را از سرور حذف کنید (امن‌ترین کار)</li>'
+        . '<li>یا فایل خالی <code>storage/tmp/install.unlock</code> را بسازید و بعد از کار حذفش کنید</li></ol>'
+        . '</div>';
+    exit;
+})();
+
 /**
  * نصاب وب فروشگاه کانفیگ (مخصوص هاست)
  */

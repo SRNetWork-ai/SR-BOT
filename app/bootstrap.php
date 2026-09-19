@@ -37,6 +37,11 @@ spl_autoload_register(function (string $class): void {
     }
 });
 
+/* 0.0.2 #12: هدرهای امنیتی پایه روی همهٔ ورودی‌های وب */
+if (PHP_SAPI !== 'cli' && class_exists('Guard')) {
+    Guard::headers(strpos((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/admin/') !== false ? 'panel' : 'web');
+}
+
 /* ------------------------------------------------ لاگ یکپارچه خطاها */
 
 function app_report_error(string $kind, string $msg, string $file = '', int $line = 0): void

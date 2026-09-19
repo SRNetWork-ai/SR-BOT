@@ -252,6 +252,25 @@ class Health
             }
         }
 
+        /* 0.0.2 #1: آیا فایل‌های حساس از روی وب خوانده می‌شوند؟ */
+        if (class_exists('Guard')) {
+            $gx   = Guard::exposure();
+            $gopn = (array)($gx['open'] ?? []);
+            if ($gopn) {
+                $out[] = self::it('فایل‌های حساس روی وب', implode('، ', array_keys($gopn)), 'warn',
+                    'این مسیرها از اینترنت قابل خواندن‌اند. قواعد فایل nginx.conf.sample را روی سرور اعمال کنید یا مطمئن شوید .htaccess فعال است.');
+            } elseif ((int)($gx['checked'] ?? 0) > 0) {
+                $out[] = self::it('محافظت فایل‌های حساس', 'برقرار', 'ok', '');
+            }
+            $gi = Guard::installer();
+            if (!empty($gi['present'])) {
+                $out[] = self::it('پوشهٔ نصب روی سرور', !empty($gi['unlocked']) ? 'قفل باز است!' : 'قفل است', 'warn',
+                    !empty($gi['unlocked'])
+                        ? 'فایل storage/tmp/install.unlock را حذف کنید تا نصاب دوباره قفل شود.'
+                        : 'برای امنیت بیشتر، پوشهٔ install را از سرور حذف کنید.');
+            }
+        }
+
         /* fixed85: سلامت صف و آخرین خطای گزارش‌ها */
         if (class_exists('Logs') && Logs::chat() !== '') {
             $lst = Logs::stats();
