@@ -212,7 +212,12 @@ class DB
         self::$settings = [];
         try {
             foreach (self::all('SELECT `k`,`v` FROM {p}settings') as $row) {
-                self::$settings[$row['k']] = $row['v'];
+                $v = $row['v'];
+                /* 0.0.2 #2: مقدارهای رمزنگاری‌شده هنگام خواندن باز می‌شوند */
+                if (is_string($v) && strncmp($v, 'enc:v1:', 7) === 0 && class_exists('Crypt')) {
+                    $v = Crypt::dec($v);
+                }
+                self::$settings[$row['k']] = $v;
             }
         } catch (Throwable $e) { /* جدول هنوز ساخته نشده */ }
         self::$loaded = true;
@@ -234,10 +239,43 @@ class DB
         if (strlen($value) > 60000 && function_exists('app_log')) {
             app_log('db', 'big-setting ' . $key . ' = ' . strlen($value) . 'B');
         }
+        /* 0.0.2 #2: اسرار (توکن، کلید درگاه، رمز پنل و …) رمزنگاری‌شده ذخیره می‌شوند */
+        $store = $value;
+        if ($value !== '' && self::isSecretKey($key) && class_exists('Crypt')
+            && Crypt::available() && !Crypt::isEnc($value)) {
+            $store = Crypt::enc($value);
+        }
+
         self::q('INSERT INTO {p}settings (`k`,`v`) VALUES (:k,:v) ON DUPLICATE KEY UPDATE `v` = :v2', [
-            ':k' => $key, ':v' => $value, ':v2' => $value,
+            ':k' => $key, ':v' => $store, ':v2' => $store,
         ]);
         self::$settings[$key] = $value;
+    }
+
+    /** آیا این کلید تنظیمات «راز» است و باید رمزنگاری شود؟ */
+    public static function isSecretKey(string $k): bool
+    {
+        return (bool)preg_match(
+            '/(^|_)(token|secret|apikey|api_key|password|passwd|pass|merchant|privkey|private_key)(_|$)/i',
+            $k
+        );
+    }
+
+    /** رمزنگاری یک‌بارهٔ اسرارِ قدیمی که به‌صورت متن ساده ذخیره شده‌اند */
+    public static function encryptExistingSecrets(): int
+    {
+        if (!class_exists('Crypt') || !Crypt::available() || !Crypt::hasKey()) return 0;
+
+        $n = 0;
+        foreach (self::all('SELECT `k`,`v` FROM {p}settings') as $row) {
+            $k = (string)$row['k'];
+            $v = (string)$row['v'];
+            if ($v === '' || Crypt::isEnc($v) || !self::isSecretKey($k)) continue;
+            self::setSetting($k, $v);
+            $n++;
+        }
+
+        return $n;
     }
 
     /** اجرای فایل SQL (نصب/به‌روزرسانی) */

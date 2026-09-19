@@ -252,6 +252,26 @@ class Health
             }
         }
 
+        /* 0.0.2 #2: رمزنگاری اسرار در دیتابیس */
+        if (class_exists('Crypt')) {
+            if (!Crypt::available()) {
+                $out[] = self::it('رمزنگاری اسرار', 'غیرفعال', 'warn',
+                    'افزونهٔ openssl روی سرور فعال نیست؛ توکن‌ها و کلیدها به‌صورت متن ساده ذخیره می‌شوند.');
+            } else {
+                try {
+                    if ((string)DB::setting('secrets_encrypted', '') !== '1') {
+                        $enc = DB::encryptExistingSecrets();
+                        DB::setSetting('secrets_encrypted', '1');
+                        if (function_exists('app_log')) app_log('sec', 'secrets encrypted: ' . $enc);
+                    }
+                    $out[] = self::it('رمزنگاری اسرار', 'فعال', 'ok',
+                        'توکن ربات‌ها، کلید درگاه‌ها و رمزهای ذخیره‌شده در تنظیمات، رمزنگاری‌شده نگهداری می‌شوند.');
+                } catch (Throwable $e) {
+                    $out[] = self::it('رمزنگاری اسرار', 'خطا', 'warn', $e->getMessage());
+                }
+            }
+        }
+
         /* 0.0.2 #1: آیا فایل‌های حساس از روی وب خوانده می‌شوند؟ */
         if (class_exists('Guard')) {
             $gx   = Guard::exposure();
