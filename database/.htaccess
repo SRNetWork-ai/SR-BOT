@@ -1,4 +1,4 @@
-# جلوگیری از دسترسی مستقیم به این پوشه
+# دسترسی مستقیم وب به این پوشه بسته است
 <IfModule mod_authz_core.c>
   Require all denied
 </IfModule>
