@@ -1056,6 +1056,9 @@ class Bot
             case 'svcrn':   Tg::answerCb($cbId); self::renewOptions($chatId, $msgId, (int)$arg); return;
             case 'svcrnok': self::doRenew($chatId, $msgId, $cbId, (int)$arg, (int)$arg2); return;
             case 'svcsync': self::syncService($chatId, $msgId, $cbId, (int)$arg); return;
+            case 'svcdev':     Tg::answerCb($cbId); self::devicesView($chatId, $msgId, (int)$arg); return;
+            case 'svcdevdel':  self::deviceDel($chatId, $msgId, $cbId, (int)$arg, (int)$arg2); return;
+            case 'svcdevclr':  self::deviceClear($chatId, $msgId, $cbId, (int)$arg); return;
             case 'svcdel':     Tg::answerCb($cbId); self::delOptions($chatId, $msgId, (int)$arg); return;
             case 'svcdelok':   self::doDelete($chatId, $msgId, $cbId, (int)$arg); return;
             case 'svcpurge':   Tg::answerCb($cbId); self::purgeDeadView($chatId, $msgId); return;
@@ -2978,6 +2981,10 @@ class Bot
             [Tg::btn('📋 مشخصات کامل', 'svcspec:' . $id), Tg::btn('🔄 به‌روزرسانی مصرف', 'svcsync:' . $id)],
             [Tg::btn('♻️ تمدید سرویس', 'svcrn:' . $id)],
         ];
+        /* 0.0.2 #dev-btn: مدیریت دستگاه‌های ثبت‌شده (HWID) — فقط پنل نسل جدید سنایی */
+        if (class_exists('Devices') && Devices::supported($s)) {
+            $rows[] = [Tg::btn('📱 دستگاه‌های من', 'svcdev:' . $id)];
+        }
         /* fixed83: حذف سرویس و عودت وجه — کانفیگ قطع‌شده اجازهٔ جداگانه دارد */
         $dead = Svc::isDead($s);
         if (Svc::userDelEnabled() || ($dead && Svc::deadDelEnabled())) {
@@ -2985,6 +2992,78 @@ class Bot
         }
         $rows[] = [Tg::btn('⬅️ سرویس‌های من', 'menu:services')];
         $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
+    }
+
+    /* ============ 0.0.2: دستگاه‌های ثبت‌شده (HWID) — پنل 3x-ui ============ */
+
+    private static function devicesView($chatId, $msgId, int $id): void
+    {
+        $s = self::myService($id);
+        if (!$s) { Tg::send($chatId, '⚠️ سرویس یافت نشد.'); return; }
+        if (!class_exists('Devices') || !Devices::supported($s)) {
+            Tg::send($chatId, 'ℹ️ این سرویس از مدیریت دستگاه پشتیبانی نمی‌کند.');
+            return;
+        }
+
+        $items = Devices::listFor($s);
+        $limit = Devices::limitOf($s);
+
+        $txt = "📱 <b>دستگاه‌های من</b>
+"
+            . '<code>─────────────────</code>' . "
+"
+            . '👤 <code>' . h((string)$s['client_email']) . "</code>
+"
+            . '🔢 ثبت‌شده: ' . fa_num((string)count($items))
+            . ($limit > 0 ? (' از ' . fa_num((string)$limit)) : ' (بدون محدودیت)') . "
+";
+
+        $rows = [];
+        if (!$items) {
+            $txt .= "
+هنوز دستگاهی ثبت نشده است.";
+        } else {
+            $txt .= "
+برای آزاد کردن ظرفیت، روی دستگاه بزنید:";
+            foreach ($items as $d) {
+                $label = mb_substr((string)$d['title'], 0, 26);
+                $rows[] = [Tg::btn('🗑 ' . $label . ' | ' . (string)$d['seen_txt'],
+                    'svcdevdel:' . $id . ':' . (int)$d['id'])];
+            }
+            $rows[] = [Tg::btn('🧹 حذف همهٔ دستگاه‌ها', 'svcdevclr:' . $id)];
+        }
+        $rows[] = [Tg::btn('🔄 به‌روزرسانی', 'svcdev:' . $id)];
+        $rows[] = [Tg::btn('⬅️ بازگشت', 'svc:' . $id)];
+
+        $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
+    }
+
+    private static function deviceDel($chatId, $msgId, $cbId, int $id, int $dev): void
+    {
+        $s = self::myService($id);
+        if (!$s) { Tg::answerCb($cbId, 'سرویس یافت نشد.', true); return; }
+        if (!class_exists('Devices') || !Devices::supported($s) || $dev <= 0) {
+            Tg::answerCb($cbId, 'امکان حذف نیست.', true);
+            return;
+        }
+        $ok = Devices::remove($s, $dev);
+        Tg::answerCb($cbId, $ok ? '✅ دستگاه حذف شد.' : '❌ حذف انجام نشد.', !$ok);
+        self::devicesView($chatId, $msgId, $id);
+    }
+
+    private static function deviceClear($chatId, $msgId, $cbId, int $id): void
+    {
+        $s = self::myService($id);
+        if (!$s) { Tg::answerCb($cbId, 'سرویس یافت نشد.', true); return; }
+        if (!class_exists('Devices') || !Devices::supported($s)) {
+            Tg::answerCb($cbId, 'امکان حذف نیست.', true);
+            return;
+        }
+        $n = Devices::clear($s);
+        Tg::answerCb($cbId, $n > 0
+            ? ('✅ ' . fa_num((string)$n) . ' دستگاه حذف شد.')
+            : 'دستگاهی برای حذف نبود.');
+        self::devicesView($chatId, $msgId, $id);
     }
 
     private static function sendSub($chatId, $cbId, int $id): void

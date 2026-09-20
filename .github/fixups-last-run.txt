@@ -1,60 +1,11 @@
 Python 3.12.3
-Sun Sep 20 17:13:16 UTC 2026
-patched miniapp/api.php by regex ('svc_devices')
+Sun Sep 20 17:18:08 UTC 2026
+patched app/Bot/Bot.php by regex (0.0.2 #dev-btn)
+patched app/Bot/Bot.php by regex (private static function devicesView)
+patched app/Bot/Bot.php by regex (case 'svcdev':)
 php lint: on
-== BOT ROUTER (app/Bot/Bot.php lines 1020-1070 of 4851) ==
-  1020|                Tg::answerCb($cbId);
-  1021|                self::showResellerService($chatId, $msgId, (int)$arg);
-  1022|                return;
-  1023|
-  1024|            case 'buy':  self::startPurchase($chatId, $msgId, $cbId, (int)$arg); return;
-  1025|            case 'cus':  self::cusAction($chatId, $msgId, $cbId, (string)$arg, (string)$arg2); return;
-  1026|
-  1027|            case 'fj':
-  1028|                if ($arg === 'chk') {
-  1029|                    $miss = self::fjMissing(true);
-  1030|                    if ($miss) {
-  1031|                        Tg::answerCb($cbId, '⛔️ هنوز عضو همهٔ کانال‌ها نشده‌اید.', true);
-  1032|                        self::fjPrompt($chatId, $miss, $msgId);
-  1033|                        return;
-  1034|                    }
-  1035|                    Tg::answerCb($cbId, '✅ عضویت شما تایید شد؛ خوش آمدید!');
-  1036|                    /* آمار: عضویت‌های تاییدشده با دکمهٔ بررسی */
-  1037|                    try { DB::setSetting('fj_stat_joined', (string)((int)DB::setting('fj_stat_joined', 0) + 1)); } catch (Throwable $e) { }
-  1038|                    self::deleteAndMenu($chatId, $msgId);
-  1039|                }
-  1040|                return;
-  1041|            case 'dc':
-  1042|                Tg::answerCb($cbId);
-  1043|                self::setState('discount_code', ['pid' => (int)$arg]);
-  1044|                Tg::send($chatId, '🎟 کد تخفیف را ارسال کنید:', Kb::cancel());
-  1045|                return;
-  1046|            case 'dcrm':
-  1047|                Tg::answerCb($cbId, 'کد تخفیف حذف شد.');
-  1048|                self::setState(null);
-  1049|                self::showProduct($chatId, $msgId, (int)$arg);
-  1050|                return;
-  1051|
-  1052|            case 'svc':     Tg::answerCb($cbId); self::showService($chatId, $msgId, (int)$arg); return;
-  1053|            case 'svcsub':  self::sendSub($chatId, $cbId, (int)$arg); return;
-  1054|            case 'svccfg':  self::sendConfig($chatId, $cbId, (int)$arg); return;
-  1055|            case 'svcspec': self::sendSpec($chatId, $cbId, (int)$arg); return;
-  1056|            case 'svcrn':   Tg::answerCb($cbId); self::renewOptions($chatId, $msgId, (int)$arg); return;
-  1057|            case 'svcrnok': self::doRenew($chatId, $msgId, $cbId, (int)$arg, (int)$arg2); return;
-  1058|            case 'svcsync': self::syncService($chatId, $msgId, $cbId, (int)$arg); return;
-  1059|            case 'svcdel':     Tg::answerCb($cbId); self::delOptions($chatId, $msgId, (int)$arg); return;
-  1060|            case 'svcdelok':   self::doDelete($chatId, $msgId, $cbId, (int)$arg); return;
-  1061|            case 'svcpurge':   Tg::answerCb($cbId); self::purgeDeadView($chatId, $msgId); return;
-  1062|            case 'svcpurgeok': self::doPurgeDead($chatId, $msgId, $cbId); return;
-  1063|
-  1064|            case 'test': self::sectionTest($chatId); Tg::answerCb($cbId); return;
-  1065|
-  1066|            case 'wal':
-  1067|                Tg::answerCb($cbId);
-  1068|                /* دکمه‌های پیام‌های قدیم��: ��گر روش پرداخت بعدا خاموش شده باشد، ورود مسدود می‌شود */
-  1069|                if (($arg === 'card' || $arg === 'cardgo') && !self::payMethodOn('card')) {
-  1070|                    Tg::send($chatId, '⚠️ پرداخت کارت به کارت در حال حاضر غیرفعال است.');
-build: fixed101
+changelog: entry added
+build: fixed102
 changed files: 1
-  - miniapp/api.php
+  - app/Bot/Bot.php
 exit: 0
