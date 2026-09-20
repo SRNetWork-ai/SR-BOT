@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""fixed104 - health insights from the new 3x-ui endpoints
+"""fixed105 - admin tools for 3x-ui panels
 
-  clientsSummary()  -> total / online / expiring / depleted / deactive
-  ipLimitStatus()   -> fail2ban usable + enabled
-
-Also dumps the new Xui3 methods and the admin panels page hooks so the next
-batch can add maintenance buttons (orphan cleanup, bulk traffic reset).
+  x3upd  -> GET  /server/getPanelUpdateInfo  (is a newer panel release out?)
+  x3orph -> POST /clients/delOrphans         (drop clients with no inbound)
 """
 import io, json, os, re, shutil, subprocess, sys, tempfile
 
 ROOT = os.environ.get("SRC_ROOT") or os.getcwd()
-BUILD = (os.environ.get("NEW_BUILD") or "fixed104").strip() or "fixed104"
+BUILD = (os.environ.get("NEW_BUILD") or "fixed105").strip() or "fixed105"
 
 CACHE = {}
 NEW = {}
@@ -47,20 +44,6 @@ def rep_rx(path, pattern, fn, marker=None, expect=1, optional=False, flags=re.M)
     print("patched %s by regex (%s)" % (path, marker or "-"))
 
 
-def dump(tag, path, start, end):
-    try:
-        lines = load(path).splitlines()
-    except Exception as e:
-        print("== %s == missing: %s" % (tag, e))
-        return
-    print("== %s (%s lines %d-%d of %d) ==" % (tag, path, start, end, len(lines)))
-    for i in range(start, min(end, len(lines)) + 1):
-        raw = lines[i - 1]
-        if len(raw) > 260:
-            raw = raw[:260] + " ...TRUNC"
-        print("  %d|%s" % (i, raw))
-
-
 def write_all():
     php = shutil.which("php")
     blobs = {}
@@ -82,61 +65,85 @@ def write_all():
     print("php lint: " + ("on" if php else "php not installed - skipped"))
 
 
-HEALTH = "app/Service/Health.php"
+PANELS = "admin/pages/panels.php"
 
-BLOCK = """        /* 0.0.2 #x3-health: آمار زندهٔ پنل‌های نسل جدید سنایی (3x-ui) */
-        if ($live && class_exists('Xui3')) {
-            $x3seen = 0;
-            foreach ((DB::all('SELECT * FROM {p}panels WHERE active = 1 ORDER BY id') ?: []) as $x3p) {
-                if ($x3seen >= 3) break;
-                $x3type = class_exists('Xui') ? Xui::normType((string)($x3p['type'] ?? '')) : '';
-                if ($x3type !== 'sanaei' || !Xui3::hasToken($x3p)) continue;
-                $x3seen++;
-                $x3name = trim((string)($x3p['name'] ?? '')) !== ''
-                    ? (string)$x3p['name']
-                    : ('#' . (int)($x3p['id'] ?? 0));
-                try {
-                    $x3drv = new Xui3($x3p);
-                    $x3sum = $x3drv->clientsSummary();
-                    if ($x3sum) {
-                        $out[] = self::it(
-                            'کاربران ' . $x3name,
-                            'کل ' . fa_num((string)(int)($x3sum['total'] ?? 0))
-                                . ' • آنلاین ' . fa_num((string)(int)($x3sum['online'] ?? 0)),
-                            'ok',
-                            'رو به انقضا: ' . fa_num((string)(int)($x3sum['expiring'] ?? 0))
-                                . ' | اتمام حجم: ' . fa_num((string)(int)($x3sum['depleted'] ?? 0))
-                                . ' | غیرفعال: ' . fa_num((string)(int)($x3sum['deactive'] ?? 0))
-                        );
-                    }
-                    $x3ip = $x3drv->ipLimitStatus();
-                    if ($x3ip) {
-                        $x3on = !empty($x3ip['usable']) && !empty($x3ip['enabled']);
-                        $out[] = self::it(
-                            'محدودیت IP ' . $x3name,
-                            $x3on ? 'فعال' : (!empty($x3ip['installed']) ? 'نصب است ولی خاموش' : 'نصب نیست'),
-                            $x3on ? 'ok' : 'warn',
-                            'برای جلوگیری از اشتراک‌گذاری کانفیگ، Fail2ban را در پنل روشن کنید.'
-                        );
-                    }
-                } catch (Throwable $x3e) {
-                    $out[] = self::it('پنل ' . $x3name, 'بررسی نشد', 'warn', $x3e->getMessage());
+# --------------------------------------------------------------- 1) handlers
+ACTION = """    /* 0.0.2 #x3-tools: ابزارهای پنل نسل جدید سنایی (3x-ui) */
+    if ($act === 'x3upd' || $act === 'x3orph') {
+        need('panels.edit', 'panels');
+        $id = pint('id');
+        $x  = Xui::forPanel($id);
+        $x3 = ($x && method_exists($x, 'isXui3') && $x->isXui3()) ? $x->xui3() : null;
+        if (!$x3) {
+            flash('err', 'این ابزار فقط برای پنل نسل جدید سنایی (3x-ui) با توکن API کار می‌کند.');
+        } elseif ($act === 'x3orph') {
+            try {
+                $n = $x3->delOrphans();
+                flash('ok', $n > 0
+                    ? ('\U0001f9f9 ' . fa_num((string)$n) . ' اکانت بی‌صاحب حذف شد.')
+                    : 'اکانت بی‌صاحبی برای حذف پیدا نشد.');
+            } catch (Throwable $e) {
+                flash('err', 'پاک‌سازی انجام نشد: ' . h($e->getMessage()));
+            }
+        } else {
+            try {
+                $u = $x3->panelUpdateInfo();
+                if (!$u) {
+                    flash('err', 'دریافت اطلاعات نسخهٔ پنل ناموفق بود.');
+                } elseif (!empty($u['available'])) {
+                    flash('ok', '⬆️ نسخهٔ تازهٔ پنل موجود است: <code>' . h((string)$u['latest'])
+                        . '</code> (نسخهٔ فعلی: <code>' . h((string)$u['current']) . '</code>)');
+                } else {
+                    flash('ok', '✅ پنل به‌روز است'
+                        . ((string)$u['current'] !== '' ? ' (نسخهٔ <code>' . h((string)$u['current']) . '</code>)' : '') . '.');
                 }
+            } catch (Throwable $e) {
+                flash('err', 'بررسی نسخه انجام نشد: ' . h($e->getMessage()));
             }
         }
+        back('panels', ['inb' => $id]);
+    }
 
 """
 
 
-def _health(m):
-    return BLOCK + m.group(0)
+def _action(m):
+    return ACTION + m.group(0)
 
 
 rep_rx(
-    HEALTH,
-    r"^\s*\$rows\s*=\s*DB::all\('SELECT name, last_error, user_limit, users_created FROM \{p\}panels",
-    _health,
-    marker="0.0.2 #x3-health",
+    PANELS,
+    r"^    if \(\$act === 'health'\) \{$",
+    _action,
+    marker="0.0.2 #x3-tools",
+)
+
+# --------------------------------------------------------------------- 2) UI
+UI = """        <?php /* 0.0.2 #x3-tools-ui */ if (can('panels.edit') && class_exists('Xui')
+            && Xui::normType((string)($p['type'] ?? '')) === 'sanaei'): ?>
+          <form method="post"><?= csrf_field() ?>
+            <input type="hidden" name="act" value="x3upd">
+            <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
+            <button class="btn btn-sm">⬆️ نسخهٔ پنل</button>
+          </form>
+          <form method="post" data-confirm="اکانت‌های بی‌صاحب پنل «<?= h((string)$p['name']) ?>» حذف شوند؟"><?= csrf_field() ?>
+            <input type="hidden" name="act" value="x3orph">
+            <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
+            <button class="btn btn-sm">\U0001f9f9 پاک‌سازی بی‌صاحب‌ها</button>
+          </form>
+        <?php endif; ?>
+"""
+
+
+def _ui(m):
+    return UI + m.group(0)
+
+
+rep_rx(
+    PANELS,
+    r"^        <a class=\"btn btn-sm\" href=\"index\.php\?p=panels&inb=<\?= \(int\)\$p\['id'\] \?>\">[^\n]*</a>$",
+    _ui,
+    marker="0.0.2 #x3-tools-ui",
 )
 
 # ------------------------------------------------------------ sanity + write
@@ -146,12 +153,15 @@ if ERRORS:
         print("  - " + e)
     sys.exit(1)
 
-if HEALTH in NEW:
-    t = CACHE[HEALTH]
-    for needle in ("public static function panels", "public static function all", "private static function it"):
+if PANELS in NEW:
+    t = CACHE[PANELS]
+    for needle in ("$act === 'health'", "$act === 'toggle'", "$act === 'del'", "csrf_field()"):
         if needle not in t:
-            print("ABORTED - sanity check failed for %s (%s)" % (HEALTH, needle))
+            print("ABORTED - sanity check failed for %s (%s)" % (PANELS, needle))
             sys.exit(1)
+    if len(t) < 20000:
+        print("ABORTED - %s shrank unexpectedly (%d chars)" % (PANELS, len(t)))
+        sys.exit(1)
 
 write_all()
 
@@ -160,17 +170,21 @@ if WARN:
     for w in WARN:
         print("  - " + w)
 
-# -------------------------------------------------------- recon for next batch
-dump("XUI3 NEW METHODS", "app/Panel/Xui3.php", 707, 760)
-dump("XUI3 NEW METHODS 2", "app/Panel/Xui3.php", 761, 826)
-dump("ADMIN PANELS ACT", "admin/pages/panels.php", 150, 172)
-dump("ADMIN PANELS UI", "admin/pages/panels.php", 405, 436)
-
 # ---------------------------------------------------------------- version.json
 VJ = os.path.join(ROOT, "version.json")
 with io.open(VJ, encoding="utf-8") as fh:
     v = json.load(fh)
 v["build"] = BUILD
+entry = ("\u0627\u0628\u0632\u0627\u0631\u0647\u0627\u06cc \u067e\u0646\u0644 3x-ui: "
+         "\u0628\u0631\u0631\u0633\u06cc \u0646\u0633\u062e\u0647\u0654 \u067e\u0646\u0644\u060c "
+         "\u067e\u0627\u06a9\u200c\u0633\u0627\u0632\u06cc \u0627\u06a9\u0627\u0646\u062a\u200c\u0647\u0627\u06cc \u0628\u06cc\u200c\u0635\u0627\u062d\u0628 \u0648 "
+         "\u0646\u0645\u0627\u06cc\u0634 \u0622\u0645\u0627\u0631 \u0632\u0646\u062f\u0647\u0654 \u06a9\u0627\u0631\u0628\u0631\u0627\u0646 \u0648 "
+         "\u0648\u0636\u0639\u06cc\u062a \u0645\u062d\u062f\u0648\u062f\u06cc\u062a IP \u062f\u0631 \u0635\u0641\u062d\u0647\u0654 \u0633\u0644\u0627\u0645\u062a.")
+cl = v.get("changelog")
+if isinstance(cl, list) and all(isinstance(x, str) for x in cl) and entry not in cl:
+    cl.insert(0, entry)
+    v["changelog"] = cl
+    print("changelog: entry added")
 with io.open(VJ, "w", encoding="utf-8") as fh:
     json.dump(v, fh, ensure_ascii=False, indent=2)
     fh.write("\n")
