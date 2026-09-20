@@ -420,8 +420,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
             && !empty($_FILES['media']['tmp_name']) && is_uploaded_file((string)$_FILES['media']['tmp_name'])) {
             $tmpDir = APP_ROOT . '/storage/tmp';
             if (!is_dir($tmpDir)) @mkdir($tmpDir, 0775, true);
-            $safe = preg_replace('/[^\w\.\-]/u', '_', (string)$_FILES['media']['name']) ?: 'file';
+            /* 0.0.2 #10: نام امن و پسوند مجاز برای فایل رسانه */
+            $safe = class_exists('Upload')
+                ? Upload::safeName((string)$_FILES['media']['name'], Upload::MEDIA)
+                : (preg_replace('/[^\w\.\-]/u', '_', (string)$_FILES['media']['name']) ?: 'file');
             $dest = $tmpDir . '/bc_' . rnd(8) . '_' . $safe;
+            if (class_exists('Upload')) Upload::protectDir(dirname($dest));   /* 0.0.2 #10-dir */
             if (@move_uploaded_file((string)$_FILES['media']['tmp_name'], $dest)) {
                 $fileId = Broadcast::uploadToTelegram($dest, $kind, $adminTg);
                 @unlink($dest);

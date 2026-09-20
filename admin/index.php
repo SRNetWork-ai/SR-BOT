@@ -428,7 +428,7 @@ $pageFile = __DIR__ . '/pages/' . basename($page) . '.php';
 /* 0.0.2 #6: سپر سراسری CSRF روی همهٔ درخواست‌های POST پنل.
    پیش‌فرض حالت گزارشی است؛ با تنظیم sec_csrf_strict = 1 درخواست بدون توکن مسدود می‌شود. */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_ok()) {
-    $csrfStrict = (string)DB::setting('sec_csrf_strict', '0') === '1';
+    $csrfStrict = (string)DB::setting('sec_csrf_strict', '1') === '1';
     $csrfAct    = (string)preg_replace('/[^a-z0-9_\-]/i', '', (string)($_POST['act'] ?? ($_POST['action'] ?? '')));
     app_log('sec', 'csrf ' . ($csrfStrict ? 'blocked' : 'report') . ': p=' . $page . ' act=' . $csrfAct . ' ip=' . $clientIp);
     try {

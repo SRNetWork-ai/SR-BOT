@@ -1,53 +1,77 @@
 Python 3.12.3
-Sun Sep 20 15:40:07 UTC 2026
-patched app/Tg.php with anchor #1 (0.0.2 #8:)
-patched app/Service/Backup.php with anchor #1 (0.0.2 #3-autopass)
-patched app/Service/Health.php with anchor #1 (0.0.2 #8: )
+Sun Sep 20 15:44:50 UTC 2026
+patched admin/index.php with anchor #1 (DB::setting('sec_csrf_strict', '1'))
+patched admin/pages/settings.php by regex (0.0.2 #10: )
+patched admin/pages/settings.php by regex (0.0.2 #10-dir)
 php lint: on
-== CSRF DETAIL (admin/pages/audit.php) ==
-  64 MISSING | <form method="get" class="grid g4" style="align-items:end">
-  124 ok      | <form method="post" class="grid g2" style="align-items:end"><?= csrf_field() ?><input type
-  131 ok      | <form method="post" class="grid g2" style="align-items:end" onsubmit="return confirm('لاگ‌
-== CSRF DETAIL (admin/pages/cards.php) ==
-  254 ok      | <form method="post" class="inline">
-  309 ok      | <form method="post" id="caBulk" class="ca-bulk" hidden>
-  337 ok      | <form method="post" class="inline">
-  400 ok      | <form method="post" class="inline">
-  409 ok      | <form method="post" class="inline ca-rej">
-  419 ok      | <form method="post" class="inline">
-  438 MISSING | <form class="ca-filter mt4" method="get">
-  516 ok      | <form method="post" class="inline">
-  525 ok      | <form method="post" class="inline">
-  534 ok      | <form method="post" class="inline">
-  616 ok      | <form method="post" class="ca-set mt4">
-== CSRF DETAIL (admin/pages/payments.php) ==
-  546 MISSING | <form class="pay-filter" method="get">
-  602 ok      | <form method="post" id="payBulkForm">
-  691 ok      | <form method="post" id="payOneForm" class="hidden-form" style="display:none">
-  745 ok      | <form method="post" id="payOneForm" class="hidden-form" style="display:none">
-  837 MISSING | <form method="get" class="row" style="gap:6px">
-== UPLOADS (tree ~ move_uploaded_file|\$_FILES) ==
-  app/Service/Audit.php:80: if (!empty($_FILES)) $meta['files'] = implode(',', array_keys($_FILES));
-  app/Service/Backup.php:550: if (!@move_uploaded_file((string)$file['tmp_name'], $dest)) {
-  admin/pages/backup.php:97: $u = Backup::saveUpload((array)($_FILES['file'] ?? []));
-  admin/pages/botbuttons.php:136: $tmp  = (string)($_FILES['jfile']['tmp_name'] ?? '');
-  admin/pages/botbuttons.php:137: $siz  = (int)($_FILES['jfile']['size'] ?? 0);
-  admin/pages/bottexts.php:64: if (!empty($_FILES['jfile']['tmp_name']) && is_uploaded_file($_FILES['jfile']['tmp_name'])) {
-  admin/pages/bottexts.php:65: if ((int)($_FILES['jfile']['size'] ?? 0) > 2 * 1024 * 1024) {
-  admin/pages/bottexts.php:69: $json = (string)@file_get_contents($_FILES['jfile']['tmp_name']);
-  admin/pages/settings.php:420: && !empty($_FILES['media']['tmp_name']) && is_uploaded_file((string)$_FILES['media']['tmp_name']
-  admin/pages/settings.php:423: $safe = preg_replace('/[^\w\.\-]/u', '_', (string)$_FILES['media']['name']) ?: 'file';
-  admin/pages/settings.php:425: if (@move_uploaded_file((string)$_FILES['media']['tmp_name'], $dest)) {
-  admin/pages/stock.php:93: $f   = (array)($_FILES['file'] ?? []);
-  admin/pages/tickets.php:62: if (!empty($_FILES['att']['tmp_name']) && is_uploaded_file($_FILES['att']['tmp_name'])) {
-  admin/pages/tickets.php:63: $size = (int)($_FILES['att']['size'] ?? 0);
-  admin/pages/tickets.php:65: $safe    = preg_replace('/[^A-Za-z0-9._-]/', '_', (string)($_FILES['att']['name'] ?? 'file'));
-  admin/pages/tickets.php:69: if (@move_uploaded_file($_FILES['att']['tmp_name'], $tmpPath)) $sentFile = true;
-  admin/pages/update.php:53: $f = (array)($_FILES['zip'] ?? []);
-  admin/pages/update.php:61: if (!@move_uploaded_file((string)$f['tmp_name'], $dest)) {
-build: fixed92
-changed files: 3
-  - app/Service/Backup.php
-  - app/Service/Health.php
-  - app/Tg.php
+== MINIAPP WHERE ID (miniapp/api.php ~ WHERE\s+id\s*=) ==
+  317: $__rsDomUser = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => (int)($s['user_id'] ?? 0)]) ?: [];
+  430: $u = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: $user;
+  564: $pnRow = DB::one('SELECT * FROM {p}panels WHERE id = :id AND active = 1', [':id' => (int)$p['panel_id']]);
+  590: $p = DB::one('SELECT * FROM {p}products WHERE id = :id AND active = 1', [':id' => $pid]);
+  606: $pnRow = DB::one('SELECT * FROM {p}panels WHERE id = :id AND active = 1', [':id' => $pnId]);
+  674: $u     = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]);
+  748: $p = DB::one('SELECT * FROM {p}products WHERE id = :i AND active = 1', [':i' => $pid]);
+  753: $panel = DB::one('SELECT * FROM {p}panels WHERE id = :i', [':i' => (int)$p['panel_id']]);
+  756: $u = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]);
+  825: if ((int)$p['stock'] > 0) DB::q('UPDATE {p}products SET stock = stock - 1 WHERE id = :i', [':i' => $pid]);
+  870: $s = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+  877: $s = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+  881: $s = DB::one('SELECT * FROM {p}services WHERE id = :i', [':i' => (int)$s['id']]);
+  913: $u = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]);
+  939: $me   = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
+  956: $me = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
+  967: $fresh = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
+  998: $me = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
+  1007: $fresh = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
+  1045: $me  = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
+  1057: $fresh = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
+  1096: 'balance'     => (int)DB::val('SELECT balance FROM {p}users WHERE id = :i', [':i' => $UID], 0),
+  1097: 'balance_txt' => ma_money((int)DB::val('SELECT balance FROM {p}users WHERE id = :i', [':i' => $UID], 0)),
+  1436: $hpRow = DB::one("SELECT * FROM {p}transactions WHERE id = :i AND user_id = :u AND method = 'hooshpay'",
+  1441: return (int)DB::val('SELECT balance FROM {p}users WHERE id = :id', [':id' => $UID], 0);
+  1520: $bal = (int)DB::val('SELECT balance FROM {p}users WHERE id = :id', [':id' => $UID], 0);
+  1541: $tx = DB::one("SELECT * FROM {p}transactions WHERE id = :i AND user_id = :u AND status = 'pending'",
+  1617: $t = DB::one('SELECT * FROM {p}tickets WHERE id = :i AND user_id = :u', [':i' => $id, ':u' => $UID]);
+  1662: $t = DB::one('SELECT * FROM {p}tickets WHERE id = :i AND user_id = :u', [':i' => $id, ':u' => $UID]);
+  1699: $u = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]);
+== MINIAPP OWNER CHECK (miniapp/api.php ~ user_id\s*=\s*:u|AND\s+user_id) ==
+  432: $svcTotal = (int)DB::val('SELECT COUNT(*) FROM {p}services WHERE user_id = :u AND status <> :d',
+  434: $svcActive = (int)DB::val("SELECT COUNT(*) FROM {p}services WHERE user_id = :u AND status = 'active'",
+  436: $orders = (int)DB::val("SELECT COUNT(*) FROM {p}orders WHERE user_id = :u AND status = 'paid'",
+  438: $openTk = (int)DB::val("SELECT COUNT(*) FROM {p}tickets WHERE user_id = :u AND status <> 'closed'",
+  857: $rows = DB::all('SELECT * FROM {p}services WHERE user_id = :u AND status <> :d
+  870: $s = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+  877: $s = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+  899: 'used'      => (int)DB::val('SELECT COUNT(*) FROM {p}services WHERE user_id = :u AND is_test = 1 AND panel_id 
+  1068: $rows = DB::all('SELECT * FROM {p}transactions WHERE user_id = :u ORDER BY id DESC LIMIT 25', [':u' => $UID]);
+  1090: WHERE user_id = :u AND status = 'approved' AND amount > 0", [':u' => $UID], 0);
+  1092: WHERE user_id = :u AND status = 'approved' AND amount < 0", [':u' => $UID], 0);
+  1436: $hpRow = DB::one("SELECT * FROM {p}transactions WHERE id = :i AND user_id = :u AND method = 'hooshpay'",
+  1541: $tx = DB::one("SELECT * FROM {p}transactions WHERE id = :i AND user_id = :u AND status = 'pending'",
+  1600: $rows = DB::all('SELECT * FROM {p}tickets WHERE user_id = :u ORDER BY id DESC LIMIT 30', [':u' => $UID]);
+  1617: $t = DB::one('SELECT * FROM {p}tickets WHERE id = :i AND user_id = :u', [':i' => $id, ':u' => $UID]);
+  1662: $t = DB::one('SELECT * FROM {p}tickets WHERE id = :i AND user_id = :u', [':i' => $id, ':u' => $UID]);
+  2123: $S = " FROM {p}services WHERE user_id = :u AND is_reseller = 1 AND status <> 'deleted'";
+  2124: $T = " FROM {p}transactions WHERE user_id = :u";
+  2544: 'SELECT COUNT(*) FROM {p}services WHERE user_id = :u AND status <> :d AND COALESCE(is_reseller, 0) = 0',
+  2547: 'SELECT COALESCE(SUM(amount), 0) FROM {p}transactions WHERE user_id = :u AND type = :t AND status = :s',
+== SSRF CURL (tree ~ curl_init\(\$|http_json\(\$|file_get_contents\(\$url) ==
+  tools/botcheck.php:68: $ch = curl_init($url);
+  tools/botcheck.php:263: $ch = curl_init($url);
+  app/Tg.php:17: $ch  = curl_init($url);
+  app/Service/Guard.php:106: $ch = @curl_init($url);
+  app/Service/Rates.php:287: $r = http_json($url, [], 'GET', $hdrs, 12);
+  app/Service/Security.php:445: $r = http_json($url, $data, $method, $hdrs, 15);
+  app/Service/TxCheck.php:324: $r = http_json($host . '/api/transaction-info?hash=' . urlencode($hash), [], 'GET', [], self::ti
+  app/Service/Updater.php:103: $ch = curl_init($url);
+  app/Panel/Marzban.php:84: $ch = curl_init($url);
+  app/Panel/PasarGuard.php:111: $ch = curl_init($url);
+  app/Panel/Xui.php:168: $ch = curl_init($url);
+  app/Panel/Xui.php:565: $ch = curl_init($url);
+  app/Panel/Xui3.php:97: $ch = curl_init($url);
+build: fixed93
+changed files: 2
+  - admin/index.php
+  - admin/pages/settings.php
 exit: 0
