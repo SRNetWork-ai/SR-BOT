@@ -188,7 +188,17 @@ function app_log(string $channel, string $message, array $ctx = []): void {
     @file_put_contents($dir . '/app-' . date('Y-m-d') . '.log', $line . PHP_EOL, FILE_APPEND);
 }
 
-function http_json(string $url, array $data = [], string $method = 'GET', array $headers = [], int $timeout = 20): array {
+function http_json(string $url, array $data = [], string $method = 'GET', array $headers = [], int $timeout = 20, string $netCtx = 'api'): array {
+    /* 0.0.2 #14: SSRF guard - refuse outgoing requests to internal targets */
+    if (class_exists('Net')) {
+        $netChk = Net::check($url, $netCtx);
+        if (empty($netChk['ok'])) {
+            if (function_exists('app_log')) {
+                app_log('net', 'blocked outgoing request', ['url' => $url, 'reason' => (string)($netChk['message'] ?? '')]);
+            }
+            return ['code' => 0, 'body' => '', 'json' => [], 'error' => 'ssrf-guard: ' . (string)($netChk['message'] ?? '')];
+        }
+    }
     $ch = curl_init();
     if (strtoupper($method) === 'GET' && $data) {
         $url .= (strpos($url, '?') === false ? '?' : '&') . http_build_query($data);
@@ -200,7 +210,10 @@ function http_json(string $url, array $data = [], string $method = 'GET', array 
         CURLOPT_SSL_VERIFYPEER => app_ssl_verify(),
         CURLOPT_SSL_VERIFYHOST => app_ssl_verify() ? 2 : 0,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS => 5,
+        CURLOPT_MAXREDIRS => 3,
+        /* 0.0.2 #14: only http/https, even after a redirect */
+        CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+        CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
         CURLOPT_HTTPHEADER => array_merge(['Accept: application/json'], $headers),
     ]);
     if (strtoupper($method) !== 'GET') {

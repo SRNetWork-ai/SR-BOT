@@ -305,6 +305,12 @@ class Health
                 'هر درخواست ورودی با هدر X-Telegram-Bot-Api-Secret-Token بررسی می‌شود.');
 
         /* 0.0.2 #1: بررسی دسترسی وب به فایل‌های حساس */
+        /* 0.0.2 #14: SSRF guard item */
+        if (class_exists('Net')) {
+            $nh = Net::healthItem();
+            $out[] = self::it((string)$nh['title'], (string)$nh['value'], (string)$nh['status'], (string)$nh['note']);
+        }
+
         if (class_exists('Guard')) {
             $gx   = Guard::exposure();
             $gopn = (array)($gx['open'] ?? []);

@@ -1,77 +1,50 @@
 Python 3.12.3
-Sun Sep 20 15:44:50 UTC 2026
-patched admin/index.php with anchor #1 (DB::setting('sec_csrf_strict', '1'))
-patched admin/pages/settings.php by regex (0.0.2 #10: )
-patched admin/pages/settings.php by regex (0.0.2 #10-dir)
+Sun Sep 20 15:51:51 UTC 2026
+patched app/Helpers.php with anchor #1 (0.0.2 #14: SSRF guard)
+patched app/Helpers.php with anchor #1 (CURLOPT_REDIR_PROTOCOLS)
+patched app/Service/Health.php with anchor #1 (0.0.2 #14: SSRF guard item)
 php lint: on
-== MINIAPP WHERE ID (miniapp/api.php ~ WHERE\s+id\s*=) ==
-  317: $__rsDomUser = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => (int)($s['user_id'] ?? 0)]) ?: [];
-  430: $u = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: $user;
-  564: $pnRow = DB::one('SELECT * FROM {p}panels WHERE id = :id AND active = 1', [':id' => (int)$p['panel_id']]);
-  590: $p = DB::one('SELECT * FROM {p}products WHERE id = :id AND active = 1', [':id' => $pid]);
-  606: $pnRow = DB::one('SELECT * FROM {p}panels WHERE id = :id AND active = 1', [':id' => $pnId]);
-  674: $u     = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]);
-  748: $p = DB::one('SELECT * FROM {p}products WHERE id = :i AND active = 1', [':i' => $pid]);
-  753: $panel = DB::one('SELECT * FROM {p}panels WHERE id = :i', [':i' => (int)$p['panel_id']]);
-  756: $u = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]);
-  825: if ((int)$p['stock'] > 0) DB::q('UPDATE {p}products SET stock = stock - 1 WHERE id = :i', [':i' => $pid]);
-  870: $s = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
-  877: $s = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
-  881: $s = DB::one('SELECT * FROM {p}services WHERE id = :i', [':i' => (int)$s['id']]);
-  913: $u = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]);
-  939: $me   = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
-  956: $me = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
-  967: $fresh = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
-  998: $me = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
-  1007: $fresh = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
-  1045: $me  = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
-  1057: $fresh = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
-  1096: 'balance'     => (int)DB::val('SELECT balance FROM {p}users WHERE id = :i', [':i' => $UID], 0),
-  1097: 'balance_txt' => ma_money((int)DB::val('SELECT balance FROM {p}users WHERE id = :i', [':i' => $UID], 0)),
-  1436: $hpRow = DB::one("SELECT * FROM {p}transactions WHERE id = :i AND user_id = :u AND method = 'hooshpay'",
-  1441: return (int)DB::val('SELECT balance FROM {p}users WHERE id = :id', [':id' => $UID], 0);
-  1520: $bal = (int)DB::val('SELECT balance FROM {p}users WHERE id = :id', [':id' => $UID], 0);
-  1541: $tx = DB::one("SELECT * FROM {p}transactions WHERE id = :i AND user_id = :u AND status = 'pending'",
-  1617: $t = DB::one('SELECT * FROM {p}tickets WHERE id = :i AND user_id = :u', [':i' => $id, ':u' => $UID]);
-  1662: $t = DB::one('SELECT * FROM {p}tickets WHERE id = :i AND user_id = :u', [':i' => $id, ':u' => $UID]);
-  1699: $u = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]);
-== MINIAPP OWNER CHECK (miniapp/api.php ~ user_id\s*=\s*:u|AND\s+user_id) ==
-  432: $svcTotal = (int)DB::val('SELECT COUNT(*) FROM {p}services WHERE user_id = :u AND status <> :d',
-  434: $svcActive = (int)DB::val("SELECT COUNT(*) FROM {p}services WHERE user_id = :u AND status = 'active'",
-  436: $orders = (int)DB::val("SELECT COUNT(*) FROM {p}orders WHERE user_id = :u AND status = 'paid'",
-  438: $openTk = (int)DB::val("SELECT COUNT(*) FROM {p}tickets WHERE user_id = :u AND status <> 'closed'",
-  857: $rows = DB::all('SELECT * FROM {p}services WHERE user_id = :u AND status <> :d
-  870: $s = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
-  877: $s = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
-  899: 'used'      => (int)DB::val('SELECT COUNT(*) FROM {p}services WHERE user_id = :u AND is_test = 1 AND panel_id 
-  1068: $rows = DB::all('SELECT * FROM {p}transactions WHERE user_id = :u ORDER BY id DESC LIMIT 25', [':u' => $UID]);
-  1090: WHERE user_id = :u AND status = 'approved' AND amount > 0", [':u' => $UID], 0);
-  1092: WHERE user_id = :u AND status = 'approved' AND amount < 0", [':u' => $UID], 0);
-  1436: $hpRow = DB::one("SELECT * FROM {p}transactions WHERE id = :i AND user_id = :u AND method = 'hooshpay'",
-  1541: $tx = DB::one("SELECT * FROM {p}transactions WHERE id = :i AND user_id = :u AND status = 'pending'",
-  1600: $rows = DB::all('SELECT * FROM {p}tickets WHERE user_id = :u ORDER BY id DESC LIMIT 30', [':u' => $UID]);
-  1617: $t = DB::one('SELECT * FROM {p}tickets WHERE id = :i AND user_id = :u', [':i' => $id, ':u' => $UID]);
-  1662: $t = DB::one('SELECT * FROM {p}tickets WHERE id = :i AND user_id = :u', [':i' => $id, ':u' => $UID]);
-  2123: $S = " FROM {p}services WHERE user_id = :u AND is_reseller = 1 AND status <> 'deleted'";
-  2124: $T = " FROM {p}transactions WHERE user_id = :u";
-  2544: 'SELECT COUNT(*) FROM {p}services WHERE user_id = :u AND status <> :d AND COALESCE(is_reseller, 0) = 0',
-  2547: 'SELECT COALESCE(SUM(amount), 0) FROM {p}transactions WHERE user_id = :u AND type = :t AND status = :s',
-== SSRF CURL (tree ~ curl_init\(\$|http_json\(\$|file_get_contents\(\$url) ==
-  tools/botcheck.php:68: $ch = curl_init($url);
-  tools/botcheck.php:263: $ch = curl_init($url);
-  app/Tg.php:17: $ch  = curl_init($url);
-  app/Service/Guard.php:106: $ch = @curl_init($url);
-  app/Service/Rates.php:287: $r = http_json($url, [], 'GET', $hdrs, 12);
-  app/Service/Security.php:445: $r = http_json($url, $data, $method, $hdrs, 15);
-  app/Service/TxCheck.php:324: $r = http_json($host . '/api/transaction-info?hash=' . urlencode($hash), [], 'GET', [], self::ti
-  app/Service/Updater.php:103: $ch = curl_init($url);
-  app/Panel/Marzban.php:84: $ch = curl_init($url);
-  app/Panel/PasarGuard.php:111: $ch = curl_init($url);
-  app/Panel/Xui.php:168: $ch = curl_init($url);
-  app/Panel/Xui.php:565: $ch = curl_init($url);
-  app/Panel/Xui3.php:97: $ch = curl_init($url);
-build: fixed93
+== SUB ENTRY (sub.php ~ \$_GET\[|WHERE\s+token|WHERE\s+id\s*=) ==
+  39: $key = trim((string)($_GET['id'] ?? ($_GET['code'] ?? ($_GET['c'] ?? ''))));
+  45: $fmt = strtolower(trim((string)($_GET['fmt'] ?? '')));
+  741: $base = trim((string)DB::val('SELECT sub_base FROM {p}panels WHERE id = :i', [':i' => $pid], ''));
+  811: $base = trim((string)DB::val('SELECT sub_base FROM {p}panels WHERE id = :i', [':i' => $pid], ''));
+== VERIFY ENTRY (verify.php ~ \$_GET\[|\$_POST\[|WHERE\s+id\s*=) ==
+  93: $token  = trim((string)($isPost ? ($_POST['t'] ?? '') : ($_GET['t'] ?? '')));
+  112: if (trim((string)($_POST['website'] ?? '')) !== '') {
+  116: } elseif (!vs_cap_ok((string)($_POST['cap'] ?? ''))) {
+== CARD MINI (miniapp/card.php ~ WHERE\s+id\s*=|user_id|ma_auth|initData) ==
+  272: var INIT = TG ? (TG.initData || '') : '';
+  276: /* وقتی این صفحه از داخل مینی‌اپ اصلی باز می‌شود، تلگرام initData تازه نمی‌سازد؛
+  964: /* بازگشت به مینی‌اپ اصلی همراه initData تا صفحهٔ مقصد هم کاربر را بشناسد */
+== PANEL FACTORY (tree ~ new (Xui3|Xui|Marzban|PasarGuard)\(|panel_type|'kind'\s*=>|case 'xui) ==
+  app/Service/Broadcast.php:154: 'kind'       => $kind,
+  app/Service/Btn.php:280: 'kind'     => 'builtin',
+  app/Service/Btn.php:321: 'kind'     => $kind,
+  app/Service/Btn.php:399: 'kind'     => $kind,
+  app/Service/Btn.php:746: 'id' => 'b_custom', 'kind' => 'builtin', 'key' => 'custom',
+  app/Service/Btn.php:985: 'kind'     => 'builtin',
+  app/Service/Btn.php:1347: 'kind'     => 'menu',
+  app/Service/Bulk.php:104: try { $xuis[$pid] = $panel ? new Xui($panel) : null; } catch (Throwable $e) { $xuis[$pid] = null
+  app/Service/Gateway.php:154: 'kind'     => $kind,
+  app/Service/Gateway.php:200: 'id' => rnd(8), 'kind' => 'card', 'enabled' => 1, 'audience' => 'all',
+  app/Service/Gateway.php:220: 'id' => rnd(8), 'kind' => 'crypto', 'enabled' => 1, 'audience' => 'all',
+  app/Service/Reseller.php:1994: $xui  = new Xui($panel);
+  app/Service/Security.php:239: 'kind'     => $kind,
+  app/Service/Stock.php:227: 'kind'        => isset(self::KINDS[(string)($d['kind'] ?? '')]) ? (string)$d['kind'] : 'config',
+  app/Service/Stock.php:348: 'kind'       => $kind,
+  app/Service/Stock.php:411: 'kind'     => $kind,
+  app/Service/Stock.php:551: 'kind'      => $kind,
+  app/Service/Stock.php:621: 'kind'     => $kindIn,
+  app/Service/Stock.php:635: 'kind'      => $kind,
+  app/Service/Svc.php:188: $allowed = (new Xui($panel))->allowedInboundIds();
+  app/Service/Svc.php:209: $xui      = new Xui($panel);
+  app/Service/Svc.php:253: $xui   = new Xui($panel);
+  app/Service/Svc.php:513: $x = new Xui($panel);
+  app/Service/Svc.php:547: $xui  = new Xui($panel);
+  ... (limit reached)
+build: fixed94
 changed files: 2
-  - admin/index.php
-  - admin/pages/settings.php
+  - app/Helpers.php
+  - app/Service/Health.php
 exit: 0
