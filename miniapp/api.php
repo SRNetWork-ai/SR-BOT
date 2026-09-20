@@ -1015,6 +1015,23 @@ switch ($action) {
 
     /* fixed83: کانفیگ‌های قطع — فهرست و مبلغ عودتی */
     /* 0.0.2: مدیریت دستگاه‌های ثبت‌شده (HWID) — فقط پنل نسل جدید سنایی */
+    /* 0.0.2 #happ-links: لینک Happ و لینک‌های خارجی سرویس */
+    case 'svc_links': {
+        $sid = (int)($in['id'] ?? 0);
+        $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+            [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
+        if (!$s) ma_fail('سرویس یافت نشد.');
+        if (!class_exists('Links') || !Links::supported($s)) {
+            ma_out(['ok' => true, 'supported' => false, 'happ' => '', 'items' => []]);
+        }
+        ma_out([
+            'ok'        => true,
+            'supported' => true,
+            'happ'      => Links::happ($s),
+            'items'     => Links::external($s),
+        ]);
+    }
+
     case 'svc_devices': {
         $sid = (int)($in['id'] ?? 0);
         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',

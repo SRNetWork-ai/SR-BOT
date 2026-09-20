@@ -1059,6 +1059,7 @@ class Bot
             case 'svcdev':     Tg::answerCb($cbId); self::devicesView($chatId, $msgId, (int)$arg); return;
             case 'svcdevdel':  self::deviceDel($chatId, $msgId, $cbId, (int)$arg, (int)$arg2); return;
             case 'svcdevclr':  self::deviceClear($chatId, $msgId, $cbId, (int)$arg); return;
+            case 'svchapp': Tg::answerCb($cbId); self::happView($chatId, $msgId, (int)$arg); return;
             case 'svcdel':     Tg::answerCb($cbId); self::delOptions($chatId, $msgId, (int)$arg); return;
             case 'svcdelok':   self::doDelete($chatId, $msgId, $cbId, (int)$arg); return;
             case 'svcpurge':   Tg::answerCb($cbId); self::purgeDeadView($chatId, $msgId); return;
@@ -2981,6 +2982,10 @@ class Bot
             [Tg::btn('📋 مشخصات کامل', 'svcspec:' . $id), Tg::btn('🔄 به‌روزرسانی مصرف', 'svcsync:' . $id)],
             [Tg::btn('♻️ تمدید سرویس', 'svcrn:' . $id)],
         ];
+        /* 0.0.2 #happ-btn: لینک اختصاصی Happ — فقط پنل نسل جدید سنایی */
+        if (class_exists('Links') && Links::supported($s)) {
+            $rows[] = [Tg::btn('⚡ افزودن به Happ', 'svchapp:' . $id)];
+        }
         /* 0.0.2 #dev-btn: مدیریت دستگاه‌های ثبت‌شده (HWID) — فقط پنل نسل جدید سنایی */
         if (class_exists('Devices') && Devices::supported($s)) {
             $rows[] = [Tg::btn('📱 دستگاه‌های من', 'svcdev:' . $id)];
@@ -2995,6 +3000,47 @@ class Bot
     }
 
     /* ============ 0.0.2: دستگاه‌های ثبت‌شده (HWID) — پنل 3x-ui ============ */
+
+    /* ============ 0.0.2 #happ-links: لینک Happ و لینک‌های خارجی ============ */
+
+    private static function happView($chatId, $msgId, int $id): void
+    {
+        $s = self::myService($id);
+        if (!$s) { Tg::send($chatId, '⚠️ سرویس یافت نشد.'); return; }
+        if (!class_exists('Links') || !Links::supported($s)) {
+            Tg::send($chatId, 'ℹ️ این سرویس لینک Happ ندارد.');
+            return;
+        }
+
+        $happ = Links::happ($s);
+        $ext  = Links::external($s);
+
+        $txt = "⚡ <b>افزودن به Happ</b>\n"
+            . '<code>─────────────────</code>' . "\n";
+        if ($happ !== '') {
+            $txt .= "لینک زیر را کپی کنید و در اپلیکیشن Happ بزنید روی «+» ← Import from clipboard:\n\n"
+                . '<code>' . h($happ) . '</code>' . "\n";
+        } else {
+            $txt .= "لینک Happ برای این سرویس در دسترس نیست.\n";
+        }
+        if ($ext) {
+            $txt .= "\n🔗 <b>لینک‌های دیگر</b>\n";
+            $n = 0;
+            foreach ($ext as $e) {
+                $link = trim((string)($e['link'] ?? ''));
+                if ($link === '') continue;
+                $title = trim((string)($e['title'] ?? ''));
+                $txt .= '• ' . ($title !== '' ? h($title) . ': ' : '') . '<code>' . h($link) . '</code>' . "\n";
+                if (++$n >= 5) break;
+            }
+        }
+
+        $rows = [
+            [Tg::btn('🔄 به‌روزرسانی', 'svchapp:' . $id)],
+            [Tg::btn('⬅️ بازگشت', 'svc:' . $id)],
+        ];
+        $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
+    }
 
     private static function devicesView($chatId, $msgId, int $id): void
     {
