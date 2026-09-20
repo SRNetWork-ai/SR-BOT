@@ -1,42 +1,84 @@
 Python 3.12.3
-Sun Sep 20 17:38:51 UTC 2026
-== SCHEMA PRODUCTS (database/schema.sql lines 84-118 of 544) ==
-  84|CREATE TABLE IF NOT EXISTS {p}products (
-  85|  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  86|  `panel_id` INT UNSIGNED NOT NULL,
-  87|  `inbound_id` INT NULL,
-  88|  `name` VARCHAR(190) NOT NULL,
-  89|  `category` VARCHAR(64) NULL,
-  90|  `description` TEXT NULL,
-  91|  `volume_gb` DECIMAL(10,2) NOT NULL DEFAULT 0,
-  92|  `days` INT NOT NULL DEFAULT 30,
-  93|  `ip_limit` INT NOT NULL DEFAULT 0,
-  94|  `device_limit` INT NOT NULL DEFAULT 0,
-  95|  `speed_up` INT NOT NULL DEFAULT 0,
-  96|  `speed_down` INT NOT NULL DEFAULT 0,
-  97|  `price` BIGINT NOT NULL DEFAULT 0,
-  98|  `old_price` BIGINT NULL,
-  99|  `stock` INT NOT NULL DEFAULT -1,
-  100|  `sold` INT NOT NULL DEFAULT 0,
-  101|  `active` TINYINT(1) NOT NULL DEFAULT 1,
-  102|  `sort` INT NOT NULL DEFAULT 0,
-  103|  `deliver_mode` VARCHAR(8) NOT NULL DEFAULT '',
-  104|  `type` VARCHAR(8) NOT NULL DEFAULT 'fixed',
-  105|  `price_gb` BIGINT NOT NULL DEFAULT 0,
-  106|  `price_day` BIGINT NOT NULL DEFAULT 0,
-  107|  `min_gb` INT NOT NULL DEFAULT 1,
-  108|  `max_gb` INT NOT NULL DEFAULT 100,
-  109|  `min_days` INT NOT NULL DEFAULT 1,
-  110|  `max_days` INT NOT NULL DEFAULT 90,
-  111|  `created_at` DATETIME NOT NULL,
-  112|  KEY `idx_panel` (`panel_id`)
-  113|) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-  114|
-  115|CREATE TABLE IF NOT EXISTS {p}services (
-  116|  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  117|  `user_id` INT UNSIGNED NOT NULL,
-  118|  `tg_id` BIGINT NOT NULL,
-== XUI3 addClient (app/Panel/Xui3.php lines 237-335 of 868) ==
+Sun Sep 20 17:42:04 UTC 2026
+== XUI3 curl+api (app/Panel/Xui3.php lines 95-158 of 868) ==
+  95|    private function curl(string $url, $body = null, string $method = 'GET'): array
+  96|    {
+  97|        $ch = curl_init($url);
+  98|        $headers = ['Accept: application/json', 'Authorization: Bearer ' . $this->token()];
+  99|        /* بررسی گواهی SSL مانند بقیه درایورها برای هر پنل جداگانه قابل تنظیم است */
+  100|        $verify = (int)($this->panel['ssl_verify'] ?? 0) === 1;
+  101|        $opts = [
+  102|            CURLOPT_RETURNTRANSFER => true,
+  103|            CURLOPT_TIMEOUT        => 25,
+  104|            CURLOPT_CONNECTTIMEOUT => 10,
+  105|            CURLOPT_SSL_VERIFYPEER => $verify,
+  106|            CURLOPT_SSL_VERIFYHOST => $verify ? 2 : 0,
+  107|            CURLOPT_FOLLOWLOCATION => false,
+  108|            CURLOPT_CUSTOMREQUEST  => $method,
+  109|        ];
+  110|        if ($body !== null) {
+  111|            $opts[CURLOPT_POSTFIELDS] = is_string($body) ? $body : jenc($body);
+  112|            $headers[] = 'Content-Type: application/json';
+  113|        } elseif ($method === 'POST') {
+  114|            $opts[CURLOPT_POSTFIELDS] = '';
+  115|        }
+  116|        $opts[CURLOPT_HTTPHEADER] = $headers;
+  117|        curl_setopt_array($ch, $opts);
+  118|        $raw  = curl_exec($ch);
+  119|        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  120|        $err  = curl_error($ch);
+  121|        curl_close($ch);
+  122|        $raw = is_string($raw) ? $raw : '';
+  123|        return ['code' => $code, 'body' => $raw, 'json' => jdec($raw, []), 'error' => $err];
+  124|    }
+  125|
+  126|    /** فراخوانی API نسل جدید — خروجی همیشه ['success','msg','obj','code'] */
+  127|    private function api(string $path, $body = null, string $method = 'GET'): array
+  128|    {
+  129|        if ($this->token() === '') {
+  130|            return ['success' => false, 'msg' => 'توکن API برای این پنل ثبت نشده است', 'obj' => null, 'code' => 0];
+  131|        }
+  132|        $res  = $this->curl($this->base() . '/panel/api' . $path, $body, $method);
+  133|        $code = (int)$res['code'];
+  134|        $j    = is_array($res['json']) ? $res['json'] : [];
+  135|        if (array_key_exists('success', $j)) {
+  136|            $j += ['msg' => '', 'obj' => null];
+  137|            $j['code'] = $code;
+  138|            return $j;
+  139|        }
+  140|        $msg = (string)($res['error'] !== '' ? $res['error'] : ('HTTP ' . $code));
+  141|        if ($code === 401 || $code === 403) $msg = 'توکن API نامعتبر یا منقضی است (HTTP ' . $code . ')';
+  142|        if ($code === 404)                  $msg = 'این پنل از API نسل جدید پشتیبانی نمی‌کند (HTTP 404)';
+  143|        return ['success' => false, 'msg' => $msg, 'obj' => null, 'code' => $code];
+  144|    }
+  145|
+  146|    /* ---------------------- اینباندها ---------------------- */
+  147|
+  148|    /** تنظیمات تو در توی نسل جدید برای سازگاری با بقیهٔ ربات به رشتهٔ JSON برمی‌گردد */
+  149|    private static function normInbound($in): array
+  150|    {
+  151|        $in = (array)$in;
+  152|        foreach (['settings', 'streamSettings', 'sniffing', 'allocate'] as $k) {
+  153|            if (isset($in[$k]) && is_array($in[$k])) $in[$k] = jenc($in[$k]);
+  154|        }
+  155|        return $in;
+  156|    }
+  157|
+  158|    public function inbounds(): array
+== XUI3 clientRow (app/Panel/Xui3.php lines 224-258 of 868) ==
+  224|    private function clientRow(string $email): ?array
+  225|    {
+  226|        $email = trim($email);
+  227|        if ($email === '') return null;
+  228|        $r = $this->api('/clients/get/' . rawurlencode($email));
+  229|        if (($r['success'] ?? false) !== true || empty($r['obj'])) return null;
+  230|        $row = self::rowOf($r['obj']);
+  231|        $key = Xui::clientKey($row, '');
+  232|        if ($key !== '') $this->userMap[$key] = (string)($row['email'] ?? $email);
+  233|        return $row;
+  234|    }
+  235|
+  236|    /** کلیدهایی که جزو payload کلاینت نی��تند و در ویرایش نباید ارسال شوند */
   237|    private static function cleanClient(array $c): array
   238|    {
   239|        $drop = [
@@ -59,135 +101,121 @@ Sun Sep 20 17:38:51 UTC 2026
   256|     * «ایمیل تکراری» با attach به اینباندهای جدید وصل می‌شود.
   257|     */
   258|    public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, int $ipLimit = 0, string $subId = '', array $inboundIds = [], int $deviceLimit = 0, int $upKbps = 0, int $downKbps = 0): array
-  259|    {
-  260|        $ids = Xui::idList($inboundIds);
-  261|        if (!$ids) $ids = [$inboundId];
-  262|        if ($inboundId > 0 && !in_array($inboundId, $ids, true)) array_unshift($ids, $inboundId);
-  263|        $ids = array_values($ids);
-  264|
-  265|        $inbound = $this->inbound($inboundId) ?? ['id' => $inboundId, 'protocol' => 'vless', 'remark' => (string)($this->panel['name'] ?? ''), 'port' => 0];
-  266|        $proto   = strtolower((string)($inbound['protocol'] ?? 'vless'));
-  267|
-  268|        /* اکانت موجود → اتصال به اینباندهای خواسته‌شده + بازنویسی حجم/زمان با خرید جدید */
-  269|        $existing = $this->clientRow($email);
-  270|        if ($existing) {
-  271|            $r = $this->api('/clients/' . rawurlencode($email) . '/attach', ['inboundIds' => $ids], 'POST');
-  272|            if (($r['success'] ?? false) !== true) {
-  273|                return ['success' => false, 'msg' => (string)($r['msg'] ?? 'اتصال اکانت به اینباند جدید ناموفق بود')];
-  274|            }
-  275|            /*
-  276|             * اگر اکانتی با همین نام از قبل روی پنل مانده باشد (مثلاً کانفیگ قدیمیِ تمام‌شده)،
-  277|             * سرویس تازه نباید سهمیهٔ صفر و تاریخ گذشتهٔ آن را به ارث ببرد؛ پس حجم/زمان/وضعیت
-  278|             * با مقادیر خرید جدید بازنویسی و مصرف قبلی صفر می‌شود.
-  279|             */
-  280|            $fresh = [
-  281|                'email'      => $email,
-  282|                'enable'     => true,
-  283|                'totalGB'    => $volumeGb > 0 ? gb2bytes($volumeGb) : 0,
-  284|                'expiryTime' => $expiryMs,
-  285|                'limitIp'    => $ipLimit,
-  286|            ];
-  287|            if ($deviceLimit > 0) $fresh['limitHwid'] = $deviceLimit;
-  288|            if (empty($this->created[$email])) {
-  289|                $up = $this->updateClient($inboundId, $uuid, $fresh, $ids);
-  290|                if (($up['success'] ?? false) !== true) {
-  291|                    app_log('panel', 'xui3 attach: refresh quota failed', ['panel' => (int)($this->panel['id'] ?? 0), 'email' => $email, 'msg' => (string)($up['msg'] ?? '')]);
-  292|                }
-  293|                try { $this->resetTraffic($inboundId, $email); } catch (Throwable $e) { }
-  294|                $this->created[$email] = true;
-  295|            }
-  296|            unset($this->linksCache[$email], $this->linksServed[$email]);
-  297|            $this->userMap[$uuid] = $email;
-  298|            return ['success' => true, 'client' => array_merge($existing, $fresh), 'inbound' => $inbound];
-  299|        }
-  300|
-  301|        $client = [
-  302|            'email'      => $email,
-  303|            'enable'     => true,
-  304|            'totalGB'    => $volumeGb > 0 ? gb2bytes($volumeGb) : 0,
-  305|            'expiryTime' => $expiryMs,
-  306|            'limitIp'    => $ipLimit,
-  307|            'subId'      => $subId !== '' ? $subId : rnd(16),
-  308|            'reset'      => 0,
-  309|            'comment'    => '',
-  310|        ];
-  311|        if ($proto === 'trojan' || $proto === 'shadowsocks') {
-  312|            $client['password'] = $uuid;
-  313|        } else {
-  314|            $client['id']   = $uuid;
-  315|            $client['flow'] = '';
-  316|        }
-  317|        if ($deviceLimit > 0) $client['limitHwid'] = $deviceLimit;
-  318|
-  319|        $r = $this->api('/clients/add', ['client' => $client, 'inboundIds' => $ids], 'POST');
-  320|        if (($r['success'] ?? false) !== true) {
-  321|            app_log('panel', 'xui3 addClient failed', ['panel' => (int)($this->panel['id'] ?? 0), 'email' => $email, 'msg' => (string)($r['msg'] ?? '')]);
-  322|            return ['success' => false, 'msg' => (string)($r['msg'] ?? 'خطا در ساخت کاربر در پنل')];
-  323|        }
-  324|        $this->userMap[$uuid] = $email;
-  325|        $this->created[$email] = true;
-  326|        unset($this->linksCache[$email], $this->linksServed[$email]);
-  327|        return ['success' => true, 'client' => $client, 'inbound' => $inbound];
-  328|    }
-  329|
-  330|    /**
-  331|     * ویرایش کلاینت — نسل جدید ردیف را «کامل جایگزین» می‌کند (patch نیست)؛
-  332|     * پس اول نسخهٔ فعلی خوانده می‌شود و تغییرات ربات روی آن سوار می‌شود.
-  333|     */
-  334|    public function updateClient(int $inboundId, string $uuid, array $client, array $inboundIds = []): array
-  335|    {
-== ADDCLIENT CALLS (tree ~ addClient\() ==
+== XUI3 devices (app/Panel/Xui3.php lines 705-742 of 868) ==
+  705|     * و باید فیلد توکن خالی شود تا ربات از درایور قدیمی (یوزر/پسورد) استفاده کند.
+  706|     */
+  707|    /* ========== 0.0.2: newer 3x-ui API endpoints (docs.sanaei.dev) ========== */
+  708|
+  709|    /** registered HWID devices of one account: GET /clients/hwids/{email} */
+  710|    public function devices(string $email): array
+  711|    {
+  712|        $email = trim($email);
+  713|        if ($email === '') return [];
+  714|        $r = $this->api('/clients/hwids/' . rawurlencode($email));
+  715|        if (($r['success'] ?? false) !== true) return [];
+  716|        $out = [];
+  717|        foreach ((array)($r['obj'] ?? []) as $d) {
+  718|            if (!is_array($d)) continue;
+  719|            $out[] = [
+  720|                'id'   => (int)($d['id'] ?? 0),
+  721|                'hwid' => (string)($d['hwid'] ?? ''),
+  722|                'name' => trim((string)($d['deviceName'] ?? ($d['name'] ?? ''))),
+  723|                'os'   => trim((string)($d['os'] ?? ($d['platform'] ?? ''))),
+  724|                'app'  => trim((string)($d['appName'] ?? ($d['app'] ?? ''))),
+  725|                'seen' => (int)($d['updatedAt'] ?? ($d['createdAt'] ?? 0)),
+  726|            ];
+  727|        }
+  728|        return $out;
+  729|    }
+  730|
+  731|    /** free one HWID slot: DELETE /clients/hwids/{email}/{id} */
+  732|    public function deviceDelete(string $email, int $id): array
+  733|    {
+  734|        $email = trim($email);
+  735|        if ($email === '' || $id <= 0) return ['success' => false, 'msg' => 'bad request'];
+  736|        return $this->api('/clients/hwids/' . rawurlencode($email) . '/' . $id, null, 'DELETE');
+  737|    }
+  738|
+  739|    /** drop every registered device of one account; returns how many were removed */
+  740|    public function devicesClear(string $email): int
+  741|    {
+  742|        $n = 0;
+== XUI3 links (app/Panel/Xui3.php lines 655-700 of 868) ==
+  655|        $links = $this->linksFor($email);
+  656|        if ($links) return $links;
+  657|        /* fallback: از ساب پنل */
+  658|        $row   = $this->clientRow($email);
+  659|        $subId = trim((string)($row['subId'] ?? ''));
+  660|        return $subId !== '' ? $this->subFetch($subId) : [];
+  661|    }
+  662|
+  663|    public function subLink(string $subId): string
+  664|    {
+  665|        $base = trim((string)($this->panel['sub_base'] ?? ''));
+  666|        if ($base === '' || $subId === '') return '';
+  667|        return rtrim($base, '/') . '/' . $subId;
+  668|    }
+  669|
+  670|    public function subUrlFor(string $email): string
+  671|    {
+  672|        $row   = $this->clientRow($email);
+  673|        $subId = trim((string)($row['subId'] ?? ''));
+  674|        return $subId !== '' ? $this->subLink($subId) : '';
+  675|    }
+  676|
+  677|    /** خواندن کانفیگ‌های ساب؛ نسل جدید خروجی JSON بدون base64 هم دارد */
+  678|    public function subFetch(string $subId, string $subUrl = ''): array
+  679|    {
+  680|        $subId = trim($subId);
+  681|        if ($subId !== '') {
+  682|            $r = $this->api('/clients/subLinks/' . rawurlencode($subId));
+  683|            if (($r['success'] ?? false) === true) {
+  684|                $out = [];
+  685|                foreach ((array)($r['obj'] ?? []) as $l) {
+  686|                    $l = trim((string)$l);
+  687|                    if ($l !== '' && preg_match(Xui::LINK_RE, $l)) $out[] = $l;
+  688|                }
+  689|                if ($out) return array_values(array_unique($out));
+  690|            }
+  691|        }
+  692|        /* fallback: خواندن ساب عمومی مثل درایور قدیمی */
+  693|        $url = trim($subUrl) !== '' ? trim($subUrl) : $this->subLink($subId);
+  694|        if ($url === '') return [];
+  695|        $links = Xui::parseSubBody(Xui::httpGet($url));
+  696|        if ($links) return $links;
+  697|        return Xui::parseSubBody(Xui::httpGet(rtrim($url, '/') . '?b64=1'));
+  698|    }
+  699|
+  700|    /* ---------------------- سلامت و تشخیص نسخه ---------------------- */
+== DEVICE LIMIT (tree ~ device_limit|devLim) ==
+  app/Service/Migrate.php:70: 'device_limit' => 'INT NOT NULL DEFAULT 0',
+  app/Service/Reseller.php:979: 'device_limit' => $plan ? (int)$plan['device'] : 0,
+  app/Service/Reseller.php:1771: 'device_limit' => (int)$b['device'],
+  app/Service/Svc.php:237: $devOpt = (int)($opts['device_limit'] ?? 0);
+  app/Service/Svc.php:238: if ($devOpt <= 0 && is_array($product)) $devOpt = (int)($product['device_limit'] ?? 0);
+  app/Service/Svc.php:282: $devLim = $devOpt;
   app/Service/Svc.php:288: $res     = $xui->addClient($primary, $email, $uuid, $volume, $expiryMs, $ipLim, $subId, $ids, $devLim, $
   app/Service/Svc.php:308: $res = $xui->addClient($ib, $email, $uuid, $volume, $expiryMs, $ipLim, $subId, [], $devLim, $upKb, $down
-  app/Panel/Marzban.php:264: public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, i
-  app/Panel/PasarGuard.php:477: public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, i
-  app/Panel/Xui.php:391: public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, i
-  app/Panel/Xui.php:393: if ($this->mz) return $this->mz->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $s
-  app/Panel/Xui.php:394: if ($this->pg) return $this->pg->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $s
-  app/Panel/Xui.php:395: if ($this->x3) return $this->x3->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $s
-  app/Panel/Xui3.php:258: public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, i
-== PRODUCTS SAVE (admin/pages/products.php ~ \$act ===|pint\('|pnum\('|pstr\(') ==
-  22: if ($act === 'save') {
-  23: $id = pint('id');
-  27: 'panel_id'    => pint('panel_id'),
-  28: 'inbound_id'  => pint('inbound_id'),
-  33: 'days'        => pint('days'),
-  34: 'ip_limit'    => pint('ip_limit'),
-  37: 'stock'       => pint('stock', -1),
-  39: 'sort'        => pint('sort'),
-  58: $data['min_gb']    = max(1, pint('min_gb', 1));
-  59: $data['max_gb']    = max($data['min_gb'], pint('max_gb', 100));
-  60: $data['min_days']  = max(1, pint('min_days', 1));
-  61: $data['max_days']  = max($data['min_days'], pint('max_days', 90));
-  91: if ($act === 'delmode') {
-  99: if ($act === 'del') {
-  101: DB::delete('products', 'id = :id', [':id' => pint('id')]);
-  106: if ($act === 'toggle') {
-  108: $p = DB::one('SELECT * FROM {p}products WHERE id = :id', [':id' => pint('id')]);
-  113: if ($act === 'clone') {
-  115: $p = DB::one('SELECT * FROM {p}products WHERE id = :id', [':id' => pint('id')]);
-== PRODUCTS FORM (admin/pages/products.php ~ name=\"(volume_gb|days|ip_limit|limit_ip|iplimit|device|hwid|inbound)) ==
-  723: <input class="mono" type="text" name="volume_gb" value="<?= h((string)$v('volume_gb', '30')) ?>">
-  728: <input class="mono" type="number" name="days" value="<?= h((string)$v('days', 30)) ?>">
-  733: <input class="mono" type="number" name="ip_limit" value="<?= h((string)$v('ip_limit', 0)) ?>">
-  738: <input class="mono" type="number" name="inbound_id" value="<?= h((string)$v('inbound_id', 0)) ?>">
-  751: <input class="mono" type="number" min="0" name="device_limit" value="<?= h((string)$v('device_limit', 0)) ?>">
-== MIGRATIONS (database/migrations) ==
-  total: 23
-  0010_reseller_bundles_bot_mute.sql
-  0011_shared_sub_group.sql
-  0012_reseller_bot.sql
-  0013_referral.sql
-  0014_refund_speed_ui.sql
-  0015_trash_sub_deliver.sql
-  0016_settings_longtext.sql
-  0017_svc_panel_miss.sql
-  0018_rs_bots.sql
-  0019_card_auth.sql
-  0020_reseller_brand.sql
-  0021_stock.sql
-  0022_card_photo.sql
-  0023_tx_admin_msg.sql
-build: fixed106
+  admin/pages/products.php:16: $prHasLimits = isset($prCols['device_limit'], $prCols['speed_down'], $prCols['speed_up']);
+  admin/pages/products.php:49: foreach (['device_limit', 'speed_up', 'speed_down'] as $lk) {
+  admin/pages/products.php:485: <?php if ($prHasLimits && (int)($p['device_limit'] ?? 0) > 0): ?>
+  admin/pages/products.php:486: <span class="sp">📱 <?= fa_num((int)$p['device_limit']) ?> دستگاه</span>
+  admin/pages/products.php:559: <?php if ($prHasLimits && (int)($p['device_limit'] ?? 0) > 0): ?>
+  admin/pages/products.php:560: <span class="numbox a"><?= fa_num((int)$p['device_limit']) ?>د</span>
+  admin/pages/products.php:751: <input class="mono" type="number" min="0" name="device_limit" value="<?= h((string)$v('device_limit', 0)
+== BOT LINK DELIVERY (app/Bot/Bot.php ~ function sendSub|function sendConfig|case 'svcsub'|case 'svccfg'|linksFor\(|subUrl\() ==
+  1053: case 'svcsub':  self::sendSub($chatId, $cbId, (int)$arg); return;
+  1054: case 'svccfg':  self::sendConfig($chatId, $cbId, (int)$arg); return;
+  2874: $sub  = Svc::subUrl($service);
+  3069: private static function sendSub($chatId, $cbId, int $id): void
+  3075: $sub = Svc::subUrl($s);
+  3096: private static function sendConfig($chatId, $cbId, int $id): void
+  4918: $sub = Svc::subUrl($sv);
+== MINIAPP LINKS (miniapp/api.php ~ 'svc_sub'|'svc_cfg'|'svc_links'|sub_link|config_link) ==
+  339: ? Reseller::applyDomain((string)(class_exists('Svc') ? Svc::subUrl($s) : (string)($s['sub_link'] ?? '')), $__rsDomUser
+  340: : (class_exists('Svc') ? Svc::subUrl($s) : (string)($s['sub_link'] ?? ''))),
+  342: 'sub_main'   => (string)($s['sub_link'] ?? ''),
+  360: : array_values(array_filter(array_map('trim', explode("\n", (string)($s['config_link'] ?? ''))))),
+build: fixed107
 changed files: 0 (recon run)
 exit: 0
