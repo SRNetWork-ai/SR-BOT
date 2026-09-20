@@ -151,6 +151,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
         back('panels', ['inb' => $id]);
     }
 
+    /* 0.0.2 #x3-tools: ابزارهای پنل نسل جدید سنایی (3x-ui) */
+    if ($act === 'x3upd' || $act === 'x3orph') {
+        need('panels.edit', 'panels');
+        $id = pint('id');
+        $x  = Xui::forPanel($id);
+        $x3 = ($x && method_exists($x, 'isXui3') && $x->isXui3()) ? $x->xui3() : null;
+        if (!$x3) {
+            flash('err', 'این ابزار فقط برای پنل نسل جدید سنایی (3x-ui) با توکن API کار می‌کند.');
+        } elseif ($act === 'x3orph') {
+            try {
+                $n = $x3->delOrphans();
+                flash('ok', $n > 0
+                    ? ('🧹 ' . fa_num((string)$n) . ' اکانت بی‌صاحب حذف شد.')
+                    : 'اکانت بی‌صاحبی برای حذف پیدا نشد.');
+            } catch (Throwable $e) {
+                flash('err', 'پاک‌سازی انجام نشد: ' . h($e->getMessage()));
+            }
+        } else {
+            try {
+                $u = $x3->panelUpdateInfo();
+                if (!$u) {
+                    flash('err', 'دریافت اطلاعات نسخهٔ پنل ناموفق بود.');
+                } elseif (!empty($u['available'])) {
+                    flash('ok', '⬆️ نسخهٔ تازهٔ پنل موجود است: <code>' . h((string)$u['latest'])
+                        . '</code> (نسخهٔ فعلی: <code>' . h((string)$u['current']) . '</code>)');
+                } else {
+                    flash('ok', '✅ پنل به‌روز است'
+                        . ((string)$u['current'] !== '' ? ' (نسخهٔ <code>' . h((string)$u['current']) . '</code>)' : '') . '.');
+                }
+            } catch (Throwable $e) {
+                flash('err', 'بررسی نسخه انجام نشد: ' . h($e->getMessage()));
+            }
+        }
+        back('panels', ['inb' => $id]);
+    }
+
     if ($act === 'health') {
         need('panels.health', 'panels');
         $id = pint('id');
@@ -416,6 +452,19 @@ foreach ($panels as $p) { if (!empty($p['last_error']) && (int)$p['active']) $pn
             <input type="hidden" name="act" value="health">
             <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
             <button class="btn btn-sm">🔍 تست اتصال</button>
+          </form>
+        <?php endif; ?>
+        <?php /* 0.0.2 #x3-tools-ui */ if (can('panels.edit') && class_exists('Xui')
+            && Xui::normType((string)($p['type'] ?? '')) === 'sanaei'): ?>
+          <form method="post"><?= csrf_field() ?>
+            <input type="hidden" name="act" value="x3upd">
+            <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
+            <button class="btn btn-sm">⬆️ نسخهٔ پنل</button>
+          </form>
+          <form method="post" data-confirm="اکانت‌های بی‌صاحب پنل «<?= h((string)$p['name']) ?>» حذف شوند؟"><?= csrf_field() ?>
+            <input type="hidden" name="act" value="x3orph">
+            <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
+            <button class="btn btn-sm">🧹 پاک‌سازی بی‌صاحب‌ها</button>
           </form>
         <?php endif; ?>
         <a class="btn btn-sm" href="index.php?p=panels&inb=<?= (int)$p['id'] ?>">📡 اینباندها</a>
