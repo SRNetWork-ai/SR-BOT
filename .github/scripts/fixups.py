@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""fixed96 - 0.0.2 batch #11
+"""fixed97 - 0.0.2 batch #12
 
-  * backup page: the auto password checkbox (missed last run because the
-    marker string was created by the save patch in the same run)
-  * recon: public api of every panel driver + how Svc.php picks a driver,
-    needed for row 16 (Hiddify / Marzneshin support)
+  * index.php: ignore a Telegram update that was already processed (row 32)
+  * recon: confirm how bootstrap.php autoloads app/Service classes
 """
 import io, json, os, re, shutil, subprocess, sys, tempfile
 
 ROOT = os.environ.get("SRC_ROOT") or os.getcwd()
-BUILD = (os.environ.get("NEW_BUILD") or "fixed96").strip() or "fixed96"
+BUILD = (os.environ.get("NEW_BUILD") or "fixed97").strip() or "fixed97"
 
 CACHE = {}
 NEW = {}
@@ -25,7 +23,8 @@ def load(path):
     return CACHE[path]
 
 
-def rep_rx(path, pattern, fn, marker=None, expect=1, optional=False, flags=re.M):
+def rep_multi(path, pairs, marker=None, optional=False):
+    """literal anchor patch; every anchor must appear exactly once"""
     bag = WARN if optional else ERRORS
     try:
         s = load(path)
@@ -35,15 +34,19 @@ def rep_rx(path, pattern, fn, marker=None, expect=1, optional=False, flags=re.M)
     if marker and marker in s:
         print("skip (already applied): %s / %s" % (path, marker))
         return
-    rx = re.compile(pattern, flags)
-    hits = rx.findall(s)
-    if len(hits) != expect:
-        bag.append("%s: regex for %s matched %d times (want %d)"
-                   % (path, marker or pattern[:40], len(hits), expect))
+    out = s
+    counts = []
+    for old, _new in pairs:
+        counts.append(out.count(old))
+    if any(c != 1 for c in counts):
+        bag.append("%s: no unique anchor for %s (counts: %s)"
+                   % (path, marker or "-", counts))
         return
-    CACHE[path] = rx.sub(fn, s, count=expect)
+    for old, new in pairs:
+        out = out.replace(old, new, 1)
+    CACHE[path] = out
     NEW[path] = True
-    print("patched %s by regex (%s)" % (path, marker or "-"))
+    print("patched %s with %d anchor(s) (%s)" % (path, len(pairs), marker or "-"))
 
 
 def grep(tag, path, pattern, limit=25):
@@ -86,29 +89,29 @@ def write_all():
     print("php lint: " + ("on" if php else "php not installed - skipped"))
 
 
-# ============================== 1) backup auto password checkbox (row 3)
-BK = "admin/pages/backup.php"
-
-
-def _bk_ui(m):
-    i = m.group(1)
-    return (
-        m.group(0) + "\n"
-        + i + "<!-- 0.0.2 #3-autopass-box -->\n"
-        + i + "<label style=\"display:block;margin-top:6px\">\n"
-        + i + "  <input type=\"checkbox\" name=\"backup_autopass\" value=\"1\" <?= ((string)$S('backup_autopass', '1') === '1' ? 'checked' : '') ?>>\n"
-        + i + "  \u0633\u0627\u062e\u062a \u062e\u0648\u062f\u06a9\u0627\u0631 \u0631\u0645\u0632 \u0642\u0648\u06cc \u0648\u0642\u062a\u06cc \u0627\u06cc\u0646 \u0641\u06cc\u0644\u062f \u062e\u0627\u0644\u06cc \u0627\u0633\u062a (\u0631\u0645\u0632 \u062f\u0631 \u062a\u0627\u067e\u06cc\u06a9 \u0628\u06a9\u0627\u067e \u0627\u0631\u0633\u0627\u0644 \u0645\u06cc\u200c\u0634\u0648\u062f)\n"
-        + i + "</label>"
-    )
-
-
-rep_rx(
-    BK,
-    r"^([ \t]*)<input class=\"mono\" type=\"text\" name=\"backup_pass\"[^\n]*$",
-    _bk_ui,
-    marker="0.0.2 #3-autopass-box",
-    optional=True,
+# ================================ 1) duplicate telegram updates (row 32)
+ANCHOR = (
+    "$update = json_decode((string)$raw, true);\n"
+    "if (!is_array($update)) {\n"
+    "    http_response_code(400);\n"
+    "    echo 'bad request';\n"
+    "    exit;\n"
+    "}\n"
 )
+
+DEDUP = ANCHOR + (
+    "\n"
+    "/* 0.0.2 #32: a retried delivery of the same update must not be handled twice */\n"
+    "$updateId = (int)($update['update_id'] ?? 0);\n"
+    "if ($updateId > 0 && class_exists('Dedup') && !Dedup::first($updateId)) {\n"
+    "    http_response_code(200);\n"
+    "    header('Content-Type: application/json; charset=utf-8');\n"
+    "    echo '{\"ok\":true,\"duplicate\":true}';\n"
+    "    exit;\n"
+    "}\n"
+)
+
+rep_multi("index.php", [(ANCHOR, DEDUP)], marker="0.0.2 #32")
 
 # ==================================================== 2) sanity check + write
 if ERRORS:
@@ -117,10 +120,10 @@ if ERRORS:
         print("  - " + e)
     sys.exit(1)
 
-if BK in NEW:
-    t = CACHE[BK]
-    if len(t) < 8000 or "backup_pass" not in t:
-        print("ABORTED - sanity check failed for %s (%d chars)" % (BK, len(t)))
+if "index.php" in NEW:
+    t = CACHE["index.php"]
+    if len(t) < 4000 or "Bot::handle($update)" not in t:
+        print("ABORTED - sanity check failed for index.php (%d chars)" % len(t))
         sys.exit(1)
 
 write_all()
@@ -130,19 +133,31 @@ if WARN:
     for w in WARN:
         print("  - " + w)
 
-# ============================= 3) recon for row 16 (new panel types)
-grep("XUI API", "app/Panel/Xui.php", r"public function |public const |class ", 34)
-grep("XUI3 API", "app/Panel/Xui3.php", r"public function |class ", 26)
-grep("MARZBAN API", "app/Panel/Marzban.php", r"public function |class ", 26)
-grep("PASARGUARD API", "app/Panel/PasarGuard.php", r"public function |class ", 26)
-grep("SVC DISPATCH", "app/Service/Svc.php", r"\$panel\['type'\]|\['type'\]\s*===|Marzban|PasarGuard|Xui3|function driver", 26)
-grep("PANELS PAGE", "admin/pages/panels.php", r"option value|'type'|panel_type", 24)
+# ============================================= 3) recon: class autoloading
+grep("AUTOLOAD", "app/bootstrap.php", r"spl_autoload_register|glob\(|require|Service", 26)
+print("service files present: %d" % len([f for f in os.listdir(os.path.join(ROOT, "app", "Service")) if f.endswith(".php")]))
+for f in ["Dedup.php", "Net.php", "Upload.php"]:
+    p = os.path.join(ROOT, "app", "Service", f)
+    print("  %s: %s" % (f, "ok" if os.path.isfile(p) else "MISSING"))
 
 # ================================================================ 4) version
 VJ = os.path.join(ROOT, "version.json")
 with io.open(VJ, encoding="utf-8") as fh:
     v = json.load(fh)
+
+entry = (
+    "\U0001f6e1 \u0633\u062e\u062a\u200c\u0633\u0627\u0632\u06cc \u06f0.\u06f0.\u06f2 (\u06af\u0627\u0645 \u06f1\u06f2): "
+    "\u062c\u0644\u0648\u06af\u06cc\u0631\u06cc \u0627\u0632 \u067e\u0631\u062f\u0627\u0632\u0634 \u062a\u06a9\u0631\u0627\u0631\u06cc "
+    "\u0622\u067e\u062f\u06cc\u062a\u200c\u0647\u0627\u06cc \u062a\u0644\u06af\u0631\u0627\u0645 (update_id) "
+    "\u062a\u0627 \u062e\u0631\u06cc\u062f\u060c \u062a\u0645\u062f\u06cc\u062f \u06cc\u0627 \u0634\u0627\u0631\u0698 "
+    "\u062f\u0648\u0628\u0627\u0631 \u0627\u0646\u062c\u0627\u0645 \u0646\u0634\u0648\u062f."
+)
+log = v.get("changelog") or []
+if entry not in log:
+    log.insert(0, entry)
+    v["changelog"] = log
 v["build"] = BUILD
+
 with io.open(VJ, "w", encoding="utf-8") as fh:
     json.dump(v, fh, ensure_ascii=False, indent=2)
     fh.write("\n")
