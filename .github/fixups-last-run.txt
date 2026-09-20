@@ -1,11 +1,49 @@
 Python 3.12.3
-Sun Sep 20 17:18:08 UTC 2026
-patched app/Bot/Bot.php by regex (0.0.2 #dev-btn)
-patched app/Bot/Bot.php by regex (private static function devicesView)
-patched app/Bot/Bot.php by regex (case 'svcdev':)
-php lint: on
-changelog: entry added
-build: fixed102
-changed files: 1
-  - app/Bot/Bot.php
+Sun Sep 20 17:20:50 UTC 2026
+== HEALTH FUNCS (app/Service/Health.php ~ static function |\$out = \[\];|return \$out;) ==
+  20: private static function it(string $label, string $value, string $status = 'ok', string $hint = ''): array
+  26: public static function all(bool $live = true): array
+  39: $out = [];
+  48: return $out;
+  52: public static function score(array $groups): array
+  69: public static function app(bool $live = true): array
+  94: return $out;
+  99: public static function php(bool $live = true): array
+  124: return $out;
+  129: public static function db(bool $live = true): array
+  134: if (!$conn) return $out;
+  159: return $out;
+  164: public static function files(bool $live = true): array
+  166: $out = [];
+  198: return $out;
+  203: public static function bot(bool $live = true): array
+  347: return $out;
+  352: public static function cron(bool $live = true): array
+  392: return $out;
+  397: public static function panels(bool $live = true): array
+  427: return $out;
+  432: public static function sales(bool $live = true): array
+  457: return $out;
+== HEALTH PANELS (app/Service/Health.php ~ panels|Xui|healthCheck) ==
+  13: 'settings', 'admins', 'users', 'panels', 'products', 'services',
+  35: ['پنل‌های VPN', '🖧', 'panels'],
+  397: public static function panels(bool $live = true): array
+  400: $tot   = (int)DB::val('SELECT COUNT(*) FROM {p}panels', [], 0);
+  401: $act   = (int)DB::val('SELECT COUNT(*) FROM {p}panels WHERE active = 1', [], 0);
+  406: $rows  = DB::all('SELECT name, last_error, user_limit, users_created FROM {p}panels WHERE active = 1 ORDER BY so
+== ADMIN PANELS (admin/pages/panels.php ~ \$act|case '|post\('|csrf) ==
+  7: $act = (string)($_POST['act'] ?? '');
+  9: if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
+  11: if ($act === 'save') {
+  126: if ($act === 'del') {
+  134: if ($act === 'toggle') {
+  142: if ($act === 'setinb') { /* fixed79: ثبت گروه‌ها/اینباندهای تیک‌خورده */
+  154: if ($act === 'health') {
+  415: <form method="post"><?= csrf_field() ?>
+  423: <form method="post"><?= csrf_field() ?>
+  430: <form method="post" data-confirm="پنل «<?= h((string)$p['name']) ?>» حذف شود؟"><?= csrf_field() ?>
+  510: <?= csrf_field() ?>
+  528: <?= csrf_field() ?>
+build: fixed103
+changed files: 0 (recon run)
 exit: 0
