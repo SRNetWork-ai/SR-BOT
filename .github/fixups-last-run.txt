@@ -1,10 +1,193 @@
 Python 3.12.3
-Sun Sep 20 17:28:11 UTC 2026
-patched admin/pages/panels.php by regex (0.0.2 #x3-tools)
-patched admin/pages/panels.php by regex (0.0.2 #x3-tools-ui)
-php lint: on
-changelog: entry added
-build: fixed105
-changed files: 1
-  - admin/pages/panels.php
+Sun Sep 20 17:38:51 UTC 2026
+== SCHEMA PRODUCTS (database/schema.sql lines 84-118 of 544) ==
+  84|CREATE TABLE IF NOT EXISTS {p}products (
+  85|  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  86|  `panel_id` INT UNSIGNED NOT NULL,
+  87|  `inbound_id` INT NULL,
+  88|  `name` VARCHAR(190) NOT NULL,
+  89|  `category` VARCHAR(64) NULL,
+  90|  `description` TEXT NULL,
+  91|  `volume_gb` DECIMAL(10,2) NOT NULL DEFAULT 0,
+  92|  `days` INT NOT NULL DEFAULT 30,
+  93|  `ip_limit` INT NOT NULL DEFAULT 0,
+  94|  `device_limit` INT NOT NULL DEFAULT 0,
+  95|  `speed_up` INT NOT NULL DEFAULT 0,
+  96|  `speed_down` INT NOT NULL DEFAULT 0,
+  97|  `price` BIGINT NOT NULL DEFAULT 0,
+  98|  `old_price` BIGINT NULL,
+  99|  `stock` INT NOT NULL DEFAULT -1,
+  100|  `sold` INT NOT NULL DEFAULT 0,
+  101|  `active` TINYINT(1) NOT NULL DEFAULT 1,
+  102|  `sort` INT NOT NULL DEFAULT 0,
+  103|  `deliver_mode` VARCHAR(8) NOT NULL DEFAULT '',
+  104|  `type` VARCHAR(8) NOT NULL DEFAULT 'fixed',
+  105|  `price_gb` BIGINT NOT NULL DEFAULT 0,
+  106|  `price_day` BIGINT NOT NULL DEFAULT 0,
+  107|  `min_gb` INT NOT NULL DEFAULT 1,
+  108|  `max_gb` INT NOT NULL DEFAULT 100,
+  109|  `min_days` INT NOT NULL DEFAULT 1,
+  110|  `max_days` INT NOT NULL DEFAULT 90,
+  111|  `created_at` DATETIME NOT NULL,
+  112|  KEY `idx_panel` (`panel_id`)
+  113|) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  114|
+  115|CREATE TABLE IF NOT EXISTS {p}services (
+  116|  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  117|  `user_id` INT UNSIGNED NOT NULL,
+  118|  `tg_id` BIGINT NOT NULL,
+== XUI3 addClient (app/Panel/Xui3.php lines 237-335 of 868) ==
+  237|    private static function cleanClient(array $c): array
+  238|    {
+  239|        $drop = [
+  240|            'inboundIds', 'externalConfigIds', 'externalLinks', 'memberships',
+  241|            'up', 'down', 'total', 'allTime', 'lastOnline', 'lastSubFetch', 'resetCount',
+  242|            'inboundId', 'created_at', 'updated_at', 'createdAt', 'updatedAt', 'uuid',
+  243|            /* کلیدهای محدودیت سرعت مخصوص فورک vpn-ui — در نسل جدید تعریف نشده‌اند */
+  244|            'uploadLimit', 'upLimit', 'limitUp', 'speedLimitUp', 'upSpeed', 'maxUpload', 'upMbps',
+  245|            'downloadLimit', 'downLimit', 'limitDown', 'speedLimitDown', 'downSpeed', 'maxDownload', 'downMbps',
+  246|        ];
+  247|        foreach ($drop as $k) unset($c[$k]);
+  248|        /* شمارهٔ ردیف پنل هرگز به‌جای UUID ارسال نشود */
+  249|        if (isset($c['id']) && !Xui::isClientKey($c['id'])) unset($c['id']);
+  250|        return $c;
+  251|    }
+  252|
+  253|    /**
+  254|     * ساخت کلاینت — یک اکانت روی یک یا چند اینباند در یک درخواست.
+  255|     * اگر اکانت با همین ایمیل از قبل باشد (حلقهٔ چنداینباندی ربات)، به‌جای خطای
+  256|     * «ایمیل تکراری» با attach به اینباندهای جدید وصل می‌شود.
+  257|     */
+  258|    public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, int $ipLimit = 0, string $subId = '', array $inboundIds = [], int $deviceLimit = 0, int $upKbps = 0, int $downKbps = 0): array
+  259|    {
+  260|        $ids = Xui::idList($inboundIds);
+  261|        if (!$ids) $ids = [$inboundId];
+  262|        if ($inboundId > 0 && !in_array($inboundId, $ids, true)) array_unshift($ids, $inboundId);
+  263|        $ids = array_values($ids);
+  264|
+  265|        $inbound = $this->inbound($inboundId) ?? ['id' => $inboundId, 'protocol' => 'vless', 'remark' => (string)($this->panel['name'] ?? ''), 'port' => 0];
+  266|        $proto   = strtolower((string)($inbound['protocol'] ?? 'vless'));
+  267|
+  268|        /* اکانت موجود → اتصال به اینباندهای خواسته‌شده + بازنویسی حجم/زمان با خرید جدید */
+  269|        $existing = $this->clientRow($email);
+  270|        if ($existing) {
+  271|            $r = $this->api('/clients/' . rawurlencode($email) . '/attach', ['inboundIds' => $ids], 'POST');
+  272|            if (($r['success'] ?? false) !== true) {
+  273|                return ['success' => false, 'msg' => (string)($r['msg'] ?? 'اتصال اکانت به اینباند جدید ناموفق بود')];
+  274|            }
+  275|            /*
+  276|             * اگر اکانتی با همین نام از قبل روی پنل مانده باشد (مثلاً کانفیگ قدیمیِ تمام‌شده)،
+  277|             * سرویس تازه نباید سهمیهٔ صفر و تاریخ گذشتهٔ آن را به ارث ببرد؛ پس حجم/زمان/وضعیت
+  278|             * با مقادیر خرید جدید بازنویسی و مصرف قبلی صفر می‌شود.
+  279|             */
+  280|            $fresh = [
+  281|                'email'      => $email,
+  282|                'enable'     => true,
+  283|                'totalGB'    => $volumeGb > 0 ? gb2bytes($volumeGb) : 0,
+  284|                'expiryTime' => $expiryMs,
+  285|                'limitIp'    => $ipLimit,
+  286|            ];
+  287|            if ($deviceLimit > 0) $fresh['limitHwid'] = $deviceLimit;
+  288|            if (empty($this->created[$email])) {
+  289|                $up = $this->updateClient($inboundId, $uuid, $fresh, $ids);
+  290|                if (($up['success'] ?? false) !== true) {
+  291|                    app_log('panel', 'xui3 attach: refresh quota failed', ['panel' => (int)($this->panel['id'] ?? 0), 'email' => $email, 'msg' => (string)($up['msg'] ?? '')]);
+  292|                }
+  293|                try { $this->resetTraffic($inboundId, $email); } catch (Throwable $e) { }
+  294|                $this->created[$email] = true;
+  295|            }
+  296|            unset($this->linksCache[$email], $this->linksServed[$email]);
+  297|            $this->userMap[$uuid] = $email;
+  298|            return ['success' => true, 'client' => array_merge($existing, $fresh), 'inbound' => $inbound];
+  299|        }
+  300|
+  301|        $client = [
+  302|            'email'      => $email,
+  303|            'enable'     => true,
+  304|            'totalGB'    => $volumeGb > 0 ? gb2bytes($volumeGb) : 0,
+  305|            'expiryTime' => $expiryMs,
+  306|            'limitIp'    => $ipLimit,
+  307|            'subId'      => $subId !== '' ? $subId : rnd(16),
+  308|            'reset'      => 0,
+  309|            'comment'    => '',
+  310|        ];
+  311|        if ($proto === 'trojan' || $proto === 'shadowsocks') {
+  312|            $client['password'] = $uuid;
+  313|        } else {
+  314|            $client['id']   = $uuid;
+  315|            $client['flow'] = '';
+  316|        }
+  317|        if ($deviceLimit > 0) $client['limitHwid'] = $deviceLimit;
+  318|
+  319|        $r = $this->api('/clients/add', ['client' => $client, 'inboundIds' => $ids], 'POST');
+  320|        if (($r['success'] ?? false) !== true) {
+  321|            app_log('panel', 'xui3 addClient failed', ['panel' => (int)($this->panel['id'] ?? 0), 'email' => $email, 'msg' => (string)($r['msg'] ?? '')]);
+  322|            return ['success' => false, 'msg' => (string)($r['msg'] ?? 'خطا در ساخت کاربر در پنل')];
+  323|        }
+  324|        $this->userMap[$uuid] = $email;
+  325|        $this->created[$email] = true;
+  326|        unset($this->linksCache[$email], $this->linksServed[$email]);
+  327|        return ['success' => true, 'client' => $client, 'inbound' => $inbound];
+  328|    }
+  329|
+  330|    /**
+  331|     * ویرایش کلاینت — نسل جدید ردیف را «کامل جایگزین» می‌کند (patch نیست)؛
+  332|     * پس اول نسخهٔ فعلی خوانده می‌شود و تغییرات ربات روی آن سوار می‌شود.
+  333|     */
+  334|    public function updateClient(int $inboundId, string $uuid, array $client, array $inboundIds = []): array
+  335|    {
+== ADDCLIENT CALLS (tree ~ addClient\() ==
+  app/Service/Svc.php:288: $res     = $xui->addClient($primary, $email, $uuid, $volume, $expiryMs, $ipLim, $subId, $ids, $devLim, $
+  app/Service/Svc.php:308: $res = $xui->addClient($ib, $email, $uuid, $volume, $expiryMs, $ipLim, $subId, [], $devLim, $upKb, $down
+  app/Panel/Marzban.php:264: public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, i
+  app/Panel/PasarGuard.php:477: public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, i
+  app/Panel/Xui.php:391: public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, i
+  app/Panel/Xui.php:393: if ($this->mz) return $this->mz->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $s
+  app/Panel/Xui.php:394: if ($this->pg) return $this->pg->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $s
+  app/Panel/Xui.php:395: if ($this->x3) return $this->x3->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $s
+  app/Panel/Xui3.php:258: public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, i
+== PRODUCTS SAVE (admin/pages/products.php ~ \$act ===|pint\('|pnum\('|pstr\(') ==
+  22: if ($act === 'save') {
+  23: $id = pint('id');
+  27: 'panel_id'    => pint('panel_id'),
+  28: 'inbound_id'  => pint('inbound_id'),
+  33: 'days'        => pint('days'),
+  34: 'ip_limit'    => pint('ip_limit'),
+  37: 'stock'       => pint('stock', -1),
+  39: 'sort'        => pint('sort'),
+  58: $data['min_gb']    = max(1, pint('min_gb', 1));
+  59: $data['max_gb']    = max($data['min_gb'], pint('max_gb', 100));
+  60: $data['min_days']  = max(1, pint('min_days', 1));
+  61: $data['max_days']  = max($data['min_days'], pint('max_days', 90));
+  91: if ($act === 'delmode') {
+  99: if ($act === 'del') {
+  101: DB::delete('products', 'id = :id', [':id' => pint('id')]);
+  106: if ($act === 'toggle') {
+  108: $p = DB::one('SELECT * FROM {p}products WHERE id = :id', [':id' => pint('id')]);
+  113: if ($act === 'clone') {
+  115: $p = DB::one('SELECT * FROM {p}products WHERE id = :id', [':id' => pint('id')]);
+== PRODUCTS FORM (admin/pages/products.php ~ name=\"(volume_gb|days|ip_limit|limit_ip|iplimit|device|hwid|inbound)) ==
+  723: <input class="mono" type="text" name="volume_gb" value="<?= h((string)$v('volume_gb', '30')) ?>">
+  728: <input class="mono" type="number" name="days" value="<?= h((string)$v('days', 30)) ?>">
+  733: <input class="mono" type="number" name="ip_limit" value="<?= h((string)$v('ip_limit', 0)) ?>">
+  738: <input class="mono" type="number" name="inbound_id" value="<?= h((string)$v('inbound_id', 0)) ?>">
+  751: <input class="mono" type="number" min="0" name="device_limit" value="<?= h((string)$v('device_limit', 0)) ?>">
+== MIGRATIONS (database/migrations) ==
+  total: 23
+  0010_reseller_bundles_bot_mute.sql
+  0011_shared_sub_group.sql
+  0012_reseller_bot.sql
+  0013_referral.sql
+  0014_refund_speed_ui.sql
+  0015_trash_sub_deliver.sql
+  0016_settings_longtext.sql
+  0017_svc_panel_miss.sql
+  0018_rs_bots.sql
+  0019_card_auth.sql
+  0020_reseller_brand.sql
+  0021_stock.sql
+  0022_card_photo.sql
+  0023_tx_admin_msg.sql
+build: fixed106
+changed files: 0 (recon run)
 exit: 0
