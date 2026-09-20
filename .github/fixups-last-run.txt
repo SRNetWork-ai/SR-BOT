@@ -1,13 +1,135 @@
 Python 3.12.3
-Sun Sep 20 15:23:43 UTC 2026
-== CSRF FORM AUDIT ==
-  audit.php forms=3 tokens=2
-  cards.php forms=11 tokens=10
-  payments.php forms=5 tokens=3
-  problem files: 3
-  sec_csrf_strict default -> 0
-Traceback (most recent call last):
-  File "/home/runner/work/SR-BOT/SR-BOT/.github/scripts/fixups.py", line 140, in <module>
-    fh.write(CACHE[path])
-UnicodeEncodeError: 'utf-8' codec can't encode characters in position 3993-3994: surrogates not allowed
-exit: 1
+Sun Sep 20 15:28:42 UTC 2026
+admin/index.php size before: 0 bytes
+restored admin/index.php from 1ed98f1 (28440 chars)
+php lint: on
+admin/index.php size after: 34823 bytes
+== MINIAPP AUTH HEAD (miniapp/api.php:150-168) ==
+  150: $rawBody = file_get_contents('php://input') ?: '';
+  151: $in      = json_decode($rawBody, true);
+  152: if (!is_array($in)) $in = [];
+  153: 
+  154: $action   = trim((string)($in['action'] ?? ($_GET['action'] ?? '')));
+  155: $initData = (string)($in['initData'] ?? ($_SERVER['HTTP_X_TG_INIT_DATA'] ?? ''));
+  156: 
+  157: /* ==================== اعتبارسنجی initData ==================== */
+  158: 
+  159: /**
+  160:  * رشتهٔ initData را به آرایه تبدیل می‌کند (بدون دستکاری کلیدها)
+  161:  */
+  162: function ma_parse_init(string $s): array
+  163: {
+  164:     $out = [];
+  165:     foreach (explode('&', $s) as $pair) {
+  166:         if ($pair === '') continue;
+  167:         $kv = explode('=', $pair, 2);
+  168:         $k  = urldecode($kv[0]);
+== MINIAPP AUTH (miniapp/api.php:186-240) ==
+  186:     return hash_equals($calc, strtolower($hash));
+  187: }
+  188: 
+  189: /**
+  190:  * @return array{ok:bool,user:array,message:string}
+  191:  */
+  192: function ma_auth(string $initData): array
+  193: {
+  194:     $token = (string)cfg('bot.token', '');
+  195:     if ($token === '')    return ['ok' => false, 'user' => [], 'message' => 'توکن ربات تنظیم نشده است.'];
+  196:     if ($initData === '') return ['ok' => false, 'user' => [], 'message' => 'این صفحه باید از داخل تلگرام باز شود.'];
+  197: 
+  198:     $data = ma_parse_init($initData);
+  199:     $hash = (string)($data['hash'] ?? '');
+  200:     if ($hash === '') return ['ok' => false, 'user' => [], 'message' => 'اطلاعات ورود تلگرام ناقص است.'];
+  201: 
+  202:     /* تلگرام ممکن است فیلد signature هم بفرستد؛ هر دو حالت بررسی می‌شود */
+  203:     $ok = ma_hash_ok($data, $hash, $token, ['hash'])
+  204:        || ma_hash_ok($data, $hash, $token, ['hash', 'signature']);
+  205: 
+  206:     if (!$ok) return ['ok' => false, 'user' => [], 'message' => 'اعتبارسنجی تلگرام ناموفق بود. اپ را ببندید و دوباره ب
+  207: 
+  208:     $authDate = (int)($data['auth_date'] ?? 0);
+  209:     if ($authDate > 0 && (time() - $authDate) > 86400) {
+  210:         return ['ok' => false, 'user' => [], 'message' => 'نشست شما منقضی شده است. اپ را ببندید و دوباره باز کنید.'];
+  211:     }
+  212: 
+  213:     $tgUser = json_decode((string)($data['user'] ?? ''), true);
+  214:     if (!is_array($tgUser) || (int)($tgUser['id'] ?? 0) <= 0) {
+  215:         return ['ok' => false, 'user' => [], 'message' => 'شناسهٔ کاربر تلگرام یافت نشد.'];
+  216:     }
+  217: 
+  218:     return ['ok' => true, 'user' => $tgUser, 'message' => ''];
+  219: }
+  220: 
+  221: $auth = ma_auth($initData);
+  222: if (!$auth['ok']) ma_fail($auth['message'], 401);
+  223: 
+  224: $tg   = (int)$auth['user']['id'];
+  225: $user = DB::one('SELECT * FROM {p}users WHERE tg_id = :t', [':t' => $tg]);
+  226: 
+  227: if (!$user) {
+  228:     DB::insert('users', [
+  229:         'tg_id'      => $tg,
+  230:         'username'   => (string)($auth['user']['username'] ?? ''),
+  231:         'first_name' => (string)($auth['user']['first_name'] ?? ''),
+  232:         'last_name'  => (string)($auth['user']['last_name'] ?? ''),
+  233:         'balance'    => 0,
+  234:         'created_at' => now(),
+  235:         'last_seen'  => now(),
+  236:     ]);
+  237:     $user = DB::one('SELECT * FROM {p}users WHERE tg_id = :t', [':t' => $tg]);
+  238: }
+  239: if (!$user) ma_fail('ساخت حساب کاربری ناموفق بود.', 500);
+  240: 
+== BACKUP ENC (app/Service/Backup.php:95-130) ==
+  95:     /** رمز فایل‌های ZIP بکاپ؛ خالی یعنی بدون رمز */
+  96:     public static function zipPass(): string
+  97:     {
+  98:         return trim((string)DB::setting('backup_pass', ''));
+  99:     }
+  100: 
+  101:     /** رمزگذاری AES-256 همهٔ فایل‌های داخل ZIP در صورت تنظیم رمز و پشتیبانی سرور */
+  102:     private static function encryptZip(ZipArchive $zip): void
+  103:     {
+  104:         $pass = self::zipPass();
+  105:         if ($pass === '' || !method_exists($zip, 'setEncryptionIndex') || !defined('ZipArchive::EM_AES_256')) return;
+  106:         $zip->setPassword($pass);
+  107:         for ($i = 0; $i < $zip->numFiles; $i++) {
+  108:             @$zip->setEncryptionIndex($i, ZipArchive::EM_AES_256);
+  109:         }
+  110:     }
+  111: 
+  112:     private static function zipAll(string $zipPath, string $sqlPath): array
+  113:     {
+  114:         if (!class_exists('ZipArchive')) {
+  115:             return ['ok' => false, 'message' => 'افزونه ZipArchive روی این هاست فعال نیست؛ فقط بکاپ دیتابیس ممکن است.'
+  116:         }
+  117:         $zip = new ZipArchive();
+  118:         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+  119:             return ['ok' => false, 'message' => 'ساخت فایل ZIP ناموفق بود.'];
+  120:         }
+  121:         $zip->addFile($sqlPath, 'database.sql');
+  122:         $count = 1;
+  123:         foreach (self::projectFiles() as $rel) {
+  124:             if ($zip->addFile(APP_ROOT . '/' . $rel, $rel)) $count++;
+  125:         }
+  126:         $zip->setArchiveComment('VPN Shop full backup ' . now());
+  127:         self::encryptZip($zip);
+  128:         $zip->close();
+  129:         if (!is_file($zipPath)) return ['ok' => false, 'message' => 'فایل ZIP ساخته نشد.'];
+  130:         return ['ok' => true, 'path' => $zipPath, 'files' => $count, 'size' => (int)@filesize($zipPath)];
+== BACKUP PASS LINES ==
+  96: public static function zipPass(): string
+  98: return trim((string)DB::setting('backup_pass', ''));
+  102: private static function encryptZip(ZipArchive $zip): void
+  104: $pass = self::zipPass();
+  105: if ($pass === '' || !method_exists($zip, 'setEncryptionIndex') || !defined('ZipArchive::EM_AES_256')) return;
+  106: $zip->setPassword($pass);
+  108: @$zip->setEncryptionIndex($i, ZipArchive::EM_AES_256);
+  127: self::encryptZip($zip);
+  176: 'رمز فایل'   => self::zipPass() !== '' ? 'دارد 🔒' : 'ندارد ⚠️',
+  297: self::encryptZip($zip);
+  461: if (self::zipPass() !== '') @$zip->setPassword(self::zipPass());
+build: fixed90
+changed files: 1
+  - admin/index.php
+exit: 0
