@@ -1,88 +1,195 @@
 Python 3.12.3
-Sun Sep 20 17:06:24 UTC 2026
-patched app/Panel/Xui3.php by regex (0.0.2: newer 3x-ui API endpoints)
-php lint: on
-== X3 CURL (app/Panel/Xui3.php lines 95-150 of 868) ==
-  95|    private function curl(string $url, $body = null, string $method = 'GET'): array
-  96|    {
-  97|        $ch = curl_init($url);
-  98|        $headers = ['Accept: application/json', 'Authorization: Bearer ' . $this->token()];
-  99|        /* بررسی گواهی SSL مانند بقیه درایورها برای هر پنل جداگانه قابل تنظیم است */
-  100|        $verify = (int)($this->panel['ssl_verify'] ?? 0) === 1;
-  101|        $opts = [
-  102|            CURLOPT_RETURNTRANSFER => true,
-  103|            CURLOPT_TIMEOUT        => 25,
-  104|            CURLOPT_CONNECTTIMEOUT => 10,
-  105|            CURLOPT_SSL_VERIFYPEER => $verify,
-  106|            CURLOPT_SSL_VERIFYHOST => $verify ? 2 : 0,
-  107|            CURLOPT_FOLLOWLOCATION => false,
-  108|            CURLOPT_CUSTOMREQUEST  => $method,
-  109|        ];
-  110|        if ($body !== null) {
-  111|            $opts[CURLOPT_POSTFIELDS] = is_string($body) ? $body : jenc($body);
-  112|            $headers[] = 'Content-Type: application/json';
-  113|        } elseif ($method === 'POST') {
-  114|            $opts[CURLOPT_POSTFIELDS] = '';
-  115|        }
-  116|        $opts[CURLOPT_HTTPHEADER] = $headers;
-  117|        curl_setopt_array($ch, $opts);
-  118|        $raw  = curl_exec($ch);
-  119|        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  120|        $err  = curl_error($ch);
-  121|        curl_close($ch);
-  122|        $raw = is_string($raw) ? $raw : '';
-  123|        return ['code' => $code, 'body' => $raw, 'json' => jdec($raw, []), 'error' => $err];
-  124|    }
-  125|
-  126|    /** فراخوانی API نسل جدید — خروجی همیشه ['success','msg','obj','code'] */
-  127|    private function api(string $path, $body = null, string $method = 'GET'): array
-  128|    {
-  129|        if ($this->token() === '') {
-  130|            return ['success' => false, 'msg' => 'توکن API برای این پنل ثبت نشده است', 'obj' => null, 'code' => 0];
-  131|        }
-  132|        $res  = $this->curl($this->base() . '/panel/api' . $path, $body, $method);
-  133|        $code = (int)$res['code'];
-  134|        $j    = is_array($res['json']) ? $res['json'] : [];
-  135|        if (array_key_exists('success', $j)) {
-  136|            $j += ['msg' => '', 'obj' => null];
-  137|            $j['code'] = $code;
-  138|            return $j;
-  139|        }
-  140|        $msg = (string)($res['error'] !== '' ? $res['error'] : ('HTTP ' . $code));
-  141|        if ($code === 401 || $code === 403) $msg = 'توکن API نامعتبر یا منقضی است (HTTP ' . $code . ')';
-  142|        if ($code === 404)                  $msg = 'این پنل از API نسل جدید پشتیبانی نمی‌کند (HTTP 404)';
-  143|        return ['success' => false, 'msg' => $msg, 'obj' => null, 'code' => $code];
-  144|    }
-  145|
-  146|    /* ---------------------- اینباندها ---------------------- */
-  147|
-  148|    /** تنظیمات تو در توی نسل جدید برای سازگاری با بقیهٔ ربات به رشتهٔ JSON برمی‌گردد */
-  149|    private static function normInbound($in): array
-  150|    {
-== TREE SERVICES TABLE (~ CREATE TABLE[^\n]*services) ==
-  database/schema.sql:115: CREATE TABLE IF NOT EXISTS {p}services (
-== TREE SVC MENU (~ 'svcdel:|svcdel:'|svc:'|'svc:) ==
-  app/Service/AutoRenew.php:192: Tg::ikb([[Tg::btn('📦 مشاهدهٔ سرویس', 'svc:' . (int)$s['id'])], [Tg::btn('🔁 خاموش کردن تمدید خودکار', 'ar
-  app/Service/Bulk.php:132: Tg::send((int)$s['utg'], $txt, Tg::ikb([[Tg::btn('📦 مشاهدهٔ سرویس', 'svc:' . (int)$s['id'])]]));
-  app/Service/Orders.php:106: Tg::ikb([[Tg::btn('🔑 مشاهده سرویس', 'svc:' . (int)$svc['id'])]]));
-  app/Bot/AdminBot.php:1008: [Tg::btn('💰 تغییر موجودی', 'adm:ubal:' . $uid), Tg::btn('📦 سرویس‌ها', 'adm:usvc:' . $uid)],
-  app/Bot/Bot.php:2944: $rows[] = [Tg::btn($icon . ' ' . $s['client_email'] . ' | ' . $left . ' | ' . remaining_human($s['expire
-  app/Bot/Bot.php:2984: $rows[] = [Tg::btn($dead ? '🗑 حذف کانفیگ قطع‌شده و عودت وجه' : '🗑 حذف سرویس و عودت وجه', 'svcdel:' . $id
-  app/Bot/Bot.php:3013: [Tg::btn('⬅️ بازگشت', 'svc:' . $id)],
-  app/Bot/Bot.php:3040: [Tg::btn('⬅️ بازگشت', 'svc:' . $id)],
-  app/Bot/Bot.php:3063: Tg::ikb([[Tg::btn('⬅️ بازگشت', 'svc:' . $id)]]));
-  app/Bot/Bot.php:3082: [Tg::btn('⬅️ بازگشت', 'svc:' . $id)],
-  app/Bot/Bot.php:3097: app_log('bot', 'svcdel: ' . $e->getMessage(), ['svc' => $id]);
-  app/Bot/Bot.php:3178: $rows[] = [Tg::btn('⬅️ بازگشت', 'svc:' . $id)];
-  app/Bot/Bot.php:4822: $rows[] = [Tg::btn($icon . ' ' . $sv['client_email'] . ' | ' . $left . ' | ' . remaining_human($sv['expi
-== MINIAPP ACTIONS (miniapp/api.php ~ case 'svc) ==
-  934: case 'svc_renew_plans': {
-  955: case 'svc_renew': {
-  976: case 'svc_del_quote': {
-  995: case 'svc_delete': {
-  1017: case 'svc_dead': {
-  1042: case 'svc_purge_dead': {
-build: fixed99
-changed files: 1
-  - app/Panel/Xui3.php
+Sun Sep 20 17:09:04 UTC 2026
+== SERVICES SCHEMA (database/schema.sql lines 115-152 of 544) ==
+  115|CREATE TABLE IF NOT EXISTS {p}services (
+  116|  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  117|  `user_id` INT UNSIGNED NOT NULL,
+  118|  `tg_id` BIGINT NOT NULL,
+  119|  `panel_id` INT UNSIGNED NOT NULL,
+  120|  `product_id` INT UNSIGNED NULL,
+  121|  `inbound_id` INT NOT NULL,
+  122|  `client_uuid` VARCHAR(64) NOT NULL,
+  123|  `client_email` VARCHAR(190) NOT NULL,
+  124|  `sub_id` VARCHAR(64) NULL,
+  125|  `sub_link` VARCHAR(512) NULL,
+  126|  `config_link` TEXT NULL,
+  127|  `volume_gb` DECIMAL(10,2) NOT NULL DEFAULT 0,
+  128|  `days` INT NOT NULL DEFAULT 0,
+  129|  `expire_at` DATETIME NULL,
+  130|  `used_bytes` BIGINT NOT NULL DEFAULT 0,
+  131|  `is_test` TINYINT(1) NOT NULL DEFAULT 0,
+  132|  `status` VARCHAR(16) NOT NULL DEFAULT 'active',
+  133|  `renew_count` INT NOT NULL DEFAULT 0,
+  134|  `notified` VARCHAR(32) NULL,
+  135|  `last_sync` DATETIME NULL,
+  136|  `is_reseller` TINYINT(1) NOT NULL DEFAULT 0,
+  137|  `group_key` VARCHAR(32) NULL,
+  138|  `group_quota_gb` DECIMAL(10,2) NOT NULL DEFAULT 0,
+  139|  `created_at` DATETIME NOT NULL,
+  140|  KEY `idx_user` (`user_id`),
+  141|  KEY `idx_email` (`client_email`),
+  142|  KEY `idx_group_key` (`group_key`)
+  143|) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  144|
+  145|CREATE TABLE IF NOT EXISTS {p}orders (
+  146|  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  147|  `user_id` INT UNSIGNED NOT NULL,
+  148|  `tg_id` BIGINT NOT NULL,
+  149|  `product_id` INT UNSIGNED NULL,
+  150|  `service_id` INT UNSIGNED NULL,
+  151|  `type` VARCHAR(16) NOT NULL DEFAULT 'new',
+  152|  `amount` BIGINT NOT NULL DEFAULT 0,
+== BOT ROUTES (app/Bot/Bot.php ~ 'svc:|svcdel:|svcdelok:|svcpurge|svccfg|svcqr|svctraf) ==
+  1054: case 'svccfg':  self::sendConfig($chatId, $cbId, (int)$arg); return;
+  1061: case 'svcpurge':   Tg::answerCb($cbId); self::purgeDeadView($chatId, $msgId); return;
+  1062: case 'svcpurgeok': self::doPurgeDead($chatId, $msgId, $cbId); return;
+  2916: if ($wantCfg) $br[] = Tg::btn('⚙️ کانفیگ‌ها', 'svccfg:' . $sid);
+  2944: $rows[] = [Tg::btn($icon . ' ' . $s['client_email'] . ' | ' . $left . ' | ' . remaining_human($s['expire_at']), 
+  2950: $rows[] = [Tg::btn('🧹 حذف کانفیگ‌های قطع (' . fa_num((string)$deadN) . ')', 'svcpurge:0')];
+  2973: if (Svc::wantsCfg($mode)) $top[] = Tg::btn('⚙️ کانفیگ‌ها', 'svccfg:' . $id);
+  2984: $rows[] = [Tg::btn($dead ? '🗑 حذف کانفیگ قطع‌شده و عودت وجه' : '🗑 حذف سرویس و عودت وجه', 'svcdel:' . $id)];
+  3012: [Tg::btn('⚙️ کانفیگ‌ها', 'svccfg:' . $id)],
+  3013: [Tg::btn('⬅️ بازگشت', 'svc:' . $id)],
+  3040: [Tg::btn('⬅️ بازگشت', 'svc:' . $id)],
+  3063: Tg::ikb([[Tg::btn('⬅️ بازگشت', 'svc:' . $id)]]));
+  3081: [Tg::btn('🗑 تایید حذف' . ((int)$q['refund'] > 0 ? ' و دریافت ' . money((int)$q['refund']) . ' ' . $cur : ''), 's
+  3082: [Tg::btn('⬅️ بازگشت', 'svc:' . $id)],
+  3097: app_log('bot', 'svcdel: ' . $e->getMessage(), ['svc' => $id]);
+  3142: [Tg::btn('🧹 تایید حذف ' . fa_num((string)count($dead)) . ' کانفیگ', 'svcpurgeok:0')],
+  3155: app_log('bot', 'svcpurge: ' . $e->getMessage());
+  3178: $rows[] = [Tg::btn('⬅️ بازگشت', 'svc:' . $id)];
+== BOT SVC VIEW (app/Bot/Bot.php lines 2955-3020 of 4851) ==
+  2955|    }
+  2956|
+  2957|    private static function myService(int $id): ?array
+  2958|    {
+  2959|        return DB::one('SELECT * FROM {p}services WHERE id = :id AND user_id = :u AND status <> :d
+  2960|            AND COALESCE(is_reseller, 0) = 0',
+  2961|            [':id' => $id, ':u' => (int)self::$u['id'], ':d' => 'deleted']);
+  2962|    }
+  2963|
+  2964|    private static function showService($chatId, $msgId, int $id): void
+  2965|    {
+  2966|        $s = self::myService($id);
+  2967|        if (!$s) { Tg::send($chatId, '⚠️ سرویس یافت نشد.'); return; }
+  2968|        $txt = "📦 <b>جزئیات سرویس</b>\n" . '<code>─────────────────</code>' . "\n" . self::specCard($s, false);
+  2969|        /* فقط مسیری که برای این محصول فعال است نشان داده می‌شود */
+  2970|        $mode = Svc::deliverMode($s);
+  2971|        $top  = [];
+  2972|        if (Svc::wantsSub($mode)) $top[] = Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $id);
+  2973|        if (Svc::wantsCfg($mode)) $top[] = Tg::btn('⚙️ کانفیگ‌ها', 'svccfg:' . $id);
+  2974|        if (!$top) $top[] = Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $id);
+  2975|
+  2976|        $rows = [
+  2977|            $top,
+  2978|            [Tg::btn('📋 مشخصات کامل', 'svcspec:' . $id), Tg::btn('🔄 به‌روزرسانی مصرف', 'svcsync:' . $id)],
+  2979|            [Tg::btn('♻️ تمدید سرویس', 'svcrn:' . $id)],
+  2980|        ];
+  2981|        /* fixed83: حذف سرویس و عودت وجه — کانفیگ قطع‌شده اجازهٔ جداگانه دارد */
+  2982|        $dead = Svc::isDead($s);
+  2983|        if (Svc::userDelEnabled() || ($dead && Svc::deadDelEnabled())) {
+  2984|            $rows[] = [Tg::btn($dead ? '🗑 حذف کانفیگ قطع‌شده و عودت وجه' : '🗑 حذف سرویس و عودت وجه', 'svcdel:' . $id)];
+  2985|        }
+  2986|        $rows[] = [Tg::btn('⬅️ سرویس‌های من', 'menu:services')];
+  2987|        $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
+  2988|    }
+  2989|
+  2990|    private static function sendSub($chatId, $cbId, int $id): void
+  2991|    {
+  2992|        $s = self::myService($id);
+  2993|        if (!$s) { Tg::answerCb($cbId, 'سرویس یافت نشد.', true); return; }
+  2994|        Tg::answerCb($cbId);
+  2995|
+  2996|        $sub = Svc::subUrl($s);
+  2997|        if ($sub === '') {
+  2998|            /* اگر لینک اشتراک ثبت نشده، کانفیگ‌های مستقیم فرستاده می‌شود */
+  2999|            $list = self::cfgList($s);
+  3000|            if ($list) { self::sendCfgList($chatId, $s, $list); return; }
+  3001|            Tg::send($chatId, '⚠️ برای این سرویس لینک اشتراک تنظیم نشده است.');
+  3002|            return;
+  3003|        }
+  3004|
+  3005|        Tg::send($chatId,
+  3006|            "🔗 <b>لینک اشتراک شما</b>\n"
+  3007|            . '👤 <code>' . h((string)$s['client_email']) . "</code>\n"
+  3008|            . "<code>─────────────────</code>\n"
+  3009|            . '<code>' . h($sub) . "</code>\n\n"
+  3010|            . '👆 روی لینک بزنید تا کپی شود، سپس در برنامه «افزودن از کلیپ‌بورد» را بزنید.',
+  3011|            Tg::ikb([
+  3012|                [Tg::btn('⚙️ کانفیگ‌ها', 'svccfg:' . $id)],
+  3013|                [Tg::btn('⬅️ بازگشت', 'svc:' . $id)],
+  3014|            ]));
+  3015|    }
+  3016|
+  3017|    private static function sendConfig($chatId, $cbId, int $id): void
+  3018|    {
+  3019|        $s = self::myService($id);
+  3020|        if (!$s) { Tg::answerCb($cbId, 'سرویس یافت نشد.', true); return; }
+== MINIAPP SVC_DEAD (miniapp/api.php lines 1017-1060 of 2838) ==
+  1017|    case 'svc_dead': {
+  1018|        $items = []; $sum = 0;
+  1019|        foreach (Svc::deadForUser($UID) as $s) {
+  1020|            $q = Svc::deleteQuote($s);
+  1021|            $sum += (int)$q['refund'];
+  1022|            $items[] = [
+  1023|                'id'         => (int)$s['id'],
+  1024|                'name'       => (string)$s['client_email'],
+  1025|                'status_txt' => Svc::deadLabel($s),
+  1026|                'refund'     => (int)$q['refund'],
+  1027|                'refund_txt' => ma_money((int)$q['refund']),
+  1028|                'note'       => (string)$q['note'],
+  1029|            ];
+  1030|        }
+  1031|        ma_out([
+  1032|            'ok'         => true,
+  1033|            'enabled'    => Svc::deadDelEnabled(),
+  1034|            'count'      => count($items),
+  1035|            'items'      => $items,
+  1036|            'refund'     => $sum,
+  1037|            'refund_txt' => ma_money($sum),
+  1038|        ]);
+  1039|    }
+  1040|
+  1041|    /* fixed83: حذف گروهی کانفیگ‌های قطع با عودت وجه */
+  1042|    case 'svc_purge_dead': {
+  1043|        if ((string)($in['confirm'] ?? '') !== 'yes') ma_fail('برای حذف، تایید لازم است.');
+  1044|
+  1045|        $me  = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
+  1046|        $ids = [];
+  1047|        if (isset($in['ids']) && is_array($in['ids'])) foreach ($in['ids'] as $i) $ids[] = (int)$i;
+  1048|
+  1049|        try {
+  1050|            $r = Svc::purgeDeadForUser($me, $ids);
+  1051|        } catch (Throwable $e) {
+  1052|            app_log('miniapp', 'svc_purge_dead: ' . $e->getMessage());
+  1053|            ma_fail('حذف انجام نشد.');
+  1054|        }
+  1055|        if (empty($r['ok'])) ma_fail((string)($r['message'] ?? 'کانفیگ قطع‌شده‌ای حذف نشد.'));
+  1056|
+  1057|        $fresh = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
+  1058|        ma_out([
+  1059|            'ok'      => true,
+  1060|            'message' => (string)$r['message'],
+== HEALTH ITEMS (app/Service/Health.php ~ 0\.0\.2 #|self::it\() ==
+  44: $items = [self::it('خطا در بررسی', $e->getMessage(), 'err')];
+  72: $out[] = self::it('نسخه نصب‌شده', APP_VERSION);
+  77: $out[] = self::it('نسخه روی مخزن', $rem, $new ? 'warn' : 'ok',
+  82: $out[] = self::it('آدرس برنامه', $url !== '' ? $url : 'تنظیم نشده',
+  87: $out[] = self::it('پوشه نصب', $ins ? 'باز است' : 'حذف شده', $ins ? 'warn' : 'ok',
+  91: $out[] = self::it('حالت تعمیرات', $mnt ? 'روشن' : 'خاموش', $mnt ? 'warn' : 'ok',
+  103: $out[] = self::it('نسخه PHP', PHP_VERSION, $ok ? 'ok' : 'err',
+  109: $out[] = self::it('افزونه ' . $e, $has ? 'فعال' : 'غیرفعال', $st,
+  113: $out[] = self::it('حافظه مجاز', (string)ini_get('memory_limit'));
+  116: $out[] = self::it('زمان اجرای مجاز', $t === 0 ? 'بی‌نهایت' : ($t . ' ثانیه'),
+  120: $out[] = self::it('حجم مجاز آپلود', (string)ini_get('upload_max_filesize'));
+  121: $out[] = self::it('نوع اجرا', PHP_SAPI);
+  122: $out[] = self::it('زمان سرور', now());
+  133: $out[] = self::it('اتصال دیتابیس', $conn ? 'برقرار' : 'قطع', $conn ? 'ok' : 'err');
+  145: $out[] = self::it('جدول‌ها',
+  151: $out[] = self::it('حجم دیتابیس', human_bytes($size));
+  152: $out[] = self::it('تعداد کاربران', fa_num((string)(int)DB::val('SELECT COUNT(*) FROM {p}users', [], 0)));
+  153: $out[] = self::it('سرویس‌های فعال',
+  ... (limit)
+build: fixed100
+changed files: 0 (recon run)
 exit: 0
