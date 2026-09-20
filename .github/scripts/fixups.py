@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""fixed93 - 0.0.2 batch #8
+"""fixed94 - 0.0.2 batch #9
 
-  * csrf shield switched to strict (every POST form in admin/pages has a token)
-  * media upload uses the new Upload service (safe name + protected directory)
-  * recon: idor candidates in the mini app, ssrf candidates repo wide
+  * http_json() now passes every outgoing url through the new Net guard (SSRF)
+  * redirects restricted to http/https, max redirects 5 -> 3
+  * health page shows the guard state
+  * recon: sub.php / verify.php / miniapp/card.php ownership checks, panel factory
 
 Safety rules: encode before writing, php -l every touched php file, never put
-\\uXXXX escape text inside python string literals.
+surrogate escape text inside python string literals.
 """
 import io, json, os, re, shutil, subprocess, sys, tempfile
 
 ROOT = os.environ.get("SRC_ROOT") or os.getcwd()
-BUILD = (os.environ.get("NEW_BUILD") or "fixed93").strip() or "fixed93"
+BUILD = (os.environ.get("NEW_BUILD") or "fixed94").strip() or "fixed94"
 
 CACHE = {}
 NEW = {}
@@ -43,26 +44,6 @@ def rep_multi(path, pairs, marker=None):
             return
     ERRORS.append("%s: no unique anchor for %s (counts: %s)"
                   % (path, marker or "-", [s.count(o) for o, _ in pairs]))
-
-
-def rep_rx(path, pattern, fn, marker=None, expect=1, flags=re.M):
-    """regex patch - used when the indentation of the anchor is unknown"""
-    try:
-        s = load(path)
-    except Exception as e:
-        ERRORS.append("%s: %s" % (path, e))
-        return
-    if marker and marker in s:
-        print("skip (already applied): %s / %s" % (path, marker))
-        return
-    rx = re.compile(pattern, flags)
-    hits = rx.findall(s)
-    if len(hits) != expect:
-        ERRORS.append("%s: regex %s matched %d times (want %d)" % (path, marker or pattern[:40], len(hits), expect))
-        return
-    CACHE[path] = rx.sub(fn, s, count=expect)
-    NEW[path] = True
-    print("patched %s by regex (%s)" % (path, marker or "-"))
 
 
 def grep(tag, path, pattern, limit=25):
@@ -129,51 +110,54 @@ def write_all():
     print("php lint: " + ("on" if php else "php not installed - skipped"))
 
 
-# ===================================================== 1) strict csrf (row 6)
-# the detailed audit showed every POST form already carries csrf_field();
-# only GET filter forms were missing, and those do not need a token.
-rep_multi(
-    "admin/index.php",
-    [("DB::setting('sec_csrf_strict', '0')", "DB::setting('sec_csrf_strict', '1')")],
-    marker="DB::setting('sec_csrf_strict', '1')",
+# ============================================ 1) ssrf guard inside http_json()
+HJ_OLD = (
+    "function http_json(string $url, array $data = [], string $method = 'GET', array $headers = [], int $timeout = 20): array {\n"
+    "    $ch = curl_init();"
 )
-
-# ================================================== 2) safe media upload (10)
-SET = "admin/pages/settings.php"
-
-
-def _safe_name(m):
-    ind = m.group(1)
-    return (
-        ind + "/* 0.0.2 #10: \u0646\u0627\u0645 \u0627\u0645\u0646 \u0648 \u067e\u0633\u0648\u0646\u062f \u0645\u062c\u0627\u0632 \u0628\u0631\u0627\u06cc \u0641\u0627\u06cc\u0644 \u0631\u0633\u0627\u0646\u0647 */\n"
-        + ind + "$safe = class_exists('Upload')\n"
-        + ind + "    ? Upload::safeName((string)$_FILES['media']['name'], Upload::MEDIA)\n"
-        + ind + "    : (" + m.group(2) + ");"
-    )
-
-
-rep_rx(
-    SET,
-    r"^([ \t]*)\$safe\s*=\s*(preg_replace\([^\n]*\$_FILES\['media'\]\['name'\][^\n]*?)\s*;[ \t]*$",
-    _safe_name,
-    marker="0.0.2 #10: ",
+HJ_NEW = (
+    "function http_json(string $url, array $data = [], string $method = 'GET', array $headers = [], int $timeout = 20, string $netCtx = 'api'): array {\n"
+    "    /* 0.0.2 #14: SSRF guard - refuse outgoing requests to internal targets */\n"
+    "    if (class_exists('Net')) {\n"
+    "        $netChk = Net::check($url, $netCtx);\n"
+    "        if (empty($netChk['ok'])) {\n"
+    "            if (function_exists('app_log')) {\n"
+    "                app_log('net', 'blocked outgoing request', ['url' => $url, 'reason' => (string)($netChk['message'] ?? '')]);\n"
+    "            }\n"
+    "            return ['code' => 0, 'body' => '', 'json' => [], 'error' => 'ssrf-guard: ' . (string)($netChk['message'] ?? '')];\n"
+    "        }\n"
+    "    }\n"
+    "    $ch = curl_init();"
 )
+rep_multi("app/Helpers.php", [(HJ_OLD, HJ_NEW)], marker="0.0.2 #14: SSRF guard")
 
-
-def _protect(m):
-    ind = m.group(1)
-    return (
-        ind + "if (class_exists('Upload')) Upload::protectDir(dirname($dest));   /* 0.0.2 #10-dir */\n"
-        + m.group(0)
-    )
-
-
-rep_rx(
-    SET,
-    r"^([ \t]*)if \(@move_uploaded_file\(\(string\)\$_FILES\['media'\]\['tmp_name'\], \$dest\)\) \{[ \t]*$",
-    _protect,
-    marker="0.0.2 #10-dir",
+RD_OLD = (
+    "        CURLOPT_FOLLOWLOCATION => true,\n"
+    "        CURLOPT_MAXREDIRS => 5,"
 )
+RD_NEW = (
+    "        CURLOPT_FOLLOWLOCATION => true,\n"
+    "        CURLOPT_MAXREDIRS => 3,\n"
+    "        /* 0.0.2 #14: only http/https, even after a redirect */\n"
+    "        CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,\n"
+    "        CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,"
+)
+rep_multi("app/Helpers.php", [(RD_OLD, RD_NEW)], marker="CURLOPT_REDIR_PROTOCOLS")
+
+# ================================================ 2) health item for the guard
+H_ANCHOR = (
+    "        if (class_exists('Guard')) {\n"
+    "            $gx   = Guard::exposure();"
+)
+H_NEW = (
+    "        /* 0.0.2 #14: SSRF guard item */\n"
+    "        if (class_exists('Net')) {\n"
+    "            $nh = Net::healthItem();\n"
+    "            $out[] = self::it((string)$nh['title'], (string)$nh['value'], (string)$nh['status'], (string)$nh['note']);\n"
+    "        }\n\n"
+    + H_ANCHOR
+)
+rep_multi("app/Service/Health.php", [(H_ANCHOR, H_NEW)], marker="0.0.2 #14: SSRF guard item")
 
 # ==================================================== 3) sanity check + write
 if ERRORS:
@@ -183,8 +167,8 @@ if ERRORS:
     sys.exit(1)
 
 SANITY = {
-    "admin/index.php": (25000, "function csrf_ok"),
-    SET: (150000, "$_FILES['media']"),
+    "app/Helpers.php": (8000, "function http_json"),
+    "app/Service/Health.php": (15000, "function it("),
 }
 for path, (minlen, needle) in SANITY.items():
     if path in NEW:
@@ -195,10 +179,11 @@ for path, (minlen, needle) in SANITY.items():
 
 write_all()
 
-# ===================================================== 4) recon for batch #9
-grep("MINIAPP WHERE ID", "miniapp/api.php", r"WHERE\s+id\s*=", 30)
-grep("MINIAPP OWNER CHECK", "miniapp/api.php", r"user_id\s*=\s*:u|AND\s+user_id", 20)
-grep_tree("SSRF CURL", r"curl_init\(\$|http_json\(\$|file_get_contents\(\$url", 22)
+# ==================================================== 4) recon for batch #10
+grep("SUB ENTRY", "sub.php", r"\$_GET\[|WHERE\s+token|WHERE\s+id\s*=", 26)
+grep("VERIFY ENTRY", "verify.php", r"\$_GET\[|\$_POST\[|WHERE\s+id\s*=", 20)
+grep("CARD MINI", "miniapp/card.php", r"WHERE\s+id\s*=|user_id|ma_auth|initData", 20)
+grep_tree("PANEL FACTORY", r"new (Xui3|Xui|Marzban|PasarGuard)\(|panel_type|'kind'\s*=>|case 'xui", 24)
 
 # ================================================================ 5) version
 VJ = os.path.join(ROOT, "version.json")
@@ -206,10 +191,10 @@ with io.open(VJ, encoding="utf-8") as fh:
     v = json.load(fh)
 
 entry = (
-    "\U0001f6e1 \u0633\u062e\u062a\u200c\u0633\u0627\u0632\u06cc \u0627\u0645\u0646\u06cc\u062a\u06cc \u06f0.\u06f0.\u06f2 (\u06af\u0627\u0645 \u06f8): "
-    "\u0641\u0639\u0627\u0644 \u0634\u062f\u0646 \u0633\u0637\u062d \u0633\u062e\u062a\u06af\u06cc\u0631\u0627\u0646\u0647\u0654 \u0633\u067e\u0631 CSRF \u0628\u0631\u0627\u06cc \u0647\u0645\u0647\u0654 \u0641\u0631\u0645\u200c\u0647\u0627\u06cc \u067e\u0646\u0644\u060c "
-    "\u0633\u0631\u0648\u06cc\u0633 \u062a\u0627\u0632\u0647\u0654 Upload \u0628\u0631\u0627\u06cc \u0628\u0631\u0631\u0633\u06cc \u0646\u0627\u0645\u060c \u067e\u0633\u0648\u0646\u062f \u0648 \u062d\u062c\u0645 \u0641\u0627\u06cc\u0644\u200c\u0647\u0627\u06cc \u0622\u067e\u0644\u0648\u062f\u06cc "
-    "\u0648 \u0628\u0633\u062a\u0646 \u0627\u062c\u0631\u0627\u06cc \u0627\u0633\u06a9\u0631\u06cc\u067e\u062a \u062f\u0631 \u067e\u0648\u0634\u0647\u0654 \u0622\u067e\u0644\u0648\u062f."
+    "\U0001f6e1 \u0633\u062e\u062a\u200c\u0633\u0627\u0632\u06cc \u0627\u0645\u0646\u06cc\u062a\u06cc \u06f0.\u06f0.\u06f2 (\u06af\u0627\u0645 \u06f9): "
+    "\u0645\u062d\u0627\u0641\u0638 SSRF \u0628\u0631\u0627\u06cc \u0647\u0645\u0647\u0654 \u062f\u0631\u062e\u0648\u0627\u0633\u062a\u200c\u0647\u0627\u06cc \u062e\u0631\u0648\u062c\u06cc\u060c "
+    "\u0645\u062d\u062f\u0648\u062f \u06a9\u0631\u062f\u0646 \u0631\u06cc\u062f\u0627\u06cc\u0631\u06a9\u062a \u0628\u0647 http/https "
+    "\u0648 \u0646\u0645\u0627\u06cc\u0634 \u0648\u0636\u0639\u06cc\u062a \u0622\u0646 \u062f\u0631 \u0635\u0641\u062d\u0647\u0654 \u0633\u0644\u0627\u0645\u062a."
 )
 log = v.get("changelog") or []
 if entry not in log:
