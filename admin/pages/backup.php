@@ -370,6 +370,11 @@ $ago = function (int $ts): string {
 
       <div class="field mt3"><label>🔒 رمز فایل‌های ZIP بکاپ (بسیار پیشنهاد می‌شود)</label>
         <input class="mono" type="text" name="backup_pass" value="<?= h((string)$S('backup_pass', '')) ?>" placeholder="خالی = بدون رمز" autocomplete="off">
+        <!-- 0.0.2 #3-autopass-box -->
+        <label style="display:block;margin-top:6px">
+          <input type="checkbox" name="backup_autopass" value="1" <?= ((string)$S('backup_autopass', '1') === '1' ? 'checked' : '') ?>>
+          ساخت خودکار رمز قوی وقتی این فیلد خالی است (رمز در تاپیک بکاپ ارسال می‌شود)
+        </label>
         <div class="hint">با تنظیم رمز، فایل‌های ZIP با AES-256 قفل می‌شوند و بکاپ SQL هم پیش از ارسال به تلگرام داخل ZIP رمزدار قرار می‌گیرد. همین رمز هنگام بازگردانی استفاده می‌شود؛ آن را در جای امن نگه دارید. نیازمند PHP 7.2 به بالا است.</div></div>
 
       <div class="bk-info mt3">
