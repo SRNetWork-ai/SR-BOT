@@ -402,6 +402,47 @@ class Health
         $out[] = self::it('پنل‌های ثبت‌شده',
             fa_num((string)$tot) . ' پنل (فعال: ' . fa_num((string)$act) . ')',
             $act > 0 ? 'ok' : 'err', $act > 0 ? '' : 'حداقل یک پنل فعال لازم است.');
+        /* 0.0.2 #x3-health: آمار زندهٔ پنل‌های نسل جدید سنایی (3x-ui) */
+        if ($live && class_exists('Xui3')) {
+            $x3seen = 0;
+            foreach ((DB::all('SELECT * FROM {p}panels WHERE active = 1 ORDER BY id') ?: []) as $x3p) {
+                if ($x3seen >= 3) break;
+                $x3type = class_exists('Xui') ? Xui::normType((string)($x3p['type'] ?? '')) : '';
+                if ($x3type !== 'sanaei' || !Xui3::hasToken($x3p)) continue;
+                $x3seen++;
+                $x3name = trim((string)($x3p['name'] ?? '')) !== ''
+                    ? (string)$x3p['name']
+                    : ('#' . (int)($x3p['id'] ?? 0));
+                try {
+                    $x3drv = new Xui3($x3p);
+                    $x3sum = $x3drv->clientsSummary();
+                    if ($x3sum) {
+                        $out[] = self::it(
+                            'کاربران ' . $x3name,
+                            'کل ' . fa_num((string)(int)($x3sum['total'] ?? 0))
+                                . ' • آنلاین ' . fa_num((string)(int)($x3sum['online'] ?? 0)),
+                            'ok',
+                            'رو به انقضا: ' . fa_num((string)(int)($x3sum['expiring'] ?? 0))
+                                . ' | اتمام حجم: ' . fa_num((string)(int)($x3sum['depleted'] ?? 0))
+                                . ' | غیرفعال: ' . fa_num((string)(int)($x3sum['deactive'] ?? 0))
+                        );
+                    }
+                    $x3ip = $x3drv->ipLimitStatus();
+                    if ($x3ip) {
+                        $x3on = !empty($x3ip['usable']) && !empty($x3ip['enabled']);
+                        $out[] = self::it(
+                            'محدودیت IP ' . $x3name,
+                            $x3on ? 'فعال' : (!empty($x3ip['installed']) ? 'نصب است ولی خاموش' : 'نصب نیست'),
+                            $x3on ? 'ok' : 'warn',
+                            'برای جلوگیری از اشتراک‌گذاری کانفیگ، Fail2ban را در پنل روشن کنید.'
+                        );
+                    }
+                } catch (Throwable $x3e) {
+                    $out[] = self::it('پنل ' . $x3name, 'بررسی نشد', 'warn', $x3e->getMessage());
+                }
+            }
+        }
+
 
         $rows  = DB::all('SELECT name, last_error, user_limit, users_created FROM {p}panels WHERE active = 1 ORDER BY sort ASC, id ASC');
         $clean = true;
