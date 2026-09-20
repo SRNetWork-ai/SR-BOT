@@ -42,6 +42,15 @@ if (!is_array($update)) {
     exit;
 }
 
+/* 0.0.2 #32: a retried delivery of the same update must not be handled twice */
+$updateId = (int)($update['update_id'] ?? 0);
+if ($updateId > 0 && class_exists('Dedup') && !Dedup::first($updateId)) {
+    http_response_code(200);
+    header('Content-Type: application/json; charset=utf-8');
+    echo '{"ok":true,"duplicate":true}';
+    exit;
+}
+
 /* ==========================================================
    حالت «فقط مینی‌اپ» (سکوت ربات)
    وقتی روشن باشد ربات به هیچ پیامی پاسخ نمی‌دهد و کاربران فقط
