@@ -1,21 +1,288 @@
 Python 3.12.3
-Sun Sep 20 16:03:29 UTC 2026
-patched index.php with 1 anchor(s) (0.0.2 #32)
-php lint: on
-== AUTOLOAD (app/bootstrap.php ~ spl_autoload_register|glob\(|require|Service) ==
-  25: require APP_ROOT . '/app/Helpers.php';
-  28: spl_autoload_register(function (string $class): void {
-  33: APP_ROOT . '/app/Service/' . $class . '.php',
-  36: if (is_file($p)) { require_once $p; return; }
-  72: * مهم: بعضی ورودی‌های برنامه (مثل miniapp/api.php) پیش از require شدنِ این
-  129: $config = is_file($file) ? (array)require $file : [];
-  142: function boot(bool $requireInstall = true): void
-  150: if (!$requireInstall) { $booted = true; return; }
-service files present: 40
-  Dedup.php: ok
-  Net.php: ok
-  Upload.php: ok
-build: fixed97
-changed files: 1
-  - index.php
+Sun Sep 20 16:59:16 UTC 2026
+== X3 FUNCS (app/Panel/Xui3.php ~ function ) ==
+  36: public function __construct(array $panel) { $this->panel = $panel; }
+  38: public static function forPanel($panelId): ?self
+  45: public static function hasToken(array $panel): bool
+  50: public function base(): string
+  62: public function nodeHost(): string
+  68: public function isVpnUi(): bool { return false; }
+  70: public static function idList($raw): array { return Xui::idList($raw); }
+  72: public static function speedKeys(int $upKbps, int $downKbps): array { return Xui::speedKeys($upKbps, $downKbps);
+  77: private function token(): string
+  86: public function login(bool $force = false): bool
+  95: private function curl(string $url, $body = null, string $method = 'GET'): array
+  127: private function api(string $path, $body = null, string $method = 'GET'): array
+  149: private static function normInbound($in): array
+  158: public function inbounds(): array
+  169: public function inbound(int $id): ?array
+  180: public function inboundOptions(): array
+  186: public function allowedInboundIds(): array
+  197: public function assignableInboundIds(): array
+  210: private static function rowOf($obj): array
+  224: private function clientRow(string $email): ?array
+  237: private static function cleanClient(array $c): array
+  258: public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, int $ipLi
+  334: public function updateClient(int $inboundId, string $uuid, array $client, array $inboundIds = []): array
+  360: public function deleteClient(int $inboundId, string $uuid): array
+  368: public function deleteByEmail(int $inboundId, string $email): array
+  376: public function resetTraffic(int $inboundId, string $email): array
+  390: public function bulkAdjust(array $emails, int $addDays = 0, float $addGb = 0): array
+  406: public function onlines(): array
+  415: public function lastOnline(): array
+  424: public function byTgId($tgId): array
+  439: public function setEnabled(array $emails, bool $on): array
+  452: public function delDepleted(int $inboundId = -1): array
+  461: public function clientIps(string $email): array
+  487: public function clearClientIps(string $email): array
+  496: public function serverStatus(): ?array
+  525: public function lastOnlineOf(string $email): int
+  535: public function clientTraffic(string $email): ?array
+  572: public function liveTraffic(string $email): ?array
+  586: public function findClient(int $inboundId, string $email): ?array
+  592: public function accountRow(string $email): ?array
+  605: public function accountInboundIds(string $email): array
+  620: public function linksFor(string $email): array
+  640: public function buildConfigLink(array $inbound, string $uuid, string $email): string
+  652: public function rebuildConfigs(string $email, string $uuid, array $extraInbounds = []): array
+  663: public function subLink(string $subId): string
+  670: public function subUrlFor(string $email): string
+  678: public function subFetch(string $subId, string $subUrl = ''): array
+  707: public function healthCheck(): array
+== X3 PATHS (app/Panel/Xui3.php ~ panel/api|/login|apiToken|Bearer|token) ==
+  5: * درایور نسل جدید پنل سنایی (3X-UI) — احراز هویت با توکن API (Bearer)
+  12: *  - بدون لاگین و کوکی؛ هر درخواست فقط با هدر Authorization: Bearer.
+  13: *  - کلاینت‌ها موجودیت مستقل‌اند: /panel/api/clients/* (ساخت روی چند اینباند در یک درخواست،
+  15: *  - لینک کانفیگ‌ها را خودِ پنل می‌سازد: /panel/api/clients/links/{email}
+  34: private ?string $tokenPlain = null;
+  47: return trim((string)($panel['api_token'] ?? '')) !== '';
+  77: private function token(): string
+  79: if ($this->tokenPlain === null) {
+  80: $this->tokenPlain = app_decrypt(trim((string)($this->panel['api_token'] ?? '')));
+  82: return $this->tokenPlain;
+  88: if ($this->token() !== '') return true;
+  98: $headers = ['Accept: application/json', 'Authorization: Bearer ' . $this->token()];
+  129: if ($this->token() === '') {
+  132: $res  = $this->curl($this->base() . '/panel/api' . $path, $body, $method);
+  709: if ($this->token() === '') {
+== X3 HEAD (app/Panel/Xui3.php lines 20-60 of 751) ==
+  20|class Xui3
+  21|{
+  22|    public array $panel;
+  23|
+  24|    /** نگاشت uuid/password → email برای متدهایی که فقط uuid دارند */
+  25|    private array $userMap = [];
+  26|    /** ایمیل اکانت‌هایی که در همین درخواست ساخته شده‌اند (برای پرهیز از بازنویسی تکراری) */
+  27|    private array $created = [];
+  28|    /** کش اینباندها در طول عمر همین درخواست */
+  29|    private ?array $inboundCache = null;
+  30|    /** کش لینک‌های هر اکانت */
+  31|    private array $linksCache = [];
+  32|    /** لینک‌هایی که در حلقه ساخت سرویس قبلاً تحویل شده‌اند (جلوگیری از تکرار) */
+  33|    private array $linksServed = [];
+  34|    private ?string $tokenPlain = null;
+  35|
+  36|    public function __construct(array $panel) { $this->panel = $panel; }
+  37|
+  38|    public static function forPanel($panelId): ?self
+  39|    {
+  40|        $p = DB::one('SELECT * FROM {p}panels WHERE id = :id', [':id' => (int)$panelId]);
+  41|        return $p ? new self($p) : null;
+  42|    }
+  43|
+  44|    /** آیا برای این پنل توکن API ثبت شده است؟ (شرط فعال‌شدن این درایور) */
+  45|    public static function hasToken(array $panel): bool
+  46|    {
+  47|        return trim((string)($panel['api_token'] ?? '')) !== '';
+  48|    }
+  49|
+  50|    public function base(): string
+  51|    {
+  52|        $scheme = $this->panel['scheme'] ?: 'https';
+  53|        $host   = trim((string)$this->panel['host']);
+  54|        $port   = (int)$this->panel['port'];
+  55|        $url    = $scheme . '://' . $host;
+  56|        if ($port && !in_array($port, [80, 443], true)) $url .= ':' . $port;
+  57|        $path = trim((string)($this->panel['web_path'] ?? ''), '/');
+  58|        if ($path !== '') $url .= '/' . $path;
+  59|        return $url;
+  60|    }
+== X3 TAIL (app/Panel/Xui3.php lines 632-751 of 751) ==
+  632|        }
+  633|        return $this->linksCache[$email] = array_values(array_unique($out));
+  634|    }
+  635|
+  636|    /**
+  637|     * سازگاری با حلقهٔ ساخت سرویس (به ازای هر اینباند یک بار صدا زده می‌شود):
+  638|     * هر بار فقط لینک‌هایی برمی‌گردند که قبلاً تحویل نشده‌اند تا لینک تکراری ساخته نشود.
+  639|     */
+  640|    public function buildConfigLink(array $inbound, string $uuid, string $email): string
+  641|    {
+  642|        unset($this->linksCache[$email]);            /* بعد از attach، لینک اینباند جدید هم بیاید */
+  643|        $links  = $this->linksFor($email);
+  644|        $served = (array)($this->linksServed[$email] ?? []);
+  645|        $new    = array_values(array_diff($links, $served));
+  646|        if (!$new) return '';
+  647|        $this->linksServed[$email] = array_merge($served, $new);
+  648|        return implode("\n", $new);
+  649|    }
+  650|
+  651|    /** بازسازی کانفیگ‌ها — مستقیم از خود پنل */
+  652|    public function rebuildConfigs(string $email, string $uuid, array $extraInbounds = []): array
+  653|    {
+  654|        unset($this->linksCache[$email]);
+  655|        $links = $this->linksFor($email);
+  656|        if ($links) return $links;
+  657|        /* fallback: از ساب پنل */
+  658|        $row   = $this->clientRow($email);
+  659|        $subId = trim((string)($row['subId'] ?? ''));
+  660|        return $subId !== '' ? $this->subFetch($subId) : [];
+  661|    }
+  662|
+  663|    public function subLink(string $subId): string
+  664|    {
+  665|        $base = trim((string)($this->panel['sub_base'] ?? ''));
+  666|        if ($base === '' || $subId === '') return '';
+  667|        return rtrim($base, '/') . '/' . $subId;
+  668|    }
+  669|
+  670|    public function subUrlFor(string $email): string
+  671|    {
+  672|        $row   = $this->clientRow($email);
+  673|        $subId = trim((string)($row['subId'] ?? ''));
+  674|        return $subId !== '' ? $this->subLink($subId) : '';
+  675|    }
+  676|
+  677|    /** خواندن کانفیگ‌های ساب؛ نسل جدید خروجی JSON بدون base64 هم دارد */
+  678|    public function subFetch(string $subId, string $subUrl = ''): array
+  679|    {
+  680|        $subId = trim($subId);
+  681|        if ($subId !== '') {
+  682|            $r = $this->api('/clients/subLinks/' . rawurlencode($subId));
+  683|            if (($r['success'] ?? false) === true) {
+  684|                $out = [];
+  685|                foreach ((array)($r['obj'] ?? []) as $l) {
+  686|                    $l = trim((string)$l);
+  687|                    if ($l !== '' && preg_match(Xui::LINK_RE, $l)) $out[] = $l;
+  688|                }
+  689|                if ($out) return array_values(array_unique($out));
+  690|            }
+  691|        }
+  692|        /* fallback: خواندن ساب عمومی مثل درایور قدیمی */
+  693|        $url = trim($subUrl) !== '' ? trim($subUrl) : $this->subLink($subId);
+  694|        if ($url === '') return [];
+  695|        $links = Xui::parseSubBody(Xui::httpGet($url));
+  696|        if ($links) return $links;
+  697|        return Xui::parseSubBody(Xui::httpGet(rtrim($url, '/') . '?b64=1'));
+  698|    }
+  699|
+  700|    /* ---------------------- سلامت و تشخیص نسخه ---------------------- */
+  701|
+  702|    /**
+  703|     * تست اتصال + تشخیص نسخه:
+  704|     * موفق‌بودن /inbounds/options یعنی پنل نسل جدید است؛ 404 یعنی پنل قدیمی است
+  705|     * و باید فیلد توکن خالی شود تا ربات از درایور قدیمی (یوزر/پسورد) استفاده کند.
+  706|     */
+  707|    public function healthCheck(): array
+  708|    {
+  709|        if ($this->token() === '') {
+  710|            return ['ok' => false, 'message' => 'توکن API ثبت نشده است. از «تنظیمات → امنیت → API Token» پنل یک توکن با سطح admin بسازید.'];
+  711|        }
+  712|        $r = $this->api('/inbounds/options');
+  713|        if (($r['success'] ?? false) !== true) {
+  714|            $code = (int)($r['code'] ?? 0);
+  715|            if ($code === 404) {
+  716|                $msg = 'این پنل API نسل جدید را ندارد (404). پنل را بروزرسانی کنید یا فیلد «توکن API» را خالی بگذارید تا ربات مثل قبل با یوزر/پسورد کار کند.';
+  717|            } elseif ($code === 401 || $code === 403) {
+  718|                $msg = 'توکن API نامعتبر است یا منقضی/غیرفعال شده (HTTP ' . $code . '). یک توکن جدید با سطح admin بسازید.';
+  719|            } else {
+  720|                $msg = 'اتصال ناموفق: ' . (string)($r['msg'] ?? ('HTTP ' . $code));
+  721|            }
+  722|            try {
+  723|                DB::update('panels', ['last_error' => mb_substr($msg, 0, 240)], 'id = :id', [':id' => (int)($this->panel['id'] ?? 0)]);
+  724|            } catch (Throwable $e) { }
+  725|            return ['ok' => false, 'message' => $msg];
+  726|        }
+  727|
+  728|        $inbounds = $this->inbounds();
+  729|        $ids      = [];
+  730|        foreach ($inbounds as $i) $ids[] = (int)($i['id'] ?? 0);
+  731|        $extra = '';
+  732|        $st = $this->api('/server/status');
+  733|        if (($st['success'] ?? false) === true && is_array($st['obj'])) {
+  734|            $o  = (array)$st['obj'];
+  735|            $xr = (array)($o['xray'] ?? []);
+  736|            $v  = trim((string)($xr['version'] ?? ''));
+  737|            $s  = trim((string)($xr['state'] ?? ''));
+  738|            if ($v !== '') $extra .= ' • Xray: ' . $v;
+  739|            if ($s !== '') $extra .= ' (' . $s . ')';
+  740|        }
+  741|        try {
+  742|            DB::update('panels', ['last_error' => null], 'id = :id', [':id' => (int)($this->panel['id'] ?? 0)]);
+  743|        } catch (Throwable $e) { }
+  744|        return [
+  745|            'ok'          => true,
+  746|            'message'     => 'اتصال با توکن API (نسل جدید 3x-ui) موفق بود.' . $extra,
+  747|            'inbounds'    => $inbounds,
+  748|            'inbound_ids' => Xui::idList($ids),
+  749|        ];
+  750|    }
+  751|}
+== XUI DELEGATE (app/Panel/Xui.php ~ x3->) ==
+  208: if ($this->x3) return $this->x3->login($force);
+  279: if ($this->x3) return $this->x3->inbounds();
+  288: if ($this->x3) return $this->x3->inbound($id);
+  300: if ($this->x3) return $this->x3->allowedInboundIds();
+  395: if ($this->x3) return $this->x3->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $subId, $i
+  442: if ($this->x3) return $this->x3->updateClient($inboundId, $uuid, $client, $inboundIds);
+  456: if ($this->x3) return $this->x3->deleteClient($inboundId, $uuid);
+  464: if ($this->x3) return $this->x3->resetTraffic($inboundId, $email);
+  472: if ($this->x3) return $this->x3->clientTraffic($email);
+  504: if ($this->x3) return $this->x3->liveTraffic($email);
+  627: if ($this->x3) return $this->x3->subFetch($subId, $subUrl);
+  642: if ($this->x3) return $this->x3->rebuildConfigs($email, $uuid, $extraInbounds);
+  674: if ($this->x3) return $this->x3->findClient($inboundId, $email);
+  756: if ($this->x3) return $this->x3->assignableInboundIds();
+  772: if ($this->x3) return $this->x3->accountRow($email);
+  787: if ($this->x3) return $this->x3->accountInboundIds($email);
+  803: if ($this->x3) return $this->x3->deleteByEmail($inboundId, $email);
+  815: if ($this->x3) return $this->x3->subUrlFor($email);
+  823: if ($this->x3) return $this->x3->subLink($subId);
+  834: if ($this->x3) return $this->x3->buildConfigLink($inbound, $uuid, $email);
+  956: if ($this->x3 !== null) return $this->x3->serverStatus();
+  992: $rows = $this->x3->byTgId((int)$tgId);
+  1003: if ($this->x3 !== null) return $this->x3->lastOnlineOf($email);
+  1020: if ($this->x3 !== null) return in_array($email, $this->x3->onlines(), true);
+  1031: try { return $this->x3->clientIps($email); } catch (Throwable $e) { return []; }
+  1038: try { return $this->x3->clearClientIps($email); } catch (Throwable $e) { return ['success' => false, 'msg' => $e
+  1045: try { return $this->x3->delDepleted($inboundId); } catch (Throwable $e) { return ['success' => false, 'msg' => $
+  1089: if ($this->x3) return $this->x3->healthCheck();
+== XUI TYPES (app/Panel/Xui.php ~ 'sanaei'|'vpn-ui'|'hiddify'|'marzneshin'|SOON|=> \[) ==
+  23: 'vpn-ui'     => 'VPN-UI (Sir-MmD)',
+  25: 'sanaei'     => 'سنایی جدید – مولتی‌اینباند (3x-ui)',
+  31: public const SOON = [
+  38: '3x-ui'      => 'sanaei',
+  39: '3xui'       => 'sanaei',
+  40: 'x3-ui'      => 'sanaei',
+  41: 'sanaei-new' => 'sanaei',
+  42: 'sanaei_new' => 'sanaei',
+  47: 'vpnui'      => 'vpn-ui',
+  48: 'vpn_ui'     => 'vpn-ui',
+  61: 'vpn-ui'     => 'یک اکانت روی چند اینباند سرو می‌شود و لینک اشتراک خود پنل تحویل داده می‌شود.',
+  63: 'sanaei'     => 'نسخهٔ جدید سنایی (3x-ui) – مولتی‌اینباند: چند کد اینباند بدهید تا کانفیگ روی همهٔ آن‌ها ساخته ش
+  72: if ($t === '') return 'vpn-ui';
+  99: if (isset(self::SOON[$n]))  return self::SOON[$n] . ' – به‌زودی';
+  111: } elseif ($type === 'sanaei' && Xui3::hasToken($panel)) {
+  247: 'list'    => ['/panel/api/inbounds/list', '/xui/API/inbounds/list', '/xui/inbound/list'],
+  248: 'get'     => ["/panel/api/inbounds/get/$id", "/xui/API/inbounds/get/$id"],
+  249: 'add'     => ['/panel/api/inbounds/addClient', '/xui/API/inbounds/addClient'],
+  250: 'update'  => ["/panel/api/inbounds/updateClient/$uuid", "/xui/API/inbounds/updateClient/$uuid"],
+  251: 'del'     => ["/panel/api/inbounds/$id/delClient/$uuid", "/xui/API/inbounds/$id/delClient/$uuid"],
+  252: 'reset'   => ["/panel/api/inbounds/$id/resetClientTraffic/$email", "/xui/API/inbounds/$id/resetClientTraffic/$em
+  253: 'traffic' => ["/panel/api/inbounds/getClientTraffics/$email", "/xui/API/inbounds/getClientTraffics/$email"],
+  421: $body = ['id' => $inboundId, 'settings' => jenc(['clients' => [$client]])];
+  444: $body = ['id' => $inboundId, 'settings' => jenc(['clients' => [$client]])];
+  ... (limit)
+build: fixed98
+changed files: 0 (recon run)
 exit: 0
