@@ -1,66 +1,53 @@
 Python 3.12.3
-Sun Sep 20 15:33:37 UTC 2026
-patched miniapp/api.php with anchor #1 (0.0.2 #7: auth_date)
-patched miniapp/api.php with anchor #1 (0.0.2 #7-log)
-patched miniapp/api.php with anchor #1 (0.0.2 #7-rate)
+Sun Sep 20 15:40:07 UTC 2026
+patched app/Tg.php with anchor #1 (0.0.2 #8:)
+patched app/Service/Backup.php with anchor #1 (0.0.2 #3-autopass)
+patched app/Service/Health.php with anchor #1 (0.0.2 #8: )
 php lint: on
-== DB SETTERS (app/DB.php ~ function\s+\w*[Ss]et\w*\s*\() ==
-  209: public static function loadSettings(bool $force = false): array
-  227: public static function setting(string $key, $default = null)
-  235: public static function setSetting(string $key, $value): void
-== DB SETTING FNS (app/DB.php ~ function\s+\w*etting\w*\s*\() ==
-  209: public static function loadSettings(bool $force = false): array
-  227: public static function setting(string $key, $default = null)
-  235: public static function setSetting(string $key, $value): void
-== HEALTH ITEM SAMPLE (app/Service/Health.php @ 0.0.2 #2:) ==
-  245:             if ($chat !== '') {
-  246:                 $th    = array_filter((array)Logs::threads());
-  247:                 $all   = count(Logs::TOPICS);
-  248:                 $n     = count($th);
-  249:                 $out[] = self::it('تاپیک‌های ساخته‌شده', fa_num((string)$n) . ' از ' . fa_num((string)$all),
-  250:                     $n >= $all ? 'ok' : 'warn',
-  251:                     $n >= $all ? '' : 'در تنظیمات دکمه ساخت خودکار تاپیک‌ها را بزنید.');
-  252:             }
-  253:         }
-  254: 
-  255:         /* 0.0.2 #2: رمزنگاری اسرار در دیتابیس */
-  256:         if (class_exists('Crypt')) {
-  257:             if (!Crypt::available()) {
-  258:                 $out[] = self::it('رمزنگاری اسرار', 'غیرفعال', 'warn',
-  259:                     'افزونهٔ openssl روی سرور فعال نیست؛ توکن‌ها و کلیدها به‌صورت متن ساده ذخیره می‌شوند.');
-  260:             } else {
-  261:                 try {
-  262:                     if ((string)DB::setting('secrets_encrypted', '') !== '1') {
-  263:                         $enc = DB::encryptExistingSecrets();
-  264:                         DB::setSetting('secrets_encrypted', '1');
-  265:                         if (function_exists('app_log')) app_log('sec', 'secrets encrypted: ' . $enc);
-  266:                     }
-  267:                     $out[] = self::it('رمزنگاری اسرار', 'فعال', 'ok',
-  268:                         'توکن ربات‌ها، کلید درگاه‌ها و رمزهای ذخیره‌شده در تنظیمات، رمزنگاری‌شده نگهداری می‌شوند.');
-  269:                 } catch (Throwable $e) {
-  270:                     $out[] = self::it('رمزنگاری اسرار', 'خطا', 'warn', $e->getMessage());
-  271:                 }
-  272:             }
-  273:         }
-  274: 
-  275:         /* 0.0.2 #1: آیا فایل‌های حساس از روی وب خوانده می‌شوند؟ */
-  276:         if (class_exists('Guard')) {
-  277:             $gx   = Guard::exposure();
-  278:             $gopn = (array)($gx['open'] ?? []);
-  279:             if ($gopn) {
-  280:                 $out[] = self::it('فایل‌های حساس روی وب', implode('، ', array_keys($gopn)), 'warn',
-== HEALTH BACKUP (app/Service/Health.php ~ backup) ==
-  167: foreach (['storage', 'storage/backups', 'storage/logs', 'storage/updates'] as $d) {
-  347: $bk    = (string)DB::setting('backup_last_at', '');
-== BACKUP PAGE PASS (admin/pages/backup.php ~ backup_pass|zipPass) ==
-  51: DB::setSetting('backup_pass', mb_substr(trim((string)($_POST['backup_pass'] ?? '')), 0, 64));
-  370: <input class="mono" type="text" name="backup_pass" value="<?= h((string)$S('backup_pass', '')) ?>" placeholder="خالی =
-== BOOTSTRAP SECRET (app/bootstrap.php ~ secret) ==
-  170: Tg::setWebhook(app_url('index.php'), (string)cfg('bot.secret', ''));
-== SETTINGS SECRET (admin/pages/settings.php ~ bot\.secret|bot_secret) ==
-  341: $r = Tg::setWebhook(app_url('index.php'), (string)cfg('bot.secret'));
-  368: $w = Tg::setWebhook(app_url('index.php'), (string)Cfg::get('bot.secret', ''));
-build: fixed91
-changed files: 1
-  - miniapp/api.php
+== CSRF DETAIL (admin/pages/audit.php) ==
+  64 MISSING | <form method="get" class="grid g4" style="align-items:end">
+  124 ok      | <form method="post" class="grid g2" style="align-items:end"><?= csrf_field() ?><input type
+  131 ok      | <form method="post" class="grid g2" style="align-items:end" onsubmit="return confirm('لاگ‌
+== CSRF DETAIL (admin/pages/cards.php) ==
+  254 ok      | <form method="post" class="inline">
+  309 ok      | <form method="post" id="caBulk" class="ca-bulk" hidden>
+  337 ok      | <form method="post" class="inline">
+  400 ok      | <form method="post" class="inline">
+  409 ok      | <form method="post" class="inline ca-rej">
+  419 ok      | <form method="post" class="inline">
+  438 MISSING | <form class="ca-filter mt4" method="get">
+  516 ok      | <form method="post" class="inline">
+  525 ok      | <form method="post" class="inline">
+  534 ok      | <form method="post" class="inline">
+  616 ok      | <form method="post" class="ca-set mt4">
+== CSRF DETAIL (admin/pages/payments.php) ==
+  546 MISSING | <form class="pay-filter" method="get">
+  602 ok      | <form method="post" id="payBulkForm">
+  691 ok      | <form method="post" id="payOneForm" class="hidden-form" style="display:none">
+  745 ok      | <form method="post" id="payOneForm" class="hidden-form" style="display:none">
+  837 MISSING | <form method="get" class="row" style="gap:6px">
+== UPLOADS (tree ~ move_uploaded_file|\$_FILES) ==
+  app/Service/Audit.php:80: if (!empty($_FILES)) $meta['files'] = implode(',', array_keys($_FILES));
+  app/Service/Backup.php:550: if (!@move_uploaded_file((string)$file['tmp_name'], $dest)) {
+  admin/pages/backup.php:97: $u = Backup::saveUpload((array)($_FILES['file'] ?? []));
+  admin/pages/botbuttons.php:136: $tmp  = (string)($_FILES['jfile']['tmp_name'] ?? '');
+  admin/pages/botbuttons.php:137: $siz  = (int)($_FILES['jfile']['size'] ?? 0);
+  admin/pages/bottexts.php:64: if (!empty($_FILES['jfile']['tmp_name']) && is_uploaded_file($_FILES['jfile']['tmp_name'])) {
+  admin/pages/bottexts.php:65: if ((int)($_FILES['jfile']['size'] ?? 0) > 2 * 1024 * 1024) {
+  admin/pages/bottexts.php:69: $json = (string)@file_get_contents($_FILES['jfile']['tmp_name']);
+  admin/pages/settings.php:420: && !empty($_FILES['media']['tmp_name']) && is_uploaded_file((string)$_FILES['media']['tmp_name']
+  admin/pages/settings.php:423: $safe = preg_replace('/[^\w\.\-]/u', '_', (string)$_FILES['media']['name']) ?: 'file';
+  admin/pages/settings.php:425: if (@move_uploaded_file((string)$_FILES['media']['tmp_name'], $dest)) {
+  admin/pages/stock.php:93: $f   = (array)($_FILES['file'] ?? []);
+  admin/pages/tickets.php:62: if (!empty($_FILES['att']['tmp_name']) && is_uploaded_file($_FILES['att']['tmp_name'])) {
+  admin/pages/tickets.php:63: $size = (int)($_FILES['att']['size'] ?? 0);
+  admin/pages/tickets.php:65: $safe    = preg_replace('/[^A-Za-z0-9._-]/', '_', (string)($_FILES['att']['name'] ?? 'file'));
+  admin/pages/tickets.php:69: if (@move_uploaded_file($_FILES['att']['tmp_name'], $tmpPath)) $sentFile = true;
+  admin/pages/update.php:53: $f = (array)($_FILES['zip'] ?? []);
+  admin/pages/update.php:61: if (!@move_uploaded_file((string)$f['tmp_name'], $dest)) {
+build: fixed92
+changed files: 3
+  - app/Service/Backup.php
+  - app/Service/Health.php
+  - app/Tg.php
 exit: 0

@@ -273,6 +273,38 @@ class Health
         }
 
         /* 0.0.2 #1: آیا فایل‌های حساس از روی وب خوانده می‌شوند؟ */
+        /* 0.0.2 #3: رمزدار بودن فایل‌های بکاپ */
+        if (class_exists('Backup') && method_exists('Backup', 'aesReady')) {
+            $bkPw = trim((string)DB::setting('backup_pass', ''));
+            if (!Backup::aesReady()) {
+                $out[] = self::it('رمزگذاری بکاپ', 'پشتیبانی نمی‌شود', 'warn',
+                    'نسخهٔ ZipArchive این سرور از AES-256 پشتیبانی نمی‌کند؛ فایل بکاپ بدون رمز ساخته می‌شود.');
+            } elseif ($bkPw === '') {
+                $out[] = self::it('رمزگذاری بکاپ', 'هنوز بدون رمز', 'warn',
+                    'در صفحهٔ بکاپ رمز دلخواه بگذارید؛ وگرنه نخستین بکاپ بعدی خودکار یک رمز قوی می‌سازد.');
+            } else {
+                $out[] = self::it('رمزگذاری بکاپ', 'فعال (AES-256)', 'ok',
+                    (string)DB::setting('backup_pass_auto', '') === '1'
+                        ? 'رمز به‌صورت خودکار ساخته شده و در صفحهٔ بکاپ قابل مشاهده است.'
+                        : 'فایل‌های بکاپ با رمز تعیین‌شدهٔ شما رمزگذاری می‌شوند.');
+            }
+        }
+
+        /* 0.0.2 #8: توکن امنیتی وب‌هوک تلگرام */
+        $whSec = '';
+        try {
+            if (class_exists('Cfg')) $whSec = trim((string)Cfg::get('bot.secret', ''));
+            if ($whSec === '' && function_exists('cfg')) $whSec = trim((string)cfg('bot.secret', ''));
+        } catch (Throwable $e) {
+            $whSec = '';
+        }
+        $out[] = $whSec === ''
+            ? self::it('توکن امنیتی وب‌هوک', 'تنظیم نشده', 'warn',
+                'بدون آن هر کسی می‌تواند به آدرس وب‌هوک درخواست بفرستد؛ دکمهٔ تنظیم وب‌هوک را بزنید تا خودکار ساخته شود.')
+            : self::it('توکن امنیتی وب‌هوک', 'فعال', 'ok',
+                'هر درخواست ورودی با هدر X-Telegram-Bot-Api-Secret-Token بررسی می‌شود.');
+
+        /* 0.0.2 #1: بررسی دسترسی وب به فایل‌های حساس */
         if (class_exists('Guard')) {
             $gx   = Guard::exposure();
             $gopn = (array)($gx['open'] ?? []);

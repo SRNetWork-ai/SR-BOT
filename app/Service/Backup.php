@@ -95,7 +95,46 @@ class Backup
     /** رمز فایل‌های ZIP بکاپ؛ خالی یعنی بدون رمز */
     public static function zipPass(): string
     {
-        return trim((string)DB::setting('backup_pass', ''));
+        $p = trim((string)DB::setting('backup_pass', ''));
+
+        /* 0.0.2 #3-autopass: اگر رمزی تنظیم نشده باشد یک رمز قوی ساخته می‌شود تا بکاپ‌ها بدون رمز نمانند */
+        if ($p === '' && (string)DB::setting('backup_autopass', '1') === '1' && self::aesReady()) {
+            try {
+                $p = self::makePass();
+                DB::setSetting('backup_pass', $p);
+                DB::setSetting('backup_pass_auto', '1');
+                if (function_exists('app_log')) app_log('backup', 'auto backup password generated');
+                if (class_exists('Logs')) {
+                    Logs::send('backup', Logs::fmt('🔑 رمز خودکار بکاپ ساخته شد', [
+                        'رمز'    => $p,
+                        'کاربرد' => 'برای باز کردن فایل‌های ZIP بکاپ لازم است؛ جایی امن نگه دارید.',
+                        'تغییر'   => 'پنل مدیریت ← بکاپ ← رمز فایل',
+                    ]));
+                }
+            } catch (Throwable $e) {
+                $p = trim((string)DB::setting('backup_pass', ''));
+            }
+        }
+
+        return $p;
+    }
+
+    /** 0.0.2 #3: آیا سرور از رمزگذاری AES-256 داخل ZIP پشتیبانی می‌کند؟ */
+    public static function aesReady(): bool
+    {
+        return class_exists('ZipArchive')
+            && method_exists('ZipArchive', 'setEncryptionIndex')
+            && defined('ZipArchive::EM_AES_256');
+    }
+
+    /** 0.0.2 #3: ساخت رمز قوی بدون کاراکترهای گیج‌کننده */
+    private static function makePass(int $len = 20): string
+    {
+        $abc = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+        $max = strlen($abc) - 1;
+        $out = '';
+        for ($i = 0; $i < $len; $i++) $out .= $abc[random_int(0, $max)];
+        return $out;
     }
 
     /** رمزگذاری AES-256 همهٔ فایل‌های داخل ZIP در صورت تنظیم رمز و پشتیبانی سرور */

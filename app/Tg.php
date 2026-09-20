@@ -161,10 +161,45 @@ class Tg
 
     public static function setWebhook(string $url, string $secret = ''): array
     {
+        /* 0.0.2 #8: اگر توکن امنیتی خالی باشد خودکار ساخته و در config.php ذخیره می‌شود */
+        if ($secret === '') $secret = self::ensureSecret();
+
         $p = ['url' => $url, 'max_connections' => 40, 'drop_pending_updates' => true,
               'allowed_updates' => jenc(['message', 'callback_query', 'pre_checkout_query'])];
         if ($secret !== '') $p['secret_token'] = $secret;
         return self::api('setWebhook', $p);
+    }
+
+    /**
+     * 0.0.2 #8: خواندن یا ساخت توکن امنیتی وب‌هوک.
+     *
+     * اگر ذخیره در config.php ممکن نباشد رشتهٔ خالی برمی‌گردد؛ چون در غیر این صورت
+     * تلگرام هدر امنیتی می‌فرستد ولی ربات توکن را نمی‌شناسد و همهٔ پیام‌ها رد می‌شوند.
+     */
+    public static function ensureSecret(): string
+    {
+        $s = '';
+        try {
+            if (class_exists('Cfg')) $s = trim((string)Cfg::get('bot.secret', ''));
+            if ($s === '' && function_exists('cfg')) $s = trim((string)cfg('bot.secret', ''));
+        } catch (Throwable $e) {
+            $s = '';
+        }
+        if ($s !== '') return $s;
+        if (!class_exists('Cfg')) return '';
+
+        try {
+            $new = bin2hex(random_bytes(16));
+            $w   = Cfg::set(['bot.secret' => $new]);
+            if (empty($w['ok'])) {
+                if (function_exists('app_log')) app_log('sec', 'webhook secret not saved: ' . (string)($w['message'] ?? ''));
+                return '';
+            }
+            if (function_exists('app_log')) app_log('sec', 'webhook secret generated');
+            return $new;
+        } catch (Throwable $e) {
+            return '';
+        }
     }
 
     public static function deleteWebhook(): array { return self::api('deleteWebhook', ['drop_pending_updates' => false]); }
