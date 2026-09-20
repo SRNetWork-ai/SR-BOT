@@ -40,11 +40,20 @@ jobs:
           NEW_BUILD: ${{ github.event.inputs.build }}
         run: |
           set +e
-          python3 --version > .github/fixups-last-run.txt 2>&1
-          date -u >> .github/fixups-last-run.txt
-          python3 .github/scripts/fixups.py >> .github/fixups-last-run.txt 2>&1
+          out=$(python3 .github/scripts/fixups.py 2>&1)
           code=$?
-          echo "exit: $code" >> .github/fixups-last-run.txt
+          set -e
+          if [ "$code" -ne 0 ]; then
+            echo 'script failed - reverting working tree so no half-written file is committed'
+            git checkout -- . || true
+            git clean -fd || true
+          fi
+          {
+            python3 --version
+            date -u
+            echo "$out"
+            echo "exit: $code"
+          } > .github/fixups-last-run.txt
           cat .github/fixups-last-run.txt
           exit 0
 
