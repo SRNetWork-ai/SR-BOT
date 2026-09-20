@@ -200,6 +200,6 @@
   ],
   "channel": "beta",
   "pinned": true,
-  "build": "fixed107",
+  "build": "fixed108",
   "version_locked": true
 }

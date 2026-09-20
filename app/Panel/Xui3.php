@@ -706,6 +706,63 @@ class Xui3
      */
     /* ========== 0.0.2: newer 3x-ui API endpoints (docs.sanaei.dev) ========== */
 
+    /* ========== 0.0.2 #happ-links : Happ deep link + external links ========== */
+
+    /** دیپ‌لینک اختصاصی Happ برای یک اکانت: GET /clients/happLink/{id} */
+    public function happLink(string $email): string
+    {
+        $email = trim($email);
+        if ($email === '') return '';
+        $row = $this->clientRow($email);
+        $id  = (int)($row['id'] ?? 0);
+        if ($id <= 0) return '';
+        $r = $this->api('/clients/happLink/' . $id);
+        if (($r['success'] ?? false) !== true) return '';
+        $o = $r['obj'] ?? '';
+        if (is_string($o)) return trim($o);
+        if (is_array($o)) {
+            foreach (['happLink', 'link', 'url', 'happ'] as $k) {
+                if (isset($o[$k]) && is_string($o[$k]) && trim($o[$k]) !== '') return trim($o[$k]);
+            }
+        }
+        return '';
+    }
+
+    /** لینک‌های خارجیِ ثبت‌شده روی پنل برای اکانت: GET /clients/{email}/externalLinks */
+    public function externalLinks(string $email): array
+    {
+        $email = trim($email);
+        if ($email === '') return [];
+        $r = $this->api('/clients/' . rawurlencode($email) . '/externalLinks');
+        if (($r['success'] ?? false) !== true) return [];
+        $out = [];
+        foreach ((array)($r['obj'] ?? []) as $row) {
+            if (is_string($row)) {
+                $l = trim($row);
+                if ($l !== '') $out[] = ['title' => '', 'link' => $l];
+                continue;
+            }
+            if (!is_array($row)) continue;
+            $l = '';
+            foreach (['link', 'url', 'href'] as $k) {
+                if (isset($row[$k]) && is_string($row[$k]) && trim($row[$k]) !== '') {
+                    $l = trim($row[$k]);
+                    break;
+                }
+            }
+            if ($l === '') continue;
+            $t = '';
+            foreach (['remark', 'title', 'name'] as $k) {
+                if (isset($row[$k]) && is_string($row[$k]) && trim($row[$k]) !== '') {
+                    $t = trim($row[$k]);
+                    break;
+                }
+            }
+            $out[] = ['title' => $t, 'link' => $l];
+        }
+        return $out;
+    }
+
     /** registered HWID devices of one account: GET /clients/hwids/{email} */
     public function devices(string $email): array
     {

@@ -1,221 +1,130 @@
 Python 3.12.3
-Sun Sep 20 17:42:04 UTC 2026
-== XUI3 curl+api (app/Panel/Xui3.php lines 95-158 of 868) ==
-  95|    private function curl(string $url, $body = null, string $method = 'GET'): array
-  96|    {
-  97|        $ch = curl_init($url);
-  98|        $headers = ['Accept: application/json', 'Authorization: Bearer ' . $this->token()];
-  99|        /* بررسی گواهی SSL مانند بقیه درایورها برای هر پنل جداگانه قابل تنظیم است */
-  100|        $verify = (int)($this->panel['ssl_verify'] ?? 0) === 1;
-  101|        $opts = [
-  102|            CURLOPT_RETURNTRANSFER => true,
-  103|            CURLOPT_TIMEOUT        => 25,
-  104|            CURLOPT_CONNECTTIMEOUT => 10,
-  105|            CURLOPT_SSL_VERIFYPEER => $verify,
-  106|            CURLOPT_SSL_VERIFYHOST => $verify ? 2 : 0,
-  107|            CURLOPT_FOLLOWLOCATION => false,
-  108|            CURLOPT_CUSTOMREQUEST  => $method,
-  109|        ];
-  110|        if ($body !== null) {
-  111|            $opts[CURLOPT_POSTFIELDS] = is_string($body) ? $body : jenc($body);
-  112|            $headers[] = 'Content-Type: application/json';
-  113|        } elseif ($method === 'POST') {
-  114|            $opts[CURLOPT_POSTFIELDS] = '';
-  115|        }
-  116|        $opts[CURLOPT_HTTPHEADER] = $headers;
-  117|        curl_setopt_array($ch, $opts);
-  118|        $raw  = curl_exec($ch);
-  119|        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  120|        $err  = curl_error($ch);
-  121|        curl_close($ch);
-  122|        $raw = is_string($raw) ? $raw : '';
-  123|        return ['code' => $code, 'body' => $raw, 'json' => jdec($raw, []), 'error' => $err];
-  124|    }
-  125|
-  126|    /** فراخوانی API نسل جدید — خروجی همیشه ['success','msg','obj','code'] */
-  127|    private function api(string $path, $body = null, string $method = 'GET'): array
-  128|    {
-  129|        if ($this->token() === '') {
-  130|            return ['success' => false, 'msg' => 'توکن API برای این پنل ثبت نشده است', 'obj' => null, 'code' => 0];
-  131|        }
-  132|        $res  = $this->curl($this->base() . '/panel/api' . $path, $body, $method);
-  133|        $code = (int)$res['code'];
-  134|        $j    = is_array($res['json']) ? $res['json'] : [];
-  135|        if (array_key_exists('success', $j)) {
-  136|            $j += ['msg' => '', 'obj' => null];
-  137|            $j['code'] = $code;
-  138|            return $j;
-  139|        }
-  140|        $msg = (string)($res['error'] !== '' ? $res['error'] : ('HTTP ' . $code));
-  141|        if ($code === 401 || $code === 403) $msg = 'توکن API نامعتبر یا منقضی است (HTTP ' . $code . ')';
-  142|        if ($code === 404)                  $msg = 'این پنل از API نسل جدید پشتیبانی نمی‌کند (HTTP 404)';
-  143|        return ['success' => false, 'msg' => $msg, 'obj' => null, 'code' => $code];
-  144|    }
-  145|
-  146|    /* ---------------------- اینباندها ---------------------- */
-  147|
-  148|    /** تنظیمات تو در توی نسل جدید برای سازگاری با بقیهٔ ربات به رشتهٔ JSON برمی‌گردد */
-  149|    private static function normInbound($in): array
-  150|    {
-  151|        $in = (array)$in;
-  152|        foreach (['settings', 'streamSettings', 'sniffing', 'allocate'] as $k) {
-  153|            if (isset($in[$k]) && is_array($in[$k])) $in[$k] = jenc($in[$k]);
-  154|        }
-  155|        return $in;
-  156|    }
-  157|
-  158|    public function inbounds(): array
-== XUI3 clientRow (app/Panel/Xui3.php lines 224-258 of 868) ==
-  224|    private function clientRow(string $email): ?array
-  225|    {
-  226|        $email = trim($email);
-  227|        if ($email === '') return null;
-  228|        $r = $this->api('/clients/get/' . rawurlencode($email));
-  229|        if (($r['success'] ?? false) !== true || empty($r['obj'])) return null;
-  230|        $row = self::rowOf($r['obj']);
-  231|        $key = Xui::clientKey($row, '');
-  232|        if ($key !== '') $this->userMap[$key] = (string)($row['email'] ?? $email);
-  233|        return $row;
-  234|    }
-  235|
-  236|    /** کلیدهایی که جزو payload کلاینت نی��تند و در ویرایش نباید ارسال شوند */
-  237|    private static function cleanClient(array $c): array
-  238|    {
-  239|        $drop = [
-  240|            'inboundIds', 'externalConfigIds', 'externalLinks', 'memberships',
-  241|            'up', 'down', 'total', 'allTime', 'lastOnline', 'lastSubFetch', 'resetCount',
-  242|            'inboundId', 'created_at', 'updated_at', 'createdAt', 'updatedAt', 'uuid',
-  243|            /* کلیدهای محدودیت سرعت مخصوص فورک vpn-ui — در نسل جدید تعریف نشده‌اند */
-  244|            'uploadLimit', 'upLimit', 'limitUp', 'speedLimitUp', 'upSpeed', 'maxUpload', 'upMbps',
-  245|            'downloadLimit', 'downLimit', 'limitDown', 'speedLimitDown', 'downSpeed', 'maxDownload', 'downMbps',
-  246|        ];
-  247|        foreach ($drop as $k) unset($c[$k]);
-  248|        /* شمارهٔ ردیف پنل هرگز به‌جای UUID ارسال نشود */
-  249|        if (isset($c['id']) && !Xui::isClientKey($c['id'])) unset($c['id']);
-  250|        return $c;
-  251|    }
-  252|
-  253|    /**
-  254|     * ساخت کلاینت — یک اکانت روی یک یا چند اینباند در یک درخواست.
-  255|     * اگر اکانت با همین ایمیل از قبل باشد (حلقهٔ چنداینباندی ربات)، به‌جای خطای
-  256|     * «ایمیل تکراری» با attach به اینباندهای جدید وصل می‌شود.
-  257|     */
-  258|    public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, int $ipLimit = 0, string $subId = '', array $inboundIds = [], int $deviceLimit = 0, int $upKbps = 0, int $downKbps = 0): array
-== XUI3 devices (app/Panel/Xui3.php lines 705-742 of 868) ==
-  705|     * و باید فیلد توکن خالی شود تا ربات از درایور قدیمی (یوزر/پسورد) استفاده کند.
-  706|     */
-  707|    /* ========== 0.0.2: newer 3x-ui API endpoints (docs.sanaei.dev) ========== */
-  708|
-  709|    /** registered HWID devices of one account: GET /clients/hwids/{email} */
-  710|    public function devices(string $email): array
-  711|    {
-  712|        $email = trim($email);
-  713|        if ($email === '') return [];
-  714|        $r = $this->api('/clients/hwids/' . rawurlencode($email));
-  715|        if (($r['success'] ?? false) !== true) return [];
-  716|        $out = [];
-  717|        foreach ((array)($r['obj'] ?? []) as $d) {
-  718|            if (!is_array($d)) continue;
-  719|            $out[] = [
-  720|                'id'   => (int)($d['id'] ?? 0),
-  721|                'hwid' => (string)($d['hwid'] ?? ''),
-  722|                'name' => trim((string)($d['deviceName'] ?? ($d['name'] ?? ''))),
-  723|                'os'   => trim((string)($d['os'] ?? ($d['platform'] ?? ''))),
-  724|                'app'  => trim((string)($d['appName'] ?? ($d['app'] ?? ''))),
-  725|                'seen' => (int)($d['updatedAt'] ?? ($d['createdAt'] ?? 0)),
-  726|            ];
-  727|        }
-  728|        return $out;
-  729|    }
-  730|
-  731|    /** free one HWID slot: DELETE /clients/hwids/{email}/{id} */
-  732|    public function deviceDelete(string $email, int $id): array
-  733|    {
-  734|        $email = trim($email);
-  735|        if ($email === '' || $id <= 0) return ['success' => false, 'msg' => 'bad request'];
-  736|        return $this->api('/clients/hwids/' . rawurlencode($email) . '/' . $id, null, 'DELETE');
-  737|    }
-  738|
-  739|    /** drop every registered device of one account; returns how many were removed */
-  740|    public function devicesClear(string $email): int
-  741|    {
-  742|        $n = 0;
-== XUI3 links (app/Panel/Xui3.php lines 655-700 of 868) ==
-  655|        $links = $this->linksFor($email);
-  656|        if ($links) return $links;
-  657|        /* fallback: از ساب پنل */
-  658|        $row   = $this->clientRow($email);
-  659|        $subId = trim((string)($row['subId'] ?? ''));
-  660|        return $subId !== '' ? $this->subFetch($subId) : [];
-  661|    }
-  662|
-  663|    public function subLink(string $subId): string
-  664|    {
-  665|        $base = trim((string)($this->panel['sub_base'] ?? ''));
-  666|        if ($base === '' || $subId === '') return '';
-  667|        return rtrim($base, '/') . '/' . $subId;
-  668|    }
-  669|
-  670|    public function subUrlFor(string $email): string
-  671|    {
-  672|        $row   = $this->clientRow($email);
-  673|        $subId = trim((string)($row['subId'] ?? ''));
-  674|        return $subId !== '' ? $this->subLink($subId) : '';
-  675|    }
-  676|
-  677|    /** خواندن کانفیگ‌های ساب؛ نسل جدید خروجی JSON بدون base64 هم دارد */
-  678|    public function subFetch(string $subId, string $subUrl = ''): array
-  679|    {
-  680|        $subId = trim($subId);
-  681|        if ($subId !== '') {
-  682|            $r = $this->api('/clients/subLinks/' . rawurlencode($subId));
-  683|            if (($r['success'] ?? false) === true) {
-  684|                $out = [];
-  685|                foreach ((array)($r['obj'] ?? []) as $l) {
-  686|                    $l = trim((string)$l);
-  687|                    if ($l !== '' && preg_match(Xui::LINK_RE, $l)) $out[] = $l;
-  688|                }
-  689|                if ($out) return array_values(array_unique($out));
-  690|            }
-  691|        }
-  692|        /* fallback: خواندن ساب عمومی مثل درایور قدیمی */
-  693|        $url = trim($subUrl) !== '' ? trim($subUrl) : $this->subLink($subId);
-  694|        if ($url === '') return [];
-  695|        $links = Xui::parseSubBody(Xui::httpGet($url));
-  696|        if ($links) return $links;
-  697|        return Xui::parseSubBody(Xui::httpGet(rtrim($url, '/') . '?b64=1'));
-  698|    }
-  699|
-  700|    /* ---------------------- سلامت و تشخیص نسخه ---------------------- */
-== DEVICE LIMIT (tree ~ device_limit|devLim) ==
-  app/Service/Migrate.php:70: 'device_limit' => 'INT NOT NULL DEFAULT 0',
-  app/Service/Reseller.php:979: 'device_limit' => $plan ? (int)$plan['device'] : 0,
-  app/Service/Reseller.php:1771: 'device_limit' => (int)$b['device'],
-  app/Service/Svc.php:237: $devOpt = (int)($opts['device_limit'] ?? 0);
-  app/Service/Svc.php:238: if ($devOpt <= 0 && is_array($product)) $devOpt = (int)($product['device_limit'] ?? 0);
-  app/Service/Svc.php:282: $devLim = $devOpt;
-  app/Service/Svc.php:288: $res     = $xui->addClient($primary, $email, $uuid, $volume, $expiryMs, $ipLim, $subId, $ids, $devLim, $
-  app/Service/Svc.php:308: $res = $xui->addClient($ib, $email, $uuid, $volume, $expiryMs, $ipLim, $subId, [], $devLim, $upKb, $down
-  admin/pages/products.php:16: $prHasLimits = isset($prCols['device_limit'], $prCols['speed_down'], $prCols['speed_up']);
-  admin/pages/products.php:49: foreach (['device_limit', 'speed_up', 'speed_down'] as $lk) {
-  admin/pages/products.php:485: <?php if ($prHasLimits && (int)($p['device_limit'] ?? 0) > 0): ?>
-  admin/pages/products.php:486: <span class="sp">📱 <?= fa_num((int)$p['device_limit']) ?> دستگاه</span>
-  admin/pages/products.php:559: <?php if ($prHasLimits && (int)($p['device_limit'] ?? 0) > 0): ?>
-  admin/pages/products.php:560: <span class="numbox a"><?= fa_num((int)$p['device_limit']) ?>د</span>
-  admin/pages/products.php:751: <input class="mono" type="number" min="0" name="device_limit" value="<?= h((string)$v('device_limit', 0)
-== BOT LINK DELIVERY (app/Bot/Bot.php ~ function sendSub|function sendConfig|case 'svcsub'|case 'svccfg'|linksFor\(|subUrl\() ==
-  1053: case 'svcsub':  self::sendSub($chatId, $cbId, (int)$arg); return;
-  1054: case 'svccfg':  self::sendConfig($chatId, $cbId, (int)$arg); return;
-  2874: $sub  = Svc::subUrl($service);
-  3069: private static function sendSub($chatId, $cbId, int $id): void
-  3075: $sub = Svc::subUrl($s);
-  3096: private static function sendConfig($chatId, $cbId, int $id): void
-  4918: $sub = Svc::subUrl($sv);
-== MINIAPP LINKS (miniapp/api.php ~ 'svc_sub'|'svc_cfg'|'svc_links'|sub_link|config_link) ==
-  339: ? Reseller::applyDomain((string)(class_exists('Svc') ? Svc::subUrl($s) : (string)($s['sub_link'] ?? '')), $__rsDomUser
-  340: : (class_exists('Svc') ? Svc::subUrl($s) : (string)($s['sub_link'] ?? ''))),
-  342: 'sub_main'   => (string)($s['sub_link'] ?? ''),
-  360: : array_values(array_filter(array_map('trim', explode("\n", (string)($s['config_link'] ?? ''))))),
-build: fixed107
-changed files: 0 (recon run)
+Sun Sep 20 17:47:13 UTC 2026
+patched app/Panel/Xui3.php by regex (0.0.2 #happ-links)
+wrote app/Panel/Xui3.php
+php lint: on
+changed files: 1
+== BOT dev-btn block (app/Bot/Bot.php lines 2974-2996 of 4930) ==
+  2974|        $top  = [];
+  2975|        if (Svc::wantsSub($mode)) $top[] = Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $id);
+  2976|        if (Svc::wantsCfg($mode)) $top[] = Tg::btn('⚙️ کانفیگ‌ها', 'svccfg:' . $id);
+  2977|        if (!$top) $top[] = Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $id);
+  2978|
+  2979|        $rows = [
+  2980|            $top,
+  2981|            [Tg::btn('📋 مشخصات کامل', 'svcspec:' . $id), Tg::btn('🔄 به‌روزرسانی مصرف', 'svcsync:' . $id)],
+  2982|            [Tg::btn('♻️ تمدید سرویس', 'svcrn:' . $id)],
+  2983|        ];
+  2984|        /* 0.0.2 #dev-btn: مدیریت دستگاه‌های ثبت‌شده (HWID) — فقط پنل نسل جدید سنایی */
+  2985|        if (class_exists('Devices') && Devices::supported($s)) {
+  2986|            $rows[] = [Tg::btn('📱 دستگاه‌های من', 'svcdev:' . $id)];
+  2987|        }
+  2988|        /* fixed83: حذف سرویس و عودت وجه — کانفیگ قطع‌شده اجازهٔ جداگانه دارد */
+  2989|        $dead = Svc::isDead($s);
+  2990|        if (Svc::userDelEnabled() || ($dead && Svc::deadDelEnabled())) {
+  2991|            $rows[] = [Tg::btn($dead ? '🗑 حذف کانفیگ قطع‌شده و عودت وجه' : '🗑 حذف سرویس و عودت وجه', 'svcdel:' . $id)];
+  2992|        }
+  2993|        $rows[] = [Tg::btn('⬅️ سرویس‌های من', 'menu:services')];
+  2994|        $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
+  2995|    }
+  2996|
+== BOT devicesView (app/Bot/Bot.php lines 2997-3055 of 4930) ==
+  2997|    /* ============ 0.0.2: دستگاه‌های ثبت‌شده (HWID) — پنل 3x-ui ============ */
+  2998|
+  2999|    private static function devicesView($chatId, $msgId, int $id): void
+  3000|    {
+  3001|        $s = self::myService($id);
+  3002|        if (!$s) { Tg::send($chatId, '⚠️ سرویس یافت نشد.'); return; }
+  3003|        if (!class_exists('Devices') || !Devices::supported($s)) {
+  3004|            Tg::send($chatId, 'ℹ️ این سرویس از مدیریت دستگاه پشتیبانی نمی‌کند.');
+  3005|            return;
+  3006|        }
+  3007|
+  3008|        $items = Devices::listFor($s);
+  3009|        $limit = Devices::limitOf($s);
+  3010|
+  3011|        $txt = "📱 <b>دستگاه‌های من</b>
+  3012|"
+  3013|            . '<code>─────────────────</code>' . "
+  3014|"
+  3015|            . '👤 <code>' . h((string)$s['client_email']) . "</code>
+  3016|"
+  3017|            . '🔢 ثبت‌شده: ' . fa_num((string)count($items))
+  3018|            . ($limit > 0 ? (' از ' . fa_num((string)$limit)) : ' (بدون محدودیت)') . "
+  3019|";
+  3020|
+  3021|        $rows = [];
+  3022|        if (!$items) {
+  3023|            $txt .= "
+  3024|هنوز دستگاهی ثبت نشده است.";
+  3025|        } else {
+  3026|            $txt .= "
+  3027|برای آزاد کردن ظرفیت، روی دستگاه بزنید:";
+  3028|            foreach ($items as $d) {
+  3029|                $label = mb_substr((string)$d['title'], 0, 26);
+  3030|                $rows[] = [Tg::btn('🗑 ' . $label . ' | ' . (string)$d['seen_txt'],
+  3031|                    'svcdevdel:' . $id . ':' . (int)$d['id'])];
+  3032|            }
+  3033|            $rows[] = [Tg::btn('🧹 حذف همهٔ دستگاه‌ها', 'svcdevclr:' . $id)];
+  3034|        }
+  3035|        $rows[] = [Tg::btn('🔄 به‌روزرسانی', 'svcdev:' . $id)];
+  3036|        $rows[] = [Tg::btn('⬅️ بازگشت', 'svc:' . $id)];
+  3037|
+  3038|        $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
+  3039|    }
+  3040|
+  3041|    private static function deviceDel($chatId, $msgId, $cbId, int $id, int $dev): void
+  3042|    {
+  3043|        $s = self::myService($id);
+  3044|        if (!$s) { Tg::answerCb($cbId, 'سرویس یافت نشد.', true); return; }
+  3045|        if (!class_exists('Devices') || !Devices::supported($s) || $dev <= 0) {
+  3046|            Tg::answerCb($cbId, 'امکان حذف نیست.', true);
+  3047|            return;
+  3048|        }
+  3049|        $ok = Devices::remove($s, $dev);
+  3050|        Tg::answerCb($cbId, $ok ? '✅ دستگاه حذف شد.' : '❌ حذف انجام نشد.', !$ok);
+  3051|        self::devicesView($chatId, $msgId, $id);
+  3052|    }
+  3053|
+  3054|    private static function deviceClear($chatId, $msgId, $cbId, int $id): void
+  3055|    {
+== MINIAPP svc_devices (miniapp/api.php lines 1016-1052 of 2893) ==
+  1016|    /* fixed83: کانفیگ‌های قطع — فهرست و مبلغ عودتی */
+  1017|    /* 0.0.2: مدیریت دستگاه‌های ثبت‌شده (HWID) — فقط پنل نسل جدید سنایی */
+  1018|    case 'svc_devices': {
+  1019|        $sid = (int)($in['id'] ?? 0);
+  1020|        $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+  1021|            [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
+  1022|        if (!$s) ma_fail('سرویس یافت نشد.');
+  1023|        if (!class_exists('Devices') || !Devices::supported($s)) {
+  1024|            ma_out(['ok' => true, 'supported' => false, 'count' => 0, 'items' => [], 'limit' => 0]);
+  1025|        }
+  1026|        $items = Devices::listFor($s);
+  1027|        ma_out([
+  1028|            'ok'        => true,
+  1029|            'supported' => true,
+  1030|            'count'     => count($items),
+  1031|            'items'     => $items,
+  1032|            'limit'     => Devices::limitOf($s),
+  1033|        ]);
+  1034|    }
+  1035|
+  1036|    case 'svc_device_del': {
+  1037|        $sid = (int)($in['id'] ?? 0);
+  1038|        $dev = (int)($in['device'] ?? 0);
+  1039|        $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+  1040|            [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
+  1041|        if (!$s) ma_fail('سرویس یافت نشد.');
+  1042|        if (!class_exists('Devices') || !Devices::supported($s)) ma_fail('این پنل از مدیریت دستگاه پشتیبانی نمی‌کند.');
+  1043|        if ($dev <= 0) ma_fail('دستگاه نامعتبر است.');
+  1044|        if (!Devices::remove($s, $dev)) ma_fail('حذف دستگاه انجام نشد.');
+  1045|        $items = Devices::listFor($s);
+  1046|        ma_out([
+  1047|            'ok'      => true,
+  1048|            'message' => 'دستگاه حذف شد.',
+  1049|            'count'   => count($items),
+  1050|            'items'   => $items,
+  1051|            'limit'   => Devices::limitOf($s),
+  1052|        ]);
+build: fixed108
 exit: 0
