@@ -28,7 +28,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/app/bootstrap.php';
 
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+if (session_status() !== PHP_SESSION_ACTIVE) Session::start();
 
 $lock = APP_ROOT . '/storage/installed.lock';
 $alreadyInstalled = app_installed() && is_file($lock);

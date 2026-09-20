@@ -12,7 +12,7 @@ require dirname(__DIR__) . '/app/bootstrap.php';
 if (!app_installed()) { exit('برنامه نصب نشده است.'); }
 boot();
 
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+if (session_status() !== PHP_SESSION_ACTIVE) Session::start();
 
 $ADMIN = null;
 try {

@@ -1,6 +1,89 @@
 Python 3.12.3
-Sat Sep 19 19:41:53 UTC 2026
-build: fixed88
-changed files: 1
-  - app/bootstrap.php
+Sun Sep 20 15:18:51 UTC 2026
+session_start wired: 4 call(s) in 4 file(s)
+== SERVICES ==
+  Audit.php, AutoRenew.php, Backup.php, Broadcast.php, Btn.php, Bulk.php, Campaign.php, CardAuth.php, Cfg.php, Codes.php, Crypt.php, Export.php, Flood.php, Gateway.php, Guard.php, Health.php, HooshPay.php, Logs.php, Migrate.php, NowPay.php, Orders.php, Perm.php, RateLimit.php, Rates.php, Referral.php, Release.php, Reseller.php, RsBot.php, Security.php, Session.php, Stock.php, SubTheme.php, Svc.php, TxCheck.php, Txt.php, Updater.php, Wallet.php
+== SIZES ==
+  admin/index.php  32117 bytes  595 lines
+  app/Service/Backup.php  24595 bytes  544 lines
+  app/Service/Cfg.php  5425 bytes  143 lines
+  app/Service/Crypt.php  5253 bytes  159 lines
+  app/Service/Guard.php  7471 bytes  189 lines
+  app/Service/Health.php  21435 bytes  422 lines
+  app/Service/RateLimit.php  6290 bytes  161 lines
+  cron/tasks.php  32721 bytes  664 lines
+  index.php  5154 bytes  129 lines
+  miniapp/api.php  136621 bytes  2808 lines
+  rbot.php  3426 bytes  109 lines
+== password_verify ==
+  admin/index.php:128: if ($row && (int)($row['active'] ?? 1) === 1 && $code !== '' && password_verify($code, (string)($tf['hash'] ??
+  admin/index.php:154: } elseif ($row && password_verify($p, (string)$row['password_hash'])) {
+  admin/index.php:176: if (!$row) password_verify($p, '$2y$12$C6UzMDM.H6dfI/f/IKcEe.rXelJDtj9pGSCbC.MCEyMbCTLAaTfSm');
+  admin/pages/settings.php:668: if (!$row || !password_verify($cur, (string)$row['password_hash'])) {
+== session_meta ==
+  admin/index.php:18: session_set_cookie_params([
+  admin/index.php:48: setcookie(session_name(), '', time() - 42000, $pr['path'], $pr['domain'], (bool)$pr['secure'], (bool)$pr['http
+  admin/index.php:81: session_regenerate_id(true);                                  // جلوگیری از Session Fixation
+  app/Service/Session.php:37: @session_set_cookie_params([
+  app/Service/Session.php:46: @session_set_cookie_params(0, '/', '', $secure, true);
+  app/Service/Session.php:55: @session_regenerate_id(true);
+  app/Service/Session.php:88: session_name(),
+== auth_flag ==
+== zip ==
+  admin/pages/backup.php:9: $hasZip = class_exists('ZipArchive');
+  admin/pages/backup.php:121: if (!$hasZip) { flash('err', 'افزونهٔ ZipArchive روی سرور فعال نیست.'); back('backup', $rt); }
+  admin/pages/backup.php:122: $z = new ZipArchive();
+  admin/pages/backup.php:303: <span class="d">فایل ZIP — مناسب مهاجرت به هاست جدید<?= $hasZip ? '' : ' (ZipArchive غیرفعال است)' ?></span>
+  admin/pages/backup.php:601: <div><span>ZipArchive</span><b class="<?= $hasZip ? 'ok' : 'no' ?>"><?= $hasZip ? 'فعال' : 'غیرفعال' ?></b></d
+  admin/pages/update.php:9: $hasZip = class_exists('ZipArchive');
+  admin/pages/update.php:269: <li class="<?= $hasZip ? 'ok' : 'no' ?>"><span class="d"></span><b>افزونهٔ ZipArchive</b><i><?= $hasZip ? 'فعا
+  admin/pages/update.php:417: <div class="alert a-err">⛔️ افزونهٔ ZipArchive روی سرور فعال نیست؛ نصب از فایل ZIP ممکن نیست.</div>
+  app/Service/Backup.php:102: private static function encryptZip(ZipArchive $zip): void
+  app/Service/Backup.php:105: if ($pass === '' || !method_exists($zip, 'setEncryptionIndex') || !defined('ZipArchive::EM_AES_256')) return;
+  app/Service/Backup.php:108: @$zip->setEncryptionIndex($i, ZipArchive::EM_AES_256);
+  app/Service/Backup.php:114: if (!class_exists('ZipArchive')) {
+  app/Service/Backup.php:115: return ['ok' => false, 'message' => 'افزونه ZipArchive روی این هاست فعال نیست؛ فقط بکاپ دیتابیس ممکن است.'];
+  app/Service/Backup.php:117: $zip = new ZipArchive();
+== backup_fn ==
+  app/Bot/AdminBot.php:1209: public static function backupNow($chatId, $cbId): void
+  app/Service/Backup.php:10: class Backup
+== webhook ==
+  admin/pages/health.php:11: $r = Tg::setWebhook(app_url('index.php'), (string)cfg('bot.secret', ''));
+  admin/pages/settings.php:341: $r = Tg::setWebhook(app_url('index.php'), (string)cfg('bot.secret'));
+  admin/pages/settings.php:368: $w = Tg::setWebhook(app_url('index.php'), (string)Cfg::get('bot.secret', ''));
+  app/Service/RsBot.php:218: return Tg::api('setWebhook', [
+  app/Service/RsBot.php:220: 'secret_token'         => $secret,
+  app/Service/RsBot.php:299: return Tg::api('setWebhook', [
+  app/Service/RsBot.php:301: 'secret_token'    => $secret,
+  app/Tg.php:162: public static function setWebhook(string $url, string $secret = ''): array
+  app/Tg.php:166: if ($secret !== '') $p['secret_token'] = $secret;
+  app/Tg.php:167: return self::api('setWebhook', $p);
+  app/bootstrap.php:170: Tg::setWebhook(app_url('index.php'), (string)cfg('bot.secret', ''));
+  cli.php:52: $w = Tg::setWebhook(app_url('index.php'), (string)Cfg::get('bot.secret', ''));
+  cli.php:62: $w = Tg::setWebhook(app_url('index.php'), (string)cfg('bot.secret', ''));
+  install/index.php:242: $hook = Tg::setWebhook(rtrim($D['app_url'], '/') . '/index.php', $D['bot']['secret']);
+== initdata ==
+  miniapp/api.php:6: * تمام درخواست‌ها POST و با هدر یا بدنهٔ حاوی initData تلگرام هستند.
+  miniapp/api.php:7: * صحت initData با HMAC-SHA256 و کلید HMAC("WebAppData", botToken) بررسی می‌شود،
+  miniapp/api.php:155: $initData = (string)($in['initData'] ?? ($_SERVER['HTTP_X_TG_INIT_DATA'] ?? ''));
+  miniapp/api.php:157: /* ==================== اعتبارسنجی initData ==================== */
+  miniapp/api.php:160: * رشتهٔ initData را به آرایه تبدیل می‌کند (بدون دستکاری کلیدها)
+  miniapp/api.php:192: function ma_auth(string $initData): array
+  miniapp/api.php:196: if ($initData === '') return ['ok' => false, 'user' => [], 'message' => 'این صفحه باید از داخل تلگرام باز شود.
+  miniapp/api.php:198: $data = ma_parse_init($initData);
+  miniapp/api.php:221: $auth = ma_auth($initData);
+  miniapp/card.php:272: var INIT = TG ? (TG.initData || '') : '';
+  miniapp/card.php:276: /* وقتی این صفحه از داخل مینی‌اپ اصلی باز می‌شود، تلگرام initData تازه نمی‌سازد؛
+  miniapp/card.php:964: /* بازگشت به مینی‌اپ اصلی همراه initData تا صفحهٔ مقصد هم کاربر را بشناسد */
+  miniapp/index.php:5: * تمام داده‌ها از api.php و پس از اعتبارسنجی initData خوانده می‌شوند.
+  miniapp/index.php:958: var INIT = TG ? (TG.initData || '') : '';
+== csrf_def ==
+  admin/index.php:261: function csrf_field(): string { return '<input type="hidden" name="_t" value="' . h($GLOBALS['CSRF']) . '">'; 
+  admin/index.php:262: function csrf_ok(): bool { return hash_equals((string)$GLOBALS['CSRF'], (string)($_POST['_t'] ?? '')); }
+build: fixed89
+changed files: 4
+  - admin/index.php
+  - install/index.php
+  - tools/botcheck.php
+  - verify.php
 exit: 0

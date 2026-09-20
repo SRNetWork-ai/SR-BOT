@@ -8,7 +8,7 @@
 
 require __DIR__ . '/app/bootstrap.php';
 
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+if (session_status() !== PHP_SESSION_ACTIVE) Session::start();
 
 /* ---------------- کد امنیتی (کپچا) ---------------- */
 
