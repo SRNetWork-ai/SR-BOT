@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""fixed106 - recon only: per-plan device (HWID) limit + periodic traffic reset
+"""fixed107 - recon only: Happ link / external links wiring
 
-What we need to know:
-  1. products table columns
-  2. how a client is created on the panel (Xui3::addClient)
-  3. every call site of addClient
-  4. the admin products form/save hooks
-  5. the migrations folder (next file number + format)
+  1. Xui3 curl+api signatures (so new calls match exactly)
+  2. clientRow (panel row id used by /clients/happLink/{id})
+  3. the fixed99 device methods (call style to copy)
+  4. linksFor / subLink (how links reach the bot)
+  5. device_limit flow (buy + renew)
+  6. bot + mini-app delivery hooks
 """
 import io, json, os, re
 
 ROOT = os.environ.get("SRC_ROOT") or os.getcwd()
-BUILD = (os.environ.get("NEW_BUILD") or "fixed106").strip() or "fixed106"
+BUILD = (os.environ.get("NEW_BUILD") or "fixed107").strip() or "fixed107"
 SKIP_DIRS = {".git", "storage", "node_modules", "vendor", "assets"}
 
 CACHE = {}
@@ -78,51 +78,20 @@ def dump(tag, path, start, end):
     print("== %s (%s lines %d-%d of %d) ==" % (tag, path, start, end, len(lines)))
     for i in range(max(1, start), min(end, len(lines)) + 1):
         raw = lines[i - 1]
-        if len(raw) > 260:
-            raw = raw[:260] + " ...TRUNC"
+        if len(raw) > 240:
+            raw = raw[:240] + " ...TRUNC"
         print("  %d|%s" % (i, raw))
 
 
-def dump_find(tag, path, pattern, before=0, after=40):
-    try:
-        lines = load(path).splitlines()
-    except Exception as e:
-        print("== %s == missing: %s" % (tag, e))
-        return
-    for i, line in enumerate(lines, 1):
-        if re.search(pattern, line):
-            dump(tag, path, i - before, i + after)
-            return
-    print("== %s == pattern not found: %s" % (tag, pattern))
+dump("XUI3 curl+api", "app/Panel/Xui3.php", 95, 158)
+dump("XUI3 clientRow", "app/Panel/Xui3.php", 224, 258)
+dump("XUI3 devices", "app/Panel/Xui3.php", 705, 742)
+dump("XUI3 links", "app/Panel/Xui3.php", 655, 700)
 
+grep_tree("DEVICE LIMIT", r"device_limit|devLim", 24)
 
-def ls(tag, d, tail=14):
-    print("== %s (%s) ==" % (tag, d))
-    try:
-        names = sorted(os.listdir(os.path.join(ROOT, d)))
-    except Exception as e:
-        print("  " + str(e))
-        return
-    print("  total: %d" % len(names))
-    for f in names[-tail:]:
-        print("  " + f)
-
-
-# 1) products table
-dump_find("SCHEMA PRODUCTS", "database/schema.sql", r"CREATE TABLE IF NOT EXISTS \{p\}products", 0, 34)
-
-# 2) how clients are created on a 3x-ui panel
-dump("XUI3 addClient", "app/Panel/Xui3.php", 237, 335)
-
-# 3) call sites
-grep_tree("ADDCLIENT CALLS", r"addClient\(", 24)
-
-# 4) admin products page
-grep("PRODUCTS SAVE", "admin/pages/products.php", r"\$act ===|pint\('|pnum\('|pstr\('", 34)
-grep("PRODUCTS FORM", "admin/pages/products.php", r"name=\"(volume_gb|days|ip_limit|limit_ip|iplimit|device|hwid|inbound)", 20)
-
-# 5) migrations
-ls("MIGRATIONS", "database/migrations", 14)
+grep("BOT LINK DELIVERY", "app/Bot/Bot.php", r"function sendSub|function sendConfig|case 'svcsub'|case 'svccfg'|linksFor\(|subUrl\(", 22)
+grep("MINIAPP LINKS", "miniapp/api.php", r"'svc_sub'|'svc_cfg'|'svc_links'|sub_link|config_link", 24)
 
 VJ = os.path.join(ROOT, "version.json")
 with io.open(VJ, encoding="utf-8") as fh:
