@@ -206,7 +206,11 @@ function ma_auth(string $initData): array
     if (!$ok) return ['ok' => false, 'user' => [], 'message' => 'اعتبارسنجی تلگرام ناموفق بود. اپ را ببندید و دوباره باز کنید.'];
 
     $authDate = (int)($data['auth_date'] ?? 0);
-    if ($authDate > 0 && (time() - $authDate) > 86400) {
+    /* 0.0.2 #7: auth_date اجباری شد و پنجرهٔ اعتبار از تنظیمات خوانده می‌شود (ma_init_ttl_min دقیقه) */
+    $maTtlMin = (int)DB::setting('ma_init_ttl_min', '1440');
+    if ($maTtlMin < 5)     $maTtlMin = 5;
+    if ($maTtlMin > 10080) $maTtlMin = 10080;
+    if ($authDate <= 0 || (time() - $authDate) > ($maTtlMin * 60)) {
         return ['ok' => false, 'user' => [], 'message' => 'نشست شما منقضی شده است. اپ را ببندید و دوباره باز کنید.'];
     }
 
@@ -219,9 +223,36 @@ function ma_auth(string $initData): array
 }
 
 $auth = ma_auth($initData);
-if (!$auth['ok']) ma_fail($auth['message'], 401);
+if (!$auth['ok']) {
+    /* 0.0.2 #7-log: گزارش تلاش‌های پی‌درپی برای دور زدن اعتبارسنجی تلگرام */
+    try {
+        if (class_exists('RateLimit') && class_exists('Logs')) {
+            $maIp  = class_exists('Guard') ? Guard::clientIp() : (string)($_SERVER['REMOTE_ADDR'] ?? '');
+            $maBad = RateLimit::hit('ma:bad:' . ($maIp !== '' ? $maIp : 'unknown'), 20, 600);
+            if ((int)($maBad['count'] ?? 0) === 21) {
+                Logs::send('security', Logs::fmt('🚫 تلاش‌های ناموفق ورود به مینی‌اپ', [
+                    'آی‌پی' => $maIp !== '' ? $maIp : '-',
+                    'تعداد' => 'بیش از ۲۰ بار در ۱۰ دقیقه',
+                    'پیام'  => mb_substr((string)$auth['message'], 0, 60),
+                ]));
+            }
+        }
+    } catch (Throwable $e) { }
+    ma_fail($auth['message'], 401);
+}
 
 $tg   = (int)$auth['user']['id'];
+
+/* 0.0.2 #7-rate: محدودیت نرخ درخواست بر پایهٔ شناسهٔ تلگرام (نه آی‌پی؛ اپراتورهای ایران آی‌پی مشترک می‌دهند) */
+if (class_exists('RateLimit')) {
+    $maMax = (int)DB::setting('ma_rate_per_min', '240');
+    if ($maMax > 0) {
+        $maHit = RateLimit::hit('ma:' . $tg, $maMax, 60);
+        if (empty($maHit['ok'])) {
+            ma_fail('درخواست‌های شما بیش از حد مجاز است؛ ' . (int)($maHit['retry'] ?? 30) . ' ثانیه دیگر دوباره تلاش کنید.', 429);
+        }
+    }
+}
 $user = DB::one('SELECT * FROM {p}users WHERE tg_id = :t', [':t' => $tg]);
 
 if (!$user) {
