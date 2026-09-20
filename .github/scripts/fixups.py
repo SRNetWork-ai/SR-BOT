@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""fixed91 - 0.0.2 batch #6
+"""fixed92 - 0.0.2 batch #7
 
-  * strict mini-app initData validation (auth_date is mandatory, TTL is a setting)
-  * per telegram-user rate limit for the mini app (ip based limits break on CGNAT)
-  * security-topic alert on repeated mini-app auth failures
-  * recon output for the next batch (backup password, bot.secret, health items)
+  * Tg::setWebhook generates and stores bot.secret when it is empty (row 8)
+  * Backup::zipPass auto creates a strong password so backups are never plain (row 3)
+  * two new health items: backup encryption + webhook secret
+  * recon: csrf form detail for the 3 broken pages, uploads, idor
 
 Safety rules: encode before writing, php -l every touched php file, never put
 \\uXXXX escape text inside python string literals.
@@ -13,7 +13,7 @@ Safety rules: encode before writing, php -l every touched php file, never put
 import io, json, os, re, shutil, subprocess, sys, tempfile
 
 ROOT = os.environ.get("SRC_ROOT") or os.getcwd()
-BUILD = (os.environ.get("NEW_BUILD") or "fixed91").strip() or "fixed91"
+BUILD = (os.environ.get("NEW_BUILD") or "fixed92").strip() or "fixed92"
 
 CACHE = {}
 NEW = {}
@@ -28,7 +28,6 @@ def load(path):
 
 
 def rep_multi(path, pairs, marker=None):
-    """try several candidate anchors, use the first that matches exactly once"""
     try:
         s = load(path)
     except Exception as e:
@@ -57,7 +56,7 @@ def grep(tag, path, pattern, limit=25):
     n = 0
     for i, line in enumerate(lines, 1):
         if re.search(pattern, line):
-            print("  %d: %s" % (i, line.strip()[:118]))
+            print("  %d: %s" % (i, line.strip()[:110]))
             n += 1
             if n >= limit:
                 break
@@ -65,23 +64,43 @@ def grep(tag, path, pattern, limit=25):
         print("  (no match)")
 
 
-def around(tag, path, needle, before=6, after=26):
-    print("== %s (%s @ %s) ==" % (tag, path, needle))
+def grep_tree(tag, pattern, limit=30):
+    print("== %s (tree ~ %s) ==" % (tag, pattern))
+    rx = re.compile(pattern)
+    n = 0
+    for base, dirs, files in os.walk(ROOT):
+        dirs[:] = [d for d in dirs if d not in (".git", "storage", "node_modules", "vendor", "assets")]
+        for f in sorted(files):
+            if not f.endswith(".php"):
+                continue
+            rel = os.path.relpath(os.path.join(base, f), ROOT)
+            try:
+                with io.open(os.path.join(base, f), encoding="utf-8", errors="replace") as fh:
+                    for i, line in enumerate(fh, 1):
+                        if rx.search(line):
+                            print("  %s:%d: %s" % (rel, i, line.strip()[:96]))
+                            n += 1
+                            if n >= limit:
+                                print("  ... (limit reached)")
+                                return
+            except Exception:
+                continue
+    if n == 0:
+        print("  (no match)")
+
+
+def csrf_detail(path, window=16):
+    print("== CSRF DETAIL (%s) ==" % path)
     try:
         lines = load(path).splitlines()
     except Exception as e:
         print("  missing: " + str(e))
         return
-    idx = -1
     for i, line in enumerate(lines):
-        if needle in line:
-            idx = i
-            break
-    if idx < 0:
-        print("  (needle not found)")
-        return
-    for i in range(max(0, idx - before), min(len(lines), idx + after)):
-        print("  %d: %s" % (i + 1, lines[i][:118]))
+        if re.search(r"<form", line, re.I):
+            chunk = "\n".join(lines[i:i + window])
+            ok = ("csrf_field" in chunk) or ('name="_t"' in chunk)
+            print("  %d %s | %s" % (i + 1, "ok     " if ok else "MISSING", line.strip()[:90]))
 
 
 def write_all():
@@ -105,80 +124,152 @@ def write_all():
     print("php lint: " + ("on" if php else "php not installed - skipped"))
 
 
-MA = "miniapp/api.php"
+# ============================================ 1) webhook secret (row 8)
+OLD_WH = """    public static function setWebhook(string $url, string $secret = ''): array
+    {
+        $p = ['url' => $url, 'max_connections' => 40, 'drop_pending_updates' => true,
+              'allowed_updates' => jenc(['message', 'callback_query', 'pre_checkout_query'])];
+        if ($secret !== '') $p['secret_token'] = $secret;
+        return self::api('setWebhook', $p);
+    }"""
 
-# ============================================ 1) auth_date is now mandatory
-NEW_TTL = """    /* 0.0.2 #7: auth_date اجباری شد و پنجرهٔ اعتبار از تنظیمات خوانده می‌شود (ma_init_ttl_min دقیقه) */
-    $maTtlMin = (int)DB::setting('ma_init_ttl_min', '1440');
-    if ($maTtlMin < 5)     $maTtlMin = 5;
-    if ($maTtlMin > 10080) $maTtlMin = 10080;
-    if ($authDate <= 0 || (time() - $authDate) > ($maTtlMin * 60)) {"""
+NEW_WH = """    public static function setWebhook(string $url, string $secret = ''): array
+    {
+        /* 0.0.2 #8: اگر توکن امنیتی خالی باشد خودکار ساخته و در config.php ذخیره می‌شود */
+        if ($secret === '') $secret = self::ensureSecret();
 
-rep_multi(
-    MA,
-    [
-        ("""    $authDate = (int)($data['auth_date'] ?? 0);
-    if ($authDate > 0 && (time() - $authDate) > 86400) {""",
-         "    $authDate = (int)($data['auth_date'] ?? 0);\n" + NEW_TTL),
-        ("    if ($authDate > 0 && (time() - $authDate) > 86400) {", NEW_TTL),
-    ],
-    marker="0.0.2 #7: auth_date",
-)
+        $p = ['url' => $url, 'max_connections' => 40, 'drop_pending_updates' => true,
+              'allowed_updates' => jenc(['message', 'callback_query', 'pre_checkout_query'])];
+        if ($secret !== '') $p['secret_token'] = $secret;
+        return self::api('setWebhook', $p);
+    }
 
-# ================================ 2) alert on repeated mini-app auth failures
-FAIL_BLOCK = """if (!$auth['ok']) {
-    /* 0.0.2 #7-log: گزارش تلاش‌های پی‌درپی برای دور زدن اعتبارسنجی تلگرام */
-    try {
-        if (class_exists('RateLimit') && class_exists('Logs')) {
-            $maIp  = class_exists('Guard') ? Guard::clientIp() : (string)($_SERVER['REMOTE_ADDR'] ?? '');
-            $maBad = RateLimit::hit('ma:bad:' . ($maIp !== '' ? $maIp : 'unknown'), 20, 600);
-            if ((int)($maBad['count'] ?? 0) === 21) {
-                Logs::send('security', Logs::fmt('🚫 تلاش‌های ناموفق ورود به مینی‌اپ', [
-                    'آی‌پی' => $maIp !== '' ? $maIp : '-',
-                    'تعداد' => 'بیش از ۲۰ بار در ۱۰ دقیقه',
-                    'پیام'  => mb_substr((string)$auth['message'], 0, 60),
-                ]));
+    /**
+     * 0.0.2 #8: خواندن یا ساخت توکن امنیتی وب‌هوک.
+     *
+     * اگر ذخیره در config.php ممکن نباشد رشتهٔ خالی برمی‌گردد؛ چون در غیر این صورت
+     * تلگرام هدر امنیتی می‌فرستد ولی ربات توکن را نمی‌شناسد و همهٔ پیام‌ها رد می‌شوند.
+     */
+    public static function ensureSecret(): string
+    {
+        $s = '';
+        try {
+            if (class_exists('Cfg')) $s = trim((string)Cfg::get('bot.secret', ''));
+            if ($s === '' && function_exists('cfg')) $s = trim((string)cfg('bot.secret', ''));
+        } catch (Throwable $e) {
+            $s = '';
+        }
+        if ($s !== '') return $s;
+        if (!class_exists('Cfg')) return '';
+
+        try {
+            $new = bin2hex(random_bytes(16));
+            $w   = Cfg::set(['bot.secret' => $new]);
+            if (empty($w['ok'])) {
+                if (function_exists('app_log')) app_log('sec', 'webhook secret not saved: ' . (string)($w['message'] ?? ''));
+                return '';
+            }
+            if (function_exists('app_log')) app_log('sec', 'webhook secret generated');
+            return $new;
+        } catch (Throwable $e) {
+            return '';
+        }
+    }"""
+
+rep_multi("app/Tg.php", [(OLD_WH, NEW_WH)], marker="0.0.2 #8:")
+
+# ======================================== 2) always encrypted backups (row 3)
+OLD_BP = """    public static function zipPass(): string
+    {
+        return trim((string)DB::setting('backup_pass', ''));
+    }"""
+
+NEW_BP = """    public static function zipPass(): string
+    {
+        $p = trim((string)DB::setting('backup_pass', ''));
+
+        /* 0.0.2 #3-autopass: اگر رمزی تنظیم نشده باشد یک رمز قوی ساخته می‌شود تا بکاپ‌ها بدون رمز نمانند */
+        if ($p === '' && (string)DB::setting('backup_autopass', '1') === '1' && self::aesReady()) {
+            try {
+                $p = self::makePass();
+                DB::setSetting('backup_pass', $p);
+                DB::setSetting('backup_pass_auto', '1');
+                if (function_exists('app_log')) app_log('backup', 'auto backup password generated');
+                if (class_exists('Logs')) {
+                    Logs::send('backup', Logs::fmt('🔑 رمز خودکار بکاپ ساخته شد', [
+                        'رمز'    => $p,
+                        'کاربرد' => 'برای باز کردن فایل‌های ZIP بکاپ لازم است؛ جایی امن نگه دارید.',
+                        'تغییر'   => 'پنل مدیریت ← بکاپ ← رمز فایل',
+                    ]));
+                }
+            } catch (Throwable $e) {
+                $p = trim((string)DB::setting('backup_pass', ''));
             }
         }
-    } catch (Throwable $e) { }
-    ma_fail($auth['message'], 401);
-}"""
 
-rep_multi(
-    MA,
-    [
-        ("""$auth = ma_auth($initData);
-if (!$auth['ok']) ma_fail($auth['message'], 401);""",
-         "$auth = ma_auth($initData);\n" + FAIL_BLOCK),
-        ("if (!$auth['ok']) ma_fail($auth['message'], 401);", FAIL_BLOCK),
-    ],
-    marker="0.0.2 #7-log",
-)
-
-# =========================================== 3) per telegram-user rate limit
-RATE_BLOCK = """$tg   = (int)$auth['user']['id'];
-
-/* 0.0.2 #7-rate: محدودیت نرخ درخواست بر پایهٔ شناسهٔ تلگرام (نه آی‌پی؛ اپراتورهای ایران آی‌پی مشترک می‌دهند) */
-if (class_exists('RateLimit')) {
-    $maMax = (int)DB::setting('ma_rate_per_min', '240');
-    if ($maMax > 0) {
-        $maHit = RateLimit::hit('ma:' . $tg, $maMax, 60);
-        if (empty($maHit['ok'])) {
-            ma_fail('درخواست‌های شما بیش از حد مجاز است؛ ' . (int)($maHit['retry'] ?? 30) . ' ثانیه دیگر دوباره تلاش کنید.', 429);
-        }
+        return $p;
     }
-}"""
 
-rep_multi(
-    MA,
-    [
-        ("""$tg   = (int)$auth['user']['id'];
-$user = DB::one('SELECT * FROM {p}users WHERE tg_id = :t', [':t' => $tg]);""",
-         RATE_BLOCK + "\n$user = DB::one('SELECT * FROM {p}users WHERE tg_id = :t', [':t' => $tg]);"),
-        ("$tg   = (int)$auth['user']['id'];", RATE_BLOCK),
-    ],
-    marker="0.0.2 #7-rate",
-)
+    /** 0.0.2 #3: آیا سرور از رمزگذاری AES-256 داخل ZIP پشتیبانی می‌کند؟ */
+    public static function aesReady(): bool
+    {
+        return class_exists('ZipArchive')
+            && method_exists('ZipArchive', 'setEncryptionIndex')
+            && defined('ZipArchive::EM_AES_256');
+    }
+
+    /** 0.0.2 #3: ساخت رمز قوی بدون کاراکترهای گیج‌کننده */
+    private static function makePass(int $len = 20): string
+    {
+        $abc = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+        $max = strlen($abc) - 1;
+        $out = '';
+        for ($i = 0; $i < $len; $i++) $out .= $abc[random_int(0, $max)];
+        return $out;
+    }"""
+
+rep_multi("app/Service/Backup.php", [(OLD_BP, NEW_BP)], marker="0.0.2 #3-autopass")
+
+# ================================================ 3) health items (rows 3+8)
+OLD_H = """        if (class_exists('Guard')) {
+            $gx   = Guard::exposure();"""
+
+NEW_H = """        /* 0.0.2 #3: رمزدار بودن فایل‌های بکاپ */
+        if (class_exists('Backup') && method_exists('Backup', 'aesReady')) {
+            $bkPw = trim((string)DB::setting('backup_pass', ''));
+            if (!Backup::aesReady()) {
+                $out[] = self::it('رمزگذاری بکاپ', 'پشتیبانی نمی‌شود', 'warn',
+                    'نسخهٔ ZipArchive این سرور از AES-256 پشتیبانی نمی‌کند؛ فایل بکاپ بدون رمز ساخته می‌شود.');
+            } elseif ($bkPw === '') {
+                $out[] = self::it('رمزگذاری بکاپ', 'هنوز بدون رمز', 'warn',
+                    'در صفحهٔ بکاپ رمز دلخواه بگذارید؛ وگرنه نخستین بکاپ بعدی خودکار یک رمز قوی می‌سازد.');
+            } else {
+                $out[] = self::it('رمزگذاری بکاپ', 'فعال (AES-256)', 'ok',
+                    (string)DB::setting('backup_pass_auto', '') === '1'
+                        ? 'رمز به‌صورت خودکار ساخته شده و در صفحهٔ بکاپ قابل مشاهده است.'
+                        : 'فایل‌های بکاپ با رمز تعیین‌شدهٔ شما رمزگذاری می‌شوند.');
+            }
+        }
+
+        /* 0.0.2 #8: توکن امنیتی وب‌هوک تلگرام */
+        $whSec = '';
+        try {
+            if (class_exists('Cfg')) $whSec = trim((string)Cfg::get('bot.secret', ''));
+            if ($whSec === '' && function_exists('cfg')) $whSec = trim((string)cfg('bot.secret', ''));
+        } catch (Throwable $e) {
+            $whSec = '';
+        }
+        $out[] = $whSec === ''
+            ? self::it('توکن امنیتی وب‌هوک', 'تنظیم نشده', 'warn',
+                'بدون آن هر کسی می‌تواند به آدرس وب‌هوک درخواست بفرستد؛ دکمهٔ تنظیم وب‌هوک را بزنید تا خودکار ساخته شود.')
+            : self::it('توکن امنیتی وب‌هوک', 'فعال', 'ok',
+                'هر درخواست ورودی با هدر X-Telegram-Bot-Api-Secret-Token بررسی می‌شود.');
+
+        /* 0.0.2 #1: بررسی دسترسی وب به فایل‌های حساس */
+        if (class_exists('Guard')) {
+            $gx   = Guard::exposure();"""
+
+rep_multi("app/Service/Health.php", [(OLD_H, NEW_H)], marker="0.0.2 #8: ")
 
 # ==================================================== 4) sanity check + write
 if ERRORS:
@@ -187,22 +278,25 @@ if ERRORS:
         print("  - " + e)
     sys.exit(1)
 
-if MA in NEW:
-    txt = CACHE[MA]
-    if len(txt) < 100000 or "function ma_auth" not in txt:
-        print("ABORTED - miniapp/api.php sanity check failed (%d chars)" % len(txt))
-        sys.exit(1)
+SANITY = {
+    "app/Tg.php": (5000, "function setWebhook"),
+    "app/Service/Backup.php": (18000, "function zipPass"),
+    "app/Service/Health.php": (15000, "function it("),
+}
+for path, (minlen, needle) in SANITY.items():
+    if path in NEW:
+        t = CACHE[path]
+        if len(t) < minlen or needle not in t:
+            print("ABORTED - sanity check failed for %s (%d chars)" % (path, len(t)))
+            sys.exit(1)
 
 write_all()
 
-# ================================================= 5) recon for batch #7
-grep("DB SETTERS", "app/DB.php", r"function\s+\w*[Ss]et\w*\s*\(", 25)
-grep("DB SETTING FNS", "app/DB.php", r"function\s+\w*etting\w*\s*\(", 10)
-around("HEALTH ITEM SAMPLE", "app/Service/Health.php", "0.0.2 #2:", 10, 26)
-grep("HEALTH BACKUP", "app/Service/Health.php", r"backup", 14)
-grep("BACKUP PAGE PASS", "admin/pages/backup.php", r"backup_pass|zipPass", 16)
-grep("BOOTSTRAP SECRET", "app/bootstrap.php", r"secret", 14)
-grep("SETTINGS SECRET", "admin/pages/settings.php", r"bot\.secret|bot_secret", 12)
+# ===================================================== 5) recon for batch #8
+csrf_detail("admin/pages/audit.php")
+csrf_detail("admin/pages/cards.php")
+csrf_detail("admin/pages/payments.php")
+grep_tree("UPLOADS", r"move_uploaded_file|\$_FILES", 24)
 
 # ================================================================ 6) version
 VJ = os.path.join(ROOT, "version.json")
@@ -210,9 +304,9 @@ with io.open(VJ, encoding="utf-8") as fh:
     v = json.load(fh)
 
 entry = (
-    "🛡 سخت‌سازی امنیتی ۰.۰.۲ (گام ۶): اعتبارسنجی سخت‌گیرانهٔ initData مینی‌اپ "
-    "(اجباری شدن auth_date و پنجرهٔ اعتبار قابل تنظیم با ma_init_ttl_min)، "
-    "محدودیت نرخ درخواست بر پایهٔ شناسهٔ تلگرام (ma_rate_per_min) و هشدار امنیتی هنگام تلاش‌های ناموفق پی‌درپی برای ورود به مینی‌اپ."
+    "🛡 سخت‌سازی امنیتی ۰.۰.۲ (گام ۷): ساخت خودکار توکن امنیتی وب‌هوک تلگرام، "
+    "رمزدار شدن همیشگی فایل‌های بکاپ با AES-256 (رمز خودکار و قابل تغییر در صفحهٔ بکاپ) "
+    "و افزودن دو بررسی تازه به صفحهٔ سلامت سیستم."
 )
 log = v.get("changelog") or []
 if entry not in log:
