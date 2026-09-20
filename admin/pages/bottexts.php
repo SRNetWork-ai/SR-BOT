@@ -61,7 +61,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
 
     if ($act === 'import') { need('bottexts.edit', 'bottexts');
         $json = '';
-        if (!empty($_FILES['jfile']['tmp_name']) && is_uploaded_file($_FILES['jfile']['tmp_name'])) {
+        /* 0.0.2 #10-json-text */
+        if (!empty($_FILES['jfile']['tmp_name']) && is_uploaded_file($_FILES['jfile']['tmp_name'])
+            && (!class_exists('Upload') || Upload::check((array)$_FILES['jfile'], 4 * 1024 * 1024, ['json', 'txt'])['ok'])) {
             if ((int)($_FILES['jfile']['size'] ?? 0) > 2 * 1024 * 1024) {
                 flash('err', '⛔️ حجم فایل بیش از ۲ مگابایت است.');
                 back('bottexts', ['tab' => 'backup']);

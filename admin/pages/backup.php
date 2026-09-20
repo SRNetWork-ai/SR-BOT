@@ -49,6 +49,8 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         DB::setSetting('backup_type', (!$dbOnly && ptxt('backup_type', 'db') === 'full') ? 'full' : 'db');
         DB::setSetting('backup_send_tg', (string)pchk('backup_send_tg'));
         DB::setSetting('backup_pass', mb_substr(trim((string)($_POST['backup_pass'] ?? '')), 0, 64));
+        /* 0.0.2 #3-autopass-ui */
+        DB::setSetting('backup_autopass', isset($_POST['backup_autopass']) ? '1' : '0');
         DB::loadSettings(true);
         flash('ok', '✅ تنظیمات پشتیبان‌گیری ذخیره شد.');
         back('backup', $rt);

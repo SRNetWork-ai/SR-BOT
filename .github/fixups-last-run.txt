@@ -1,50 +1,69 @@
 Python 3.12.3
-Sun Sep 20 15:51:51 UTC 2026
-patched app/Helpers.php with anchor #1 (0.0.2 #14: SSRF guard)
-patched app/Helpers.php with anchor #1 (CURLOPT_REDIR_PROTOCOLS)
-patched app/Service/Health.php with anchor #1 (0.0.2 #14: SSRF guard item)
+Sun Sep 20 15:56:09 UTC 2026
+patched admin/pages/tickets.php by regex (0.0.2 #10-ticket-att)
+patched admin/pages/tickets.php by regex (0.0.2 #10-ticket-name)
+patched admin/pages/bottexts.php by regex (0.0.2 #10-json-text)
+patched admin/pages/botbuttons.php by regex (0.0.2 #10-json-btn)
+patched admin/pages/update.php by regex (0.0.2 #10-update-zip)
+patched admin/pages/stock.php by regex (0.0.2 #10-stock-file)
+patched admin/pages/backup.php by regex (0.0.2 #3-autopass-ui)
+skip (already applied): admin/pages/backup.php / backup_autopass
 php lint: on
-== SUB ENTRY (sub.php ~ \$_GET\[|WHERE\s+token|WHERE\s+id\s*=) ==
+== SUB KEY (sub.php ~ $_GET['id']) ==
+  35:  * کد اشتراک از هر دو شکل آدرس خوانده می شود:
+  36:  *   لینک زیبا  →  BASE/sub/CODE          (توسط .htaccess بازنویسی می شود)
+  37:  *   لینک قدیم  →  BASE/sub.php?id=CODE
+  38:  */
   39: $key = trim((string)($_GET['id'] ?? ($_GET['code'] ?? ($_GET['c'] ?? ''))));
+  40: if ($key === '') {
+  41:     $uri = (string)($_SERVER['REQUEST_URI'] ?? '');
+  42:     $uri = (string)parse_url($uri, PHP_URL_PATH);
+  43:     if (preg_match('~/sub/([A-Za-z0-9_\-]{6,64})~', rawurldecode($uri), $m)) $key = $m[1];
+  44: }
   45: $fmt = strtolower(trim((string)($_GET['fmt'] ?? '')));
-  741: $base = trim((string)DB::val('SELECT sub_base FROM {p}panels WHERE id = :i', [':i' => $pid], ''));
-  811: $base = trim((string)DB::val('SELECT sub_base FROM {p}panels WHERE id = :i', [':i' => $pid], ''));
-== VERIFY ENTRY (verify.php ~ \$_GET\[|\$_POST\[|WHERE\s+id\s*=) ==
-  93: $token  = trim((string)($isPost ? ($_POST['t'] ?? '') : ($_GET['t'] ?? '')));
-  112: if (trim((string)($_POST['website'] ?? '')) !== '') {
-  116: } elseif (!vs_cap_ok((string)($_POST['cap'] ?? ''))) {
-== CARD MINI (miniapp/card.php ~ WHERE\s+id\s*=|user_id|ma_auth|initData) ==
-  272: var INIT = TG ? (TG.initData || '') : '';
-  276: /* وقتی این صفحه از داخل مینی‌اپ اصلی باز می‌شود، تلگرام initData تازه نمی‌سازد؛
-  964: /* بازگشت به مینی‌اپ اصلی همراه initData تا صفحهٔ مقصد هم کاربر را بشناسد */
-== PANEL FACTORY (tree ~ new (Xui3|Xui|Marzban|PasarGuard)\(|panel_type|'kind'\s*=>|case 'xui) ==
-  app/Service/Broadcast.php:154: 'kind'       => $kind,
-  app/Service/Btn.php:280: 'kind'     => 'builtin',
-  app/Service/Btn.php:321: 'kind'     => $kind,
-  app/Service/Btn.php:399: 'kind'     => $kind,
-  app/Service/Btn.php:746: 'id' => 'b_custom', 'kind' => 'builtin', 'key' => 'custom',
-  app/Service/Btn.php:985: 'kind'     => 'builtin',
-  app/Service/Btn.php:1347: 'kind'     => 'menu',
-  app/Service/Bulk.php:104: try { $xuis[$pid] = $panel ? new Xui($panel) : null; } catch (Throwable $e) { $xuis[$pid] = null
-  app/Service/Gateway.php:154: 'kind'     => $kind,
-  app/Service/Gateway.php:200: 'id' => rnd(8), 'kind' => 'card', 'enabled' => 1, 'audience' => 'all',
-  app/Service/Gateway.php:220: 'id' => rnd(8), 'kind' => 'crypto', 'enabled' => 1, 'audience' => 'all',
-  app/Service/Reseller.php:1994: $xui  = new Xui($panel);
-  app/Service/Security.php:239: 'kind'     => $kind,
-  app/Service/Stock.php:227: 'kind'        => isset(self::KINDS[(string)($d['kind'] ?? '')]) ? (string)$d['kind'] : 'config',
-  app/Service/Stock.php:348: 'kind'       => $kind,
-  app/Service/Stock.php:411: 'kind'     => $kind,
-  app/Service/Stock.php:551: 'kind'      => $kind,
-  app/Service/Stock.php:621: 'kind'     => $kindIn,
-  app/Service/Stock.php:635: 'kind'      => $kind,
-  app/Service/Svc.php:188: $allowed = (new Xui($panel))->allowedInboundIds();
-  app/Service/Svc.php:209: $xui      = new Xui($panel);
-  app/Service/Svc.php:253: $xui   = new Xui($panel);
-  app/Service/Svc.php:513: $x = new Xui($panel);
-  app/Service/Svc.php:547: $xui  = new Xui($panel);
-  ... (limit reached)
-build: fixed94
-changed files: 2
-  - app/Helpers.php
-  - app/Service/Health.php
+  46: 
+  47: /* پسوند مستقیم روی لینک زیبا:  BASE/sub/CODE/json */
+  48: if ($fmt === '' && preg_match('~/sub/[A-Za-z0-9_\-]{6,64}/(json|raw|html|base64)~i',
+  49:         rawurldecode((string)parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH)), $m2)) {
+  50:     $fmt = strtolower($m2[1]);
+  51: }
+  52: 
+  53: if ($key === '' || !preg_match('/^[A-Za-z0-9_\-]{6,64}$/', $key)) {
+  54:     http_response_code(404);
+  55:     header('Content-Type: text/plain; charset=utf-8');
+  56:     exit('');
+  57: }
+  58: 
+  59: /* اول گروه چندپنلی، بعد تک‌سرویس با همان شناسه */
+  60: $rows = [];
+  61: foreach (['group_key', 'sub_id'] as $col) {
+  62:     try {
+  63:         $rows = DB::all('SELECT * FROM {p}services WHERE `' . $col . '` = :k AND status <> :d ORDER BY id ASC',
+  64:             [':k' => $key, ':d' => 'deleted']);
+  65:     } catch (Throwable $e) {
+  66:         /* اگر مایگریشن ۰۰۱۱ اجرا نشده باشد ستون group_key وجود ندارد */
+  67:         $rows = [];
+  68:     }
+  69:     if ($rows) break;
+  70: }
+  71: 
+  72: if (!$rows) {
+  73:     http_response_code(404);
+  74:     header('Content-Type: text/plain; charset=utf-8');
+  75:     exit('');
+  76: }
+  77: 
+  78: $grouped = trim((string)($rows[0]['group_key'] ?? '')) !== '';
+  79: 
+  80: /*
+== SUB LOOKUP (sub.php ~ FROM \{p\}services|sub_token|remark|WHERE\s+uuid) ==
+  63: $rows = DB::all('SELECT * FROM {p}services WHERE `' . $col . '` = :k AND status <> :d ORDER BY id ASC',
+build: fixed95
+changed files: 6
+  - admin/pages/backup.php
+  - admin/pages/botbuttons.php
+  - admin/pages/bottexts.php
+  - admin/pages/stock.php
+  - admin/pages/tickets.php
+  - admin/pages/update.php
 exit: 0

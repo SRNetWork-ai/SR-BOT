@@ -91,6 +91,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
         if (!Stock::cat($cid)) { flash('err', 'ابتدا یک دسته بسازید.'); back('stock'); }
 
         $f   = (array)($_FILES['file'] ?? []);
+        /* 0.0.2 #10-stock-file */
+        if ($f && class_exists('Upload') && !Upload::check($f, 16 * 1024 * 1024, ['csv', 'txt', 'json'])['ok']) $f = [];
         $err = (int)($f['error'] ?? UPLOAD_ERR_NO_FILE);
 
         if ($err !== UPLOAD_ERR_OK || empty($f['tmp_name']) || !is_uploaded_file((string)$f['tmp_name'])) {

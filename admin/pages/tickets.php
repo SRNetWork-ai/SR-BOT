@@ -59,10 +59,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
         /* فایل پیوست اختیاری از سمت مدیر */
         $sentFile = false;
         $tmpPath  = '';
-        if (!empty($_FILES['att']['tmp_name']) && is_uploaded_file($_FILES['att']['tmp_name'])) {
+        /* 0.0.2 #10-ticket-att: فایل پیوست از فیلتر امنیتی رد شود */
+        if (!empty($_FILES['att']['tmp_name']) && is_uploaded_file($_FILES['att']['tmp_name'])
+            && (!class_exists('Upload') || Upload::check((array)$_FILES['att'], 20 * 1024 * 1024)['ok'])) {
             $size = (int)($_FILES['att']['size'] ?? 0);
             if ($size > 0 && $size <= 20 * 1024 * 1024) {
-                $safe    = preg_replace('/[^A-Za-z0-9._-]/', '_', (string)($_FILES['att']['name'] ?? 'file'));
+                /* 0.0.2 #10-ticket-name */
+                $safe = class_exists('Upload')
+                    ? Upload::safeName((string)($_FILES['att']['name'] ?? 'file'))
+                    : (preg_replace('/[^A-Za-z0-9._-]/', '_', (string)($_FILES['att']['name'] ?? 'file')));
                 $dir     = APP_ROOT . '/storage/tmp';
                 if (!is_dir($dir)) @mkdir($dir, 0775, true);
                 $tmpPath = $dir . '/' . time() . '-' . $safe;

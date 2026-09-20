@@ -134,6 +134,9 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($act === 'import') {
         $json = '';
         $tmp  = (string)($_FILES['jfile']['tmp_name'] ?? '');
+        /* 0.0.2 #10-json-btn */
+        if ($tmp !== '' && class_exists('Upload')
+            && !Upload::check((array)($_FILES['jfile'] ?? []), 4 * 1024 * 1024, ['json', 'txt'])['ok']) $tmp = '';
         $siz  = (int)($_FILES['jfile']['size'] ?? 0);
         if ($tmp !== '' && $siz > 0 && $siz <= 2097152 && is_uploaded_file($tmp)) $json = (string)@file_get_contents($tmp);
         if (trim($json) === '') $json = (string)($_POST['json'] ?? '');

@@ -51,6 +51,8 @@ if ($act !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($act === 'upload') { need('update.run', 'update');
         @set_time_limit(300);
         $f = (array)($_FILES['zip'] ?? []);
+        /* 0.0.2 #10-update-zip */
+        if ($f && class_exists('Upload') && !Upload::check($f, 200 * 1024 * 1024, ['zip'])['ok']) $f = [];
         if ((int)($f['error'] ?? 1) !== 0 || !is_uploaded_file((string)($f['tmp_name'] ?? ''))) {
             flash('err', 'آپلود فایل ناموفق بود.'); back('update', $rt);
         }
