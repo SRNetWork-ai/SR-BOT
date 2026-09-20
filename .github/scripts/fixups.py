@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""fixed90 (retry) - restore admin/index.php, then apply 0.0.2 batch #5 safely.
+"""fixed91 - 0.0.2 batch #6
 
-Safety rules learned the hard way:
-  * never open a target file for writing before the new content is fully encoded
-  * run `php -l` on every changed php file before touching the real file
-  * never put \\uXXXX escape text inside python string literals (lone surrogates)
+  * strict mini-app initData validation (auth_date is mandatory, TTL is a setting)
+  * per telegram-user rate limit for the mini app (ip based limits break on CGNAT)
+  * security-topic alert on repeated mini-app auth failures
+  * recon output for the next batch (backup password, bot.secret, health items)
+
+Safety rules: encode before writing, php -l every touched php file, never put
+\\uXXXX escape text inside python string literals.
 """
-import io, json, os, re, shutil, subprocess, sys, tempfile, urllib.request
+import io, json, os, re, shutil, subprocess, sys, tempfile
 
 ROOT = os.environ.get("SRC_ROOT") or os.getcwd()
-BUILD = (os.environ.get("NEW_BUILD") or "fixed90").strip() or "fixed90"
-GOOD_COMMIT = "1ed98f136070160e1466c4b06572409921a46fe8"
-RAW = "https://raw.githubusercontent.com/SRNetWork-ai/SR-BOT/%s/%s"
+BUILD = (os.environ.get("NEW_BUILD") or "fixed91").strip() or "fixed91"
 
 CACHE = {}
 NEW = {}
@@ -26,35 +27,68 @@ def load(path):
     return CACHE[path]
 
 
-def rep(path, old, new, expect=1, marker=None):
-    s = load(path)
+def rep_multi(path, pairs, marker=None):
+    """try several candidate anchors, use the first that matches exactly once"""
+    try:
+        s = load(path)
+    except Exception as e:
+        ERRORS.append("%s: %s" % (path, e))
+        return
     if marker and marker in s:
+        print("skip (already applied): %s / %s" % (path, marker))
         return
-    n = s.count(old)
-    if n != expect:
-        ERRORS.append("%s: literal anchor x%d (want %d): %r" % (path, n, expect, old[:100]))
-        return
-    CACHE[path] = s.replace(old, new)
-    NEW[path] = True
+    for i, (old, new) in enumerate(pairs):
+        if s.count(old) == 1:
+            CACHE[path] = s.replace(old, new)
+            NEW[path] = True
+            print("patched %s with anchor #%d (%s)" % (path, i + 1, marker or "-"))
+            return
+    ERRORS.append("%s: no unique anchor for %s (counts: %s)"
+                  % (path, marker or "-", [s.count(o) for o, _ in pairs]))
 
 
-def show(tag, path, a, b):
-    print("== %s (%s:%d-%d) ==" % (tag, path, a, b))
+def grep(tag, path, pattern, limit=25):
+    print("== %s (%s ~ %s) ==" % (tag, path, pattern))
     try:
         lines = load(path).splitlines()
     except Exception as e:
         print("  missing: " + str(e))
         return
-    for i in range(a - 1, min(b, len(lines))):
+    n = 0
+    for i, line in enumerate(lines, 1):
+        if re.search(pattern, line):
+            print("  %d: %s" % (i, line.strip()[:118]))
+            n += 1
+            if n >= limit:
+                break
+    if n == 0:
+        print("  (no match)")
+
+
+def around(tag, path, needle, before=6, after=26):
+    print("== %s (%s @ %s) ==" % (tag, path, needle))
+    try:
+        lines = load(path).splitlines()
+    except Exception as e:
+        print("  missing: " + str(e))
+        return
+    idx = -1
+    for i, line in enumerate(lines):
+        if needle in line:
+            idx = i
+            break
+    if idx < 0:
+        print("  (needle not found)")
+        return
+    for i in range(max(0, idx - before), min(len(lines), idx + after)):
         print("  %d: %s" % (i + 1, lines[i][:118]))
 
 
 def write_all():
-    blobs = {}
     php = shutil.which("php")
+    blobs = {}
     for path in sorted(NEW):
-        text = CACHE[path]
-        data = text.encode("utf-8")
+        data = CACHE[path].encode("utf-8")
         if path.endswith(".php") and php:
             tmp = os.path.join(tempfile.gettempdir(), "syntax-check.php")
             with open(tmp, "wb") as fh:
@@ -71,133 +105,114 @@ def write_all():
     print("php lint: " + ("on" if php else "php not installed - skipped"))
 
 
-# ================================================ 1) restore admin/index.php
-TARGET = "admin/index.php"
-full = os.path.join(ROOT, TARGET)
-size = os.path.getsize(full) if os.path.isfile(full) else 0
-print("admin/index.php size before: %d bytes" % size)
+MA = "miniapp/api.php"
 
-if size < 5000:
-    url = RAW % (GOOD_COMMIT, TARGET)
-    try:
-        data = urllib.request.urlopen(url, timeout=60).read().decode("utf-8")
-    except Exception as e:
-        print("restore download failed: " + str(e))
-        sys.exit(1)
-    if len(data) < 20000 or "function csrf_ok" not in data:
-        print("restore sanity check failed (%d chars)" % len(data))
-        sys.exit(1)
-    CACHE[TARGET] = data
-    NEW[TARGET] = True
-    print("restored admin/index.php from %s (%d chars)" % (GOOD_COMMIT[:7], len(data)))
+# ============================================ 1) auth_date is now mandatory
+NEW_TTL = """    /* 0.0.2 #7: auth_date اجباری شد و پنجرهٔ اعتبار از تنظیمات خوانده می‌شود (ma_init_ttl_min دقیقه) */
+    $maTtlMin = (int)DB::setting('ma_init_ttl_min', '1440');
+    if ($maTtlMin < 5)     $maTtlMin = 5;
+    if ($maTtlMin > 10080) $maTtlMin = 10080;
+    if ($authDate <= 0 || (time() - $authDate) > ($maTtlMin * 60)) {"""
 
-# ============================================ 2) real client ip for the lock
-rep(
-    TARGET,
-    """$loginError = null;
-$clientIp   = (string)($_SERVER['REMOTE_ADDR'] ?? '');""",
-    """$loginError = null;
-/* 0.0.2 #4: پشت پراکسی/کلادفلر باید آی‌پی واقعی کاربر مبنای قفل ورود باشد */
-$clientIp   = class_exists('Guard') ? Guard::clientIp() : (string)($_SERVER['REMOTE_ADDR'] ?? '');""",
-    marker="Guard::clientIp()",
+rep_multi(
+    MA,
+    [
+        ("""    $authDate = (int)($data['auth_date'] ?? 0);
+    if ($authDate > 0 && (time() - $authDate) > 86400) {""",
+         "    $authDate = (int)($data['auth_date'] ?? 0);\n" + NEW_TTL),
+        ("    if ($authDate > 0 && (time() - $authDate) > 86400) {", NEW_TTL),
+    ],
+    marker="0.0.2 #7: auth_date",
 )
 
-# ===================================== 3) telegram alert on successful login
-rep(
-    TARGET,
-    """    try { Security::noteSuccess($clientIp); } catch (Throwable $e) { }
-};""",
-    """    try { Security::noteSuccess($clientIp); } catch (Throwable $e) { }
-
-    /* 0.0.2 #11: اطلاع ورود موفق به تاپیک امنیت */
+# ================================ 2) alert on repeated mini-app auth failures
+FAIL_BLOCK = """if (!$auth['ok']) {
+    /* 0.0.2 #7-log: گزارش تلاش‌های پی‌درپی برای دور زدن اعتبارسنجی تلگرام */
     try {
-        if (class_exists('Logs')) {
-            Logs::send('security', Logs::fmt('🔐 ورود به پنل مدیریت', [
-                'مدیر'   => '#' . $adminId,
-                'آی‌پی'  => $clientIp !== '' ? $clientIp : '-',
-                'مرورگر' => mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? '-'), 0, 60),
-            ]));
+        if (class_exists('RateLimit') && class_exists('Logs')) {
+            $maIp  = class_exists('Guard') ? Guard::clientIp() : (string)($_SERVER['REMOTE_ADDR'] ?? '');
+            $maBad = RateLimit::hit('ma:bad:' . ($maIp !== '' ? $maIp : 'unknown'), 20, 600);
+            if ((int)($maBad['count'] ?? 0) === 21) {
+                Logs::send('security', Logs::fmt('🚫 تلاش‌های ناموفق ورود به مینی‌اپ', [
+                    'آی‌پی' => $maIp !== '' ? $maIp : '-',
+                    'تعداد' => 'بیش از ۲۰ بار در ۱۰ دقیقه',
+                    'پیام'  => mb_substr((string)$auth['message'], 0, 60),
+                ]));
+            }
         }
     } catch (Throwable $e) { }
-};""",
-    marker="0.0.2 #11:",
+    ma_fail($auth['message'], 401);
+}"""
+
+rep_multi(
+    MA,
+    [
+        ("""$auth = ma_auth($initData);
+if (!$auth['ok']) ma_fail($auth['message'], 401);""",
+         "$auth = ma_auth($initData);\n" + FAIL_BLOCK),
+        ("if (!$auth['ok']) ma_fail($auth['message'], 401);", FAIL_BLOCK),
+    ],
+    marker="0.0.2 #7-log",
 )
 
-# ================================================ 4) global CSRF post shield
-SHIELD = """/* 0.0.2 #6: سپر سراسری CSRF روی همهٔ درخواست‌های POST پنل.
-   پیش‌فرض حالت گزارشی است؛ با تنظیم sec_csrf_strict = 1 درخواست بدون توکن مسدود می‌شود. */
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_ok()) {
-    $csrfStrict = (string)DB::setting('sec_csrf_strict', '0') === '1';
-    $csrfAct    = (string)preg_replace('/[^a-z0-9_\\-]/i', '', (string)($_POST['act'] ?? ($_POST['action'] ?? '')));
-    app_log('sec', 'csrf ' . ($csrfStrict ? 'blocked' : 'report') . ': p=' . $page . ' act=' . $csrfAct . ' ip=' . $clientIp);
-    try {
-        if (class_exists('Logs')) {
-            Logs::send('security', Logs::fmt('🚫 درخواست بدون توکن امنیتی', [
-                'صفحه'  => $page,
-                'اقدام'  => $csrfAct !== '' ? $csrfAct : '-',
-                'مدیر'   => (string)($ADMIN['username'] ?? '-'),
-                'آی‌پی'  => $clientIp !== '' ? $clientIp : '-',
-                'نتیجه'  => $csrfStrict ? 'مسدود شد' : 'فقط گزارش',
-            ]));
+# =========================================== 3) per telegram-user rate limit
+RATE_BLOCK = """$tg   = (int)$auth['user']['id'];
+
+/* 0.0.2 #7-rate: محدودیت نرخ درخواست بر پایهٔ شناسهٔ تلگرام (نه آی‌پی؛ اپراتورهای ایران آی‌پی مشترک می‌دهند) */
+if (class_exists('RateLimit')) {
+    $maMax = (int)DB::setting('ma_rate_per_min', '240');
+    if ($maMax > 0) {
+        $maHit = RateLimit::hit('ma:' . $tg, $maMax, 60);
+        if (empty($maHit['ok'])) {
+            ma_fail('درخواست‌های شما بیش از حد مجاز است؛ ' . (int)($maHit['retry'] ?? 30) . ' ثانیه دیگر دوباره تلاش کنید.', 429);
         }
-    } catch (Throwable $e) { }
-    if ($csrfStrict) {
-        http_response_code(419);
-        header('Content-Type: text/html; charset=utf-8');
-        echo '<!doctype html><html dir="rtl" lang="fa"><meta charset="utf-8"><title>توکن امنیتی نامعتبر</title>'
-            . '<div style="font:15px/2.1 Tahoma,sans-serif;max-width:520px;margin:60px auto;padding:24px;'
-            . 'border:1px solid #ddd;border-radius:14px;text-align:center">'
-            . '<h2 style="margin:0 0 10px">🚫 توکن امنیتی نامعتبر است</h2>'
-            . '<p>این درخواست بدون توکن معتبر فرستاده شد و برای جلوگیری از حملهٔ CSRF مسدود شد.<br>'
-            . 'صفحه را تازه کنید و دوباره تلاش کنید.</p>'
-            . '<p><a href="index.php?p=' . h($page) . '">بازگشت به صفحه</a></p></div>';
-        exit;
     }
-}
+}"""
 
-"""
+rep_multi(
+    MA,
+    [
+        ("""$tg   = (int)$auth['user']['id'];
+$user = DB::one('SELECT * FROM {p}users WHERE tg_id = :t', [':t' => $tg]);""",
+         RATE_BLOCK + "\n$user = DB::one('SELECT * FROM {p}users WHERE tg_id = :t', [':t' => $tg]);"),
+        ("$tg   = (int)$auth['user']['id'];", RATE_BLOCK),
+    ],
+    marker="0.0.2 #7-rate",
+)
 
-ANCHOR75 = "/* fixed75: لاگ اقدامات مدیران — هر POST پنل وب پس از اجرا (حتی با redirect) ثبت می‌شود */"
-rep(TARGET, ANCHOR75, SHIELD + ANCHOR75, marker="0.0.2 #6:")
-
-# ============================================================ 5) sanity+write
+# ==================================================== 4) sanity check + write
 if ERRORS:
     print("ABORTED - anchors not found:")
     for e in ERRORS:
         print("  - " + e)
     sys.exit(1)
 
-final = CACHE.get(TARGET, "")
-if len(final) < 20000 or not final.rstrip().endswith("</html>") or "function csrf_ok" not in final:
-    print("ABORTED - admin/index.php sanity check failed (%d chars)" % len(final))
-    sys.exit(1)
+if MA in NEW:
+    txt = CACHE[MA]
+    if len(txt) < 100000 or "function ma_auth" not in txt:
+        print("ABORTED - miniapp/api.php sanity check failed (%d chars)" % len(txt))
+        sys.exit(1)
 
 write_all()
-print("admin/index.php size after: %d bytes" % os.path.getsize(full))
 
-# ========================================= 6) recon for the coming batches
-show("MINIAPP AUTH HEAD", "miniapp/api.php", 150, 168)
-show("MINIAPP AUTH", "miniapp/api.php", 186, 240)
-show("BACKUP ENC", "app/Service/Backup.php", 95, 130)
+# ================================================= 5) recon for batch #7
+grep("DB SETTERS", "app/DB.php", r"function\s+\w*[Ss]et\w*\s*\(", 25)
+grep("DB SETTING FNS", "app/DB.php", r"function\s+\w*etting\w*\s*\(", 10)
+around("HEALTH ITEM SAMPLE", "app/Service/Health.php", "0.0.2 #2:", 10, 26)
+grep("HEALTH BACKUP", "app/Service/Health.php", r"backup", 14)
+grep("BACKUP PAGE PASS", "admin/pages/backup.php", r"backup_pass|zipPass", 16)
+grep("BOOTSTRAP SECRET", "app/bootstrap.php", r"secret", 14)
+grep("SETTINGS SECRET", "admin/pages/settings.php", r"bot\.secret|bot_secret", 12)
 
-print("== BACKUP PASS LINES ==")
-c = 0
-for i, line in enumerate(load("app/Service/Backup.php").splitlines(), 1):
-    if re.search(r"pass|encrypt", line, re.I):
-        print("  %d: %s" % (i, line.strip()[:110]))
-        c += 1
-        if c >= 18:
-            break
-
-# ================================================================ 7) version
+# ================================================================ 6) version
 VJ = os.path.join(ROOT, "version.json")
 with io.open(VJ, encoding="utf-8") as fh:
     v = json.load(fh)
 
 entry = (
-    "🛡 سخت‌سازی امنیتی ۰.۰.۲ (گام ۵): سپر سراسری CSRF روی همهٔ درخواست‌های POST پنل "
-    "(حالت گزارشی و قابل سخت‌گیرانه شدن با sec_csrf_strict)، مبنا قرار گرفتن آی‌پی واقعی کاربر در قفل ضد حدس رمز "
-    "و ارسال پیام امنیتی به تاپیک تلگرام هنگام ورود به پنل یا درخواست بدون توکن."
+    "🛡 سخت‌سازی امنیتی ۰.۰.۲ (گام ۶): اعتبارسنجی سخت‌گیرانهٔ initData مینی‌اپ "
+    "(اجباری شدن auth_date و پنجرهٔ اعتبار قابل تنظیم با ma_init_ttl_min)، "
+    "محدودیت نرخ درخواست بر پایهٔ شناسهٔ تلگرام (ma_rate_per_min) و هشدار امنیتی هنگام تلاش‌های ناموفق پی‌درپی برای ورود به مینی‌اپ."
 )
 log = v.get("changelog") or []
 if entry not in log:
