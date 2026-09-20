@@ -704,6 +704,123 @@ class Xui3
      * موفق‌بودن /inbounds/options یعنی پنل نسل جدید است؛ 404 یعنی پنل قدیمی است
      * و باید فیلد توکن خالی شود تا ربات از درایور قدیمی (یوزر/پسورد) استفاده کند.
      */
+    /* ========== 0.0.2: newer 3x-ui API endpoints (docs.sanaei.dev) ========== */
+
+    /** registered HWID devices of one account: GET /clients/hwids/{email} */
+    public function devices(string $email): array
+    {
+        $email = trim($email);
+        if ($email === '') return [];
+        $r = $this->api('/clients/hwids/' . rawurlencode($email));
+        if (($r['success'] ?? false) !== true) return [];
+        $out = [];
+        foreach ((array)($r['obj'] ?? []) as $d) {
+            if (!is_array($d)) continue;
+            $out[] = [
+                'id'   => (int)($d['id'] ?? 0),
+                'hwid' => (string)($d['hwid'] ?? ''),
+                'name' => trim((string)($d['deviceName'] ?? ($d['name'] ?? ''))),
+                'os'   => trim((string)($d['os'] ?? ($d['platform'] ?? ''))),
+                'app'  => trim((string)($d['appName'] ?? ($d['app'] ?? ''))),
+                'seen' => (int)($d['updatedAt'] ?? ($d['createdAt'] ?? 0)),
+            ];
+        }
+        return $out;
+    }
+
+    /** free one HWID slot: DELETE /clients/hwids/{email}/{id} */
+    public function deviceDelete(string $email, int $id): array
+    {
+        $email = trim($email);
+        if ($email === '' || $id <= 0) return ['success' => false, 'msg' => 'bad request'];
+        return $this->api('/clients/hwids/' . rawurlencode($email) . '/' . $id, null, 'DELETE');
+    }
+
+    /** drop every registered device of one account; returns how many were removed */
+    public function devicesClear(string $email): int
+    {
+        $n = 0;
+        foreach ($this->devices($email) as $d) {
+            $id = (int)($d['id'] ?? 0);
+            if ($id <= 0) continue;
+            $r = $this->deviceDelete($email, $id);
+            if (($r['success'] ?? false) === true) $n++;
+        }
+        return $n;
+    }
+
+    /** set the device (HWID) limit of one or more accounts */
+    public function setDeviceLimit(array $emails, int $limit): array
+    {
+        $emails = array_values(array_filter(array_map('strval', $emails), static fn($e) => trim($e) !== ''));
+        if (!$emails) return ['success' => false, 'msg' => 'no emails'];
+        return $this->api('/clients/bulkAdjust', [
+            'emails'    => $emails,
+            'limitHwid' => max(0, $limit),
+        ], 'POST');
+    }
+
+    /** panel-wide counters: total / online / active / deactive / depleted / expiring */
+    public function clientsSummary(): array
+    {
+        $r = $this->api('/clients/list?page=1&pageSize=1');
+        if (($r['success'] ?? false) !== true) return [];
+        $s = (array)(((array)($r['obj'] ?? []))['summary'] ?? []);
+        if (!$s) return [];
+        return [
+            'total'    => (int)($s['total'] ?? 0),
+            'online'   => (int)($s['onlineCount'] ?? 0),
+            'active'   => (int)($s['active'] ?? 0),
+            'deactive' => (int)($s['deactiveCount'] ?? 0),
+            'depleted' => (int)($s['depletedCount'] ?? 0),
+            'expiring' => (int)($s['expiringCount'] ?? 0),
+        ];
+    }
+
+    /** delete clients that are no longer attached to any inbound */
+    public function delOrphans(): int
+    {
+        $r = $this->api('/clients/delOrphans', [], 'POST');
+        if (($r['success'] ?? false) !== true) return 0;
+        return (int)(((array)($r['obj'] ?? []))['deleted'] ?? 0);
+    }
+
+    /** zero the counters of many accounts in one call; returns affected count */
+    public function bulkResetTraffic(array $emails): int
+    {
+        $emails = array_values(array_filter(array_map('strval', $emails), static fn($e) => trim($e) !== ''));
+        if (!$emails) return 0;
+        $r = $this->api('/clients/bulkResetTraffic', ['emails' => $emails], 'POST');
+        if (($r['success'] ?? false) !== true) return 0;
+        return (int)(((array)($r['obj'] ?? []))['affected'] ?? 0);
+    }
+
+    /** can per-client IP limits be enforced on this host? (needs Fail2ban) */
+    public function ipLimitStatus(): array
+    {
+        $r = $this->api('/server/fail2banStatus');
+        $o = (array)($r['obj'] ?? []);
+        return [
+            'ok'        => ($r['success'] ?? false) === true,
+            'usable'    => !empty($o['usable']),
+            'installed' => !empty($o['installed']),
+            'enabled'   => !empty($o['enabled']),
+        ];
+    }
+
+    /** is a newer 3x-ui release available for this panel? */
+    public function panelUpdateInfo(): array
+    {
+        $r = $this->api('/server/getPanelUpdateInfo');
+        if (($r['success'] ?? false) !== true) return [];
+        $o = (array)($r['obj'] ?? []);
+        return [
+            'current'   => trim((string)($o['current'] ?? ($o['currentVersion'] ?? ($o['version'] ?? '')))),
+            'latest'    => trim((string)($o['latest'] ?? ($o['latestVersion'] ?? ''))),
+            'available' => !empty($o['hasUpdate']) || !empty($o['updateAvailable']) || !empty($o['available']),
+        ];
+    }
+
     public function healthCheck(): array
     {
         if ($this->token() === '') {
