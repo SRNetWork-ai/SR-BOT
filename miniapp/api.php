@@ -1014,6 +1014,61 @@ switch ($action) {
     }
 
     /* fixed83: کانفیگ‌های قطع — فهرست و مبلغ عودتی */
+    /* 0.0.2: مدیریت دستگاه‌های ثبت‌شده (HWID) — فقط پنل نسل جدید سنایی */
+    case 'svc_devices': {
+        $sid = (int)($in['id'] ?? 0);
+        $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+            [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
+        if (!$s) ma_fail('سرویس یافت نشد.');
+        if (!class_exists('Devices') || !Devices::supported($s)) {
+            ma_out(['ok' => true, 'supported' => false, 'count' => 0, 'items' => [], 'limit' => 0]);
+        }
+        $items = Devices::listFor($s);
+        ma_out([
+            'ok'        => true,
+            'supported' => true,
+            'count'     => count($items),
+            'items'     => $items,
+            'limit'     => Devices::limitOf($s),
+        ]);
+    }
+
+    case 'svc_device_del': {
+        $sid = (int)($in['id'] ?? 0);
+        $dev = (int)($in['device'] ?? 0);
+        $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+            [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
+        if (!$s) ma_fail('سرویس یافت نشد.');
+        if (!class_exists('Devices') || !Devices::supported($s)) ma_fail('این پنل از مدیریت دستگاه پشتیبانی نمی‌کند.');
+        if ($dev <= 0) ma_fail('دستگاه نامعتبر است.');
+        if (!Devices::remove($s, $dev)) ma_fail('حذف دستگاه انجام نشد.');
+        $items = Devices::listFor($s);
+        ma_out([
+            'ok'      => true,
+            'message' => 'دستگاه حذف شد.',
+            'count'   => count($items),
+            'items'   => $items,
+            'limit'   => Devices::limitOf($s),
+        ]);
+    }
+
+    case 'svc_devices_clear': {
+        $sid = (int)($in['id'] ?? 0);
+        $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+            [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
+        if (!$s) ma_fail('سرویس یافت نشد.');
+        if (!class_exists('Devices') || !Devices::supported($s)) ma_fail('این پنل از مدیریت دستگاه پشتیبانی نمی‌کند.');
+        $n = Devices::clear($s);
+        ma_out([
+            'ok'      => true,
+            'message' => $n > 0 ? ('همهٔ دستگاه‌ها حذف شدند (' . fa_num((string)$n) . ').') : 'دستگاهی برای حذف نبود.',
+            'removed' => $n,
+            'count'   => 0,
+            'items'   => [],
+            'limit'   => Devices::limitOf($s),
+        ]);
+    }
+
     case 'svc_dead': {
         $items = []; $sum = 0;
         foreach (Svc::deadForUser($UID) as $s) {
