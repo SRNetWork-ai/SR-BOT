@@ -68,6 +68,8 @@ class Migrate
             /* نحوهٔ تحویل: '' = پیروی از پیش‌فرض کلی · sub · config · both */
             'deliver_mode' => "VARCHAR(8) NOT NULL DEFAULT ''",
             'device_limit' => 'INT NOT NULL DEFAULT 0',
+            /* 0.0.2: ریست خودکار دوره‌ای حجم (روز) — ۰ = خاموش */
+            'reset_days'   => 'INT NOT NULL DEFAULT 0',
             'speed_up'     => 'INT NOT NULL DEFAULT 0',
             'speed_down'   => 'INT NOT NULL DEFAULT 0',
             /* fixed76: نوع محصول — fixed (حجم/مدت ثابت) یا custom (حجم و زمان دلخواه با قیمت هر گیگ/هر روز) */

@@ -33,6 +33,9 @@ class Xui3
     private array $linksServed = [];
     private ?string $tokenPlain = null;
 
+    /* 0.0.2 #x3-reset: دورهٔ ریست خودکار حجم (روز) برای اکانت تازه — ۰ = خاموش */
+    public $autoReset = 0;
+
     public function __construct(array $panel) { $this->panel = $panel; }
 
     public static function forPanel($panelId): ?self
@@ -305,7 +308,7 @@ class Xui3
             'expiryTime' => $expiryMs,
             'limitIp'    => $ipLimit,
             'subId'      => $subId !== '' ? $subId : rnd(16),
-            'reset'      => 0,
+            'reset'      => max(0, (int)$this->autoReset),
             'comment'    => '',
         ];
         if ($proto === 'trojan' || $proto === 'shadowsocks') {

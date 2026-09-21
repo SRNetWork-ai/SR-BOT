@@ -1,257 +1,64 @@
 Python 3.12.3
-Mon Sep 21 15:36:18 UTC 2026
-== SVC options (app/Service/Svc.php lines 225-250 of 1993) ==
-  225|     * @return array{ok:bool,message:string,service?:array}
-  226|     */
-  227|    public static function create(array $user, array $panel, array $opts): array
-  228|    {
-  229|        $volume = (float)($opts['volume_gb'] ?? 0);
-  230|        $days   = (int)($opts['days'] ?? 0);
-  231|        $hours  = (int)($opts['hours'] ?? 0);
-  232|        $ipLim  = (int)($opts['ip_limit'] ?? 0);
-  233|        $isTest = !empty($opts['is_test']);
-  234|        $product = $opts['product'] ?? null;
-  235|
-  236|        /* محدودیت دستگاه و سرعت – از گزینه‌ها یا از خود محصول */
-  237|        $devOpt = (int)($opts['device_limit'] ?? 0);
-  238|        if ($devOpt <= 0 && is_array($product)) $devOpt = (int)($product['device_limit'] ?? 0);
-  239|        $upKb = (int)($opts['speed_up'] ?? 0);
-  240|        if ($upKb <= 0 && is_array($product)) $upKb = (int)($product['speed_up'] ?? 0);
-  241|        $downKb = (int)($opts['speed_down'] ?? 0);
-  242|        if ($downKb <= 0 && is_array($product)) $downKb = (int)($product['speed_down'] ?? 0);
-  243|
-  244|        if ((int)($panel['active'] ?? 1) !== 1) return ['ok' => false, 'message' => 'این سرور موقتاً غیرفعال است.'];
-  245|        if (!self::panelHasCapacity($panel)) return ['ok' => false, 'message' => 'ظرفیت ساخت کاربر در این سرور تکمیل شده است.'];
-  246|
-  247|        $targets = self::inboundList($panel, $opts, $product);
-  248|        // اکانت تست هم مانند محصول می‌تواند روی چند اینباند ساخته شود.
-  249|        // فقط اگر مدیر صراحتاً «تک اینباند» را انتخاب کرده باشد محدود می‌شود.
-  250|        if ($isTest && $targets && !empty($opts['single_inbound'])) $targets = [(int)$targets[0]];
-== SVC create (app/Service/Svc.php lines 276-320 of 1993) ==
-  276|            'email' => $email, 'gb' => $volume, 'days' => $days, 'hours' => $hours,
-  277|            'exp' => $expireTs > 0 ? date('Y-m-d H:i:s', $expireTs) : 'never', 'ip' => $ipLim, 'test' => $isTest ? 1 : 0,
-  278|        ]);
-  279|
-  280|        // ساخت کلاینت روی همه اینباندهای هدف: چند کانفیگ با یک لینک اشتراک
-  281|        $links = []; $okIds = []; $lastErr = '';
-  282|        $devLim = $devOpt;
-  283|
-  284|        if ($xui->isVpnUi()) {
-  285|            /* VPN-UI: یک اکانت مشترک روی همه اینباندها؛ یک ساب با چند کانفیگ */
-  286|            $ids     = Xui::idList($targets);
-  287|            $primary = (int)($ids[0] ?? 0);
-  288|            $res     = $xui->addClient($primary, $email, $uuid, $volume, $expiryMs, $ipLim, $subId, $ids, $devLim, $upKb, $downKb);
-  289|            if (empty($res['success'])) {
-  290|                $lastErr = (string)($res['msg'] ?? 'نامشخص');
-  291|            } else {
-  292|                foreach ($ids as $ib) {
-  293|                    $ib = (int)$ib;
-  294|                    $okIds[] = $ib;
-  295|                    try {
-  296|                        $inbound = ($ib === $primary && !empty($res['inbound'])) ? (array)$res['inbound'] : ($xui->inbound($ib) ?? []);
-  297|                        $link = $inbound ? (string)$xui->buildConfigLink($inbound, $uuid, $email) : '';
-  298|                        if (trim($link) !== '') $links[] = trim($link);
-  299|                    } catch (Throwable $e) {
-  300|                        app_log('svc', 'buildConfigLink: ' . $e->getMessage(), ['inbound' => $ib]);
-  301|                    }
-  302|                }
-  303|            }
-  304|        } else {
-  305|            foreach ($targets as $ib) {
-  306|                $ib = (int)$ib;
-  307|                if ($ib <= 0) continue;
-  308|                $res = $xui->addClient($ib, $email, $uuid, $volume, $expiryMs, $ipLim, $subId, [], $devLim, $upKb, $downKb);
-  309|                if (empty($res['success'])) { $lastErr = (string)($res['msg'] ?? 'نامشخص'); continue; }
-  310|                $okIds[] = $ib;
-  311|                try {
-  312|                    $inbound = $res['inbound'] ?? $xui->inbound($ib) ?? [];
-  313|                    $link = $inbound ? (string)$xui->buildConfigLink($inbound, $uuid, $email) : '';
-  314|                    if (trim($link) !== '') $links[] = trim($link);
-  315|                } catch (Throwable $e) {
-  316|                    app_log('svc', 'buildConfigLink: ' . $e->getMessage(), ['inbound' => $ib]);
-  317|                }
-  318|            }
-  319|        }
-  320|        if (!$okIds) {
-== MIGRATE product cols (app/Service/Migrate.php lines 50-92 of 535) ==
-  50|        ],
-  51|        'admins' => [
-  52|            'perms'    => 'TEXT NULL',
-  53|            'tg_id'    => 'BIGINT NULL',
-  54|            'active'   => 'TINYINT(1) NOT NULL DEFAULT 1',
-  55|            'note'     => 'VARCHAR(255) NULL',
-  56|            'last_ip'  => 'VARCHAR(64) NULL',
-  57|        ],
-  58|        'panels' => [
-  59|            'test_volume_mb' => 'INT NOT NULL DEFAULT 0', /* fixed79: حجم تست به مگابایت */
-  60|            'test_inbound_ids'    => 'VARCHAR(190) NULL',
-  61|            'test_single_inbound' => 'TINYINT(1) NOT NULL DEFAULT 0',
-  62|            'ssl_verify'          => 'TINYINT(1) NOT NULL DEFAULT 0',
-  63|            /* توکن API نسل جدید 3x-ui — مانند password رمزنگاری‌شده ذخیره می‌شود */
-  64|            'api_token'           => 'VARCHAR(500) NULL',
-  65|        ],
-  66|        'products' => [
-  67|            'group_ids' => 'VARCHAR(190) NULL', /* fixed79: گروه‌های اختصاصی پاسارگارد */
-  68|            /* نحوهٔ تحویل: '' = پیروی از پیش‌فرض کلی · sub · config · both */
-  69|            'deliver_mode' => "VARCHAR(8) NOT NULL DEFAULT ''",
-  70|            'device_limit' => 'INT NOT NULL DEFAULT 0',
-  71|            'speed_up'     => 'INT NOT NULL DEFAULT 0',
-  72|            'speed_down'   => 'INT NOT NULL DEFAULT 0',
-  73|            /* fixed76: نوع محصول — fixed (حجم/مدت ثابت) یا custom (حجم و زمان دلخواه با قیمت هر گیگ/هر روز) */
-  74|            'type'         => "VARCHAR(8) NOT NULL DEFAULT 'fixed'",
-  75|            'price_gb'     => 'BIGINT NOT NULL DEFAULT 0',
-  76|            'price_day'    => 'BIGINT NOT NULL DEFAULT 0',
-  77|            'min_gb'       => 'INT NOT NULL DEFAULT 1',
-  78|            'max_gb'       => 'INT NOT NULL DEFAULT 100',
-  79|            'min_days'     => 'INT NOT NULL DEFAULT 1',
-  80|            'max_days'     => 'INT NOT NULL DEFAULT 90',
-  81|        ],
-  82|        'services' => [
-  83|            'is_reseller' => 'TINYINT(1) NOT NULL DEFAULT 0',
-  84|            /* لحظهٔ تمام‌شدن (زمان یا حجم) — مبنای حذف خودکار پس از N روز */
-  85|            'expired_at'  => 'DATETIME NULL',
-  86|        ],
-  87|        'stock_cats' => [
-  88|            /* قیمت ویژهٔ نماینده — ۰ یعنی همان قیمت عمومی */
-  89|            'rs_price' => 'BIGINT NOT NULL DEFAULT 0',
-  90|        ],
-  91|        'ticket_messages' => [
-  92|            'file_type' => 'VARCHAR(16) NULL',
-== PRODUCTS save (admin/pages/products.php lines 22-70 of 1225) ==
-  22|    if ($act === 'save') {
-  23|        $id = pint('id');
-  24|        need($id ? 'products.edit' : 'products.create', 'products');
-  25|
-  26|        $data = [
-  27|            'panel_id'    => pint('panel_id'),
-  28|            'inbound_id'  => pint('inbound_id'),
-  29|            'name'        => ptxt('name'),
-  30|            'category'    => ptxt('category', 'عمومی'),
-  31|            'description' => ptxt('description'),
-  32|            'volume_gb'   => pflt('volume_gb'),
-  33|            'days'        => pint('days'),
-  34|            'ip_limit'    => pint('ip_limit'),
-  35|            'price'       => pflt('price'),
-  36|            'old_price'   => pflt('old_price'),
-  37|            'stock'       => pint('stock', -1),
-  38|            'active'      => pchk('active'),
-  39|            'sort'        => pint('sort'),
-  40|        ];
-  41|
-  42|        /* نحوهٔ تحویل: خالی = پیروی از پیش‌فرض کلی فروشگاه */
-  43|        if (isset($prCols['group_ids'])) $data['group_ids'] = mb_substr(trim(en_num((string)ptxt('group_ids'))), 0, 190); /* fixed79: گروه‌های پاسارگارد این محصول */
-  44|        if (isset($prCols['deliver_mode'])) {
-  45|            $dmIn = (string)ptxt('deliver_mode');
-  46|            $data['deliver_mode'] = isset(Svc::DELIVER[$dmIn]) ? $dmIn : '';
-  47|        }
-  48|
-  49|        foreach (['device_limit', 'speed_up', 'speed_down'] as $lk) {
-  50|            if (isset($prCols[$lk])) $data[$lk] = max(0, pint($lk));
-  51|        }
-  52|
-  53|        /* fixed76: نوع محصول — «حجم و زمان دلخواه» با قیمت هر گیگ/هر روز و بازهٔ مجاز */
-  54|        if ($prHasCus) {
-  55|            $data['type']      = ptxt('type') === 'custom' ? 'custom' : 'fixed';
-  56|            $data['price_gb']  = max(0, (int)pflt('price_gb'));
-  57|            $data['price_day'] = max(0, (int)pflt('price_day'));
-  58|            $data['min_gb']    = max(1, pint('min_gb', 1));
-  59|            $data['max_gb']    = max($data['min_gb'], pint('max_gb', 100));
-  60|            $data['min_days']  = max(1, pint('min_days', 1));
-  61|            $data['max_days']  = max($data['min_days'], pint('max_days', 90));
-  62|            if ($data['type'] === 'custom') {
-  63|                if ($data['price_gb'] <= 0 && $data['price_day'] <= 0) {
-  64|                    flash('err', 'برای محصول «حجم و زمان دلخواه» حداقل یکی از «قیمت هر گیگ» یا «قیمت هر روز» باید بزرگ‌تر از صفر باشد.');
-  65|                    back('products', $id ? ['edit' => $id] : []);
-  66|                }
-  67|                /* حجم/مدت را مشتری انتخاب می‌کند؛ قیمت ثبت‌شده = کمترین مبلغ ممکن (برای مرتب‌سازی و نمایش «از …») */
-  68|                $data['volume_gb'] = 0;
-  69|                $data['days']      = 0;
-  70|                $data['price']     = $data['min_gb'] * $data['price_gb'] + $data['min_days'] * $data['price_day'];
-== PRODUCTS form (admin/pages/products.php lines 742-762 of 1225) ==
-  742|            <div class="field">
-  743|              <label>گروه‌های پاسارگارد این محصول</label>
-  744|              <input class="mono ltr" type="text" name="group_ids" value="<?= h((string)$v('group_ids', '')) ?>" placeholder="vip,premium یا 3,5">
-  745|              <div class="hint">فقط پنل پاسارگارد؛ خالی = گروه‌های تنظیم‌شده در پنل. نام یا شناسهٔ عددی، با کاما</div>
-  746|            </div>
-  747|            <?php endif; ?>
-  748|            <?php if ($prHasLimits): ?>
-  749|              <div class="field">
-  750|                <label>محدودیت دستگاه (Device limit)</label>
-  751|                <input class="mono" type="number" min="0" name="device_limit" value="<?= h((string)$v('device_limit', 0)) ?>">
-  752|                <div class="hint">۰ = بدون محدودیت – مخصوص پنل VPN-UI</div>
-  753|              </div>
-  754|              <div class="field">
-  755|                <label>سرعت دانلود (KB/s)</label>
-  756|                <input class="mono" type="number" min="0" name="speed_down" value="<?= h((string)$v('speed_down', 0)) ?>">
-  757|                <div class="hint">۰ = بدون محدودیت – مثلاً ۱۲۸۰۰ یعنی حدود ۱۰ مگابیت</div>
-  758|              </div>
-  759|              <div class="field">
-  760|                <label>سرعت آپلود (KB/s)</label>
-  761|                <input class="mono" type="number" min="0" name="speed_up" value="<?= h((string)$v('speed_up', 0)) ?>">
-  762|                <div class="hint">۰ = بدون محدودیت</div>
-== XUI facade addClient (app/Panel/Xui.php lines 385-402 of 1102) ==
-  385|
-  386|    /**
-  387|     * افزودن کلاینت جدید
-  388|     * @param float $volumeGb ۰ = نامحدود
-  389|     * @param int   $expiryMs زمان انقضا بر حسب میلی‌سانیه (۰ = نامحدود)
-  390|     */
-  391|    public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, int $ipLimit = 0, string $subId = '', array $inboundIds = [], int $deviceLimit = 0, int $upKbps = 0, int $downKbps = 0): array
-  392|    {
-  393|        if ($this->mz) return $this->mz->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $subId, $inboundIds, $deviceLimit, $upKbps, $downKbps);
-  394|        if ($this->pg) return $this->pg->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $subId, $inboundIds, $deviceLimit, $upKbps, $downKbps);
-  395|        if ($this->x3) return $this->x3->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $subId, $inboundIds, $deviceLimit, $upKbps, $downKbps);
-  396|        $inbound = $this->inbound($inboundId);
-  397|        $proto   = strtolower((string)($inbound['protocol'] ?? 'vless'));
-  398|        $client  = [
-  399|            'email'      => $email,
-  400|            'enable'     => true,
-  401|            'totalGB'    => $volumeGb > 0 ? gb2bytes($volumeGb) : 0,
-  402|            'expiryTime' => $expiryMs,
-== XUI3 updateClient (app/Panel/Xui3.php lines 334-376 of 925) ==
-  334|    public function updateClient(int $inboundId, string $uuid, array $client, array $inboundIds = []): array
-  335|    {
-  336|        $email = trim((string)($client['email'] ?? ''));
-  337|        if ($email === '') $email = trim((string)($this->userMap[$uuid] ?? ''));
-  338|        if ($email === '') return ['success' => false, 'msg' => 'ایمیل اکانت برای ویرایش مشخص نیست'];
-  339|
-  340|        $cur    = $this->clientRow($email) ?? [];
-  341|        $full   = array_merge($cur, $client);
-  342|        $merged = self::cleanClient($full);
-  343|        $merged['email'] = $email;
-  344|        /* شمارهٔ ردیف پنل حذف و UUID واقعی جای آن می‌نشیند */
-  345|        $merged = Xui::normClient($merged, Xui::clientKey($full, $uuid));
-  346|
-  347|        $r = $this->api('/clients/update/' . rawurlencode($email), $merged, 'POST');
-  348|        if (($r['success'] ?? false) !== true) {
-  349|            /* بعضی بیلدها بدنه را در قالب {client:{...}} می‌پذیرند؛ یک بار هم آن شکل تلاش می‌شود */
-  350|            $r2 = $this->api('/clients/update/' . rawurlencode($email), ['client' => $merged], 'POST');
-  351|            if (($r2['success'] ?? false) !== true) {
-  352|                return ['success' => false, 'msg' => (string)($r['msg'] ?? 'خطا در ویرایش کاربر در پنل')];
-  353|            }
-  354|            $r = $r2;
-  355|        }
-  356|        unset($this->linksCache[$email], $this->linksServed[$email]);
-  357|        return ['success' => true, 'obj' => $r['obj'] ?? null];
-  358|    }
-  359|
-  360|    public function deleteClient(int $inboundId, string $uuid): array
-  361|    {
-  362|        $email = trim((string)($this->userMap[$uuid] ?? ''));
-  363|        if ($email === '') return ['success' => false, 'msg' => 'اکانت برای حذف پیدا نشد'];
-  364|        return $this->deleteByEmail($inboundId, $email);
-  365|    }
-  366|
-  367|    /** حذف سراسری اکانت با ایمیل (از همهٔ اینباندها) */
-  368|    public function deleteByEmail(int $inboundId, string $email): array
-  369|    {
-  370|        $r = $this->api('/clients/del/' . rawurlencode($email), null, 'POST');
-  371|        if (($r['success'] ?? false) === true || (int)($r['code'] ?? 0) === 404) return ['success' => true];
-  372|        return ['success' => false, 'msg' => (string)($r['msg'] ?? 'حذف اکانت در پنل ناموفق بود')];
-  373|    }
-  374|
-  375|    /** صفر کردن مصرف؛ نسل جدید همان‌جا اکانتِ مسدودشده را هم دوباره فعال می‌کند */
-  376|    public function resetTraffic(int $inboundId, string $email): array
-build: fixed110
-changed files: 0 (recon run)
+Mon Sep 21 15:43:13 UTC 2026
+== SCHEMA products device_limit (database/schema.sql lines 91-99 of 544) ==
+  91|  `volume_gb` DECIMAL(10,2) NOT NULL DEFAULT 0,
+  92|  `days` INT NOT NULL DEFAULT 30,
+  93|  `ip_limit` INT NOT NULL DEFAULT 0,
+  94|  `device_limit` INT NOT NULL DEFAULT 0,
+  95|  `speed_up` INT NOT NULL DEFAULT 0,
+  96|  `speed_down` INT NOT NULL DEFAULT 0,
+  97|  `price` BIGINT NOT NULL DEFAULT 0,
+  98|  `old_price` BIGINT NULL,
+  99|  `stock` INT NOT NULL DEFAULT -1,
+== XUI3 reset field (app/Panel/Xui3.php lines 300-314 of 925) ==
+  300|
+  301|        $client = [
+  302|            'email'      => $email,
+  303|            'enable'     => true,
+  304|            'totalGB'    => $volumeGb > 0 ? gb2bytes($volumeGb) : 0,
+  305|            'expiryTime' => $expiryMs,
+  306|            'limitIp'    => $ipLimit,
+  307|            'subId'      => $subId !== '' ? $subId : rnd(16),
+  308|            'reset'      => 0,
+  309|            'comment'    => '',
+  310|        ];
+  311|        if ($proto === 'trojan' || $proto === 'shadowsocks') {
+  312|            $client['password'] = $uuid;
+  313|        } else {
+  314|            $client['id']   = $uuid;
+== XUI3 constructor (app/Panel/Xui3.php lines 28-38 of 925) ==
+  28|    /** کش اینباندها در طول عمر همین درخواست */
+  29|    private ?array $inboundCache = null;
+  30|    /** کش لینک‌های هر اکانت */
+  31|    private array $linksCache = [];
+  32|    /** لینک‌هایی که در حلقه ساخت سرویس قبلاً تحویل شده‌اند (جلوگیری از تکرار) */
+  33|    private array $linksServed = [];
+  34|    private ?string $tokenPlain = null;
+  35|
+  36|    public function __construct(array $panel) { $this->panel = $panel; }
+  37|
+  38|    public static function forPanel($panelId): ?self
+patched app/Service/Migrate.php by regex ('reset_days')
+patched database/schema.sql by regex (reset_days)
+patched admin/pages/products.php by regex ('reset_days'] as $lk)
+patched admin/pages/products.php by regex (name="reset_days")
+patched app/Panel/Xui3.php by regex (public $autoReset)
+patched app/Panel/Xui3.php by regex ($this->autoReset)
+patched app/Panel/Xui.php by regex (public function setAutoReset)
+patched app/Service/Svc.php by regex (#svc-reset)
+wrote app/Service/Migrate.php
+wrote database/schema.sql
+wrote admin/pages/products.php
+wrote app/Panel/Xui3.php
+wrote app/Panel/Xui.php
+wrote app/Service/Svc.php
+php lint: on
+changed files: 6
+sanity app/Service/Migrate.php / 'reset_days' : ok
+sanity admin/pages/products.php / name="reset_days" : ok
+sanity app/Panel/Xui3.php / $this->autoReset : ok
+sanity app/Panel/Xui.php / public function setAutoReset : ok
+sanity app/Service/Svc.php / #svc-reset : ok
+changelog: entry added
+build: fixed111
 exit: 0

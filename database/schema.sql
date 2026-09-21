@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS {p}products (
   `days` INT NOT NULL DEFAULT 30,
   `ip_limit` INT NOT NULL DEFAULT 0,
   `device_limit` INT NOT NULL DEFAULT 0,
+  reset_days INT NOT NULL DEFAULT 0,
   `speed_up` INT NOT NULL DEFAULT 0,
   `speed_down` INT NOT NULL DEFAULT 0,
   `price` BIGINT NOT NULL DEFAULT 0,

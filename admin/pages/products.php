@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
             $data['deliver_mode'] = isset(Svc::DELIVER[$dmIn]) ? $dmIn : '';
         }
 
-        foreach (['device_limit', 'speed_up', 'speed_down'] as $lk) {
+        foreach (['device_limit', 'speed_up', 'speed_down', 'reset_days'] as $lk) {
             if (isset($prCols[$lk])) $data[$lk] = max(0, pint($lk));
         }
 
@@ -751,6 +751,13 @@ if ($dmHas) {
                 <input class="mono" type="number" min="0" name="device_limit" value="<?= h((string)$v('device_limit', 0)) ?>">
                 <div class="hint">۰ = بدون محدودیت – مخصوص پنل VPN-UI</div>
               </div>
+              <?php if (isset($prCols['reset_days'])): ?>
+              <div class="field">
+                <label>ریست دوره‌ای حجم (روز)</label>
+                <input class="mono" type="number" min="0" max="365" name="reset_days" value="<?= h((string)$v('reset_days', 0)) ?>">
+                <div class="hint">۰ = خاموش — مثلاً ۳۰ یعنی هر ۳۰ روز مصرف کاربر خودکار صفر می‌شود (فقط پنل نسل جدید سنایی)</div>
+              </div>
+              <?php endif; ?>
               <div class="field">
                 <label>سرعت دانلود (KB/s)</label>
                 <input class="mono" type="number" min="0" name="speed_down" value="<?= h((string)$v('speed_down', 0)) ?>">

@@ -383,6 +383,12 @@ class Xui
         return $c;
     }
 
+    /* 0.0.2 #x3-reset: تعیین دورهٔ ریست خودکار حجم پیش از ساخت اکانت — فقط پنل نسل جدید سنایی */
+    public function setAutoReset(int $days): void
+    {
+        if ($this->x3) $this->x3->autoReset = max(0, $days);
+    }
+
     /**
      * افزودن کلاینت جدید
      * @param float $volumeGb ۰ = نامحدود

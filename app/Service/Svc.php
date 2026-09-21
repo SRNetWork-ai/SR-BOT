@@ -280,6 +280,12 @@ class Svc
         // ساخت کلاینت روی همه اینباندهای هدف: چند کانفیگ با یک لینک اشتراک
         $links = []; $okIds = []; $lastErr = '';
         $devLim = $devOpt;
+        /* 0.0.2 #svc-reset: ریست دوره‌ای حجم — فقط پنل نسل جدید سنایی */
+        $rstDays = (int)($opts['reset_days'] ?? 0);
+        if ($rstDays <= 0 && is_array($product)) $rstDays = (int)($product['reset_days'] ?? 0);
+        if ($rstDays > 0 && method_exists($xui, 'setAutoReset')) {
+            try { $xui->setAutoReset($rstDays); } catch (Throwable $e) { app_log('svc', 'setAutoReset: ' . $e->getMessage(), []); }
+        }
 
         if ($xui->isVpnUi()) {
             /* VPN-UI: یک اکانت مشترک روی همه اینباندها؛ یک ساب با چند کانفیگ */
