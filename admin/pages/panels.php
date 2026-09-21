@@ -152,13 +152,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
     }
 
     /* 0.0.2 #x3-tools: ابزارهای پنل نسل جدید سنایی (3x-ui) */
-    if ($act === 'x3upd' || $act === 'x3orph') {
+    if ($act === 'x3upd' || $act === 'x3orph' || $act === 'x3grp' || $act === 'x3log') {
         need('panels.edit', 'panels');
         $id = pint('id');
         $x  = Xui::forPanel($id);
         $x3 = ($x && method_exists($x, 'isXui3') && $x->isXui3()) ? $x->xui3() : null;
         if (!$x3) {
             flash('err', 'این ابزار فقط برای پنل نسل جدید سنایی (3x-ui) با توکن API کار می‌کند.');
+        } elseif ($act === 'x3grp') {
+            $raw   = trim((string)($_POST['group'] ?? ''));
+            $names = $raw === '' ? [] : (array)preg_split('/[,\s]+/u', $raw, -1, PREG_SPLIT_NO_EMPTY);
+            if (!$names) {
+                flash('err', 'نام گروه (subId) را وارد کن؛ چند گروه را با کاما جدا کن.');
+            } else {
+                try {
+                    $g = $x3->groupResetTraffic($names);
+                    if (!empty($g['ok'])) {
+                        $aff = (int)($g['affected'] ?? 0);
+                        flash('ok', '♻️ ریست ترافیک گروه انجام شد' . ($aff > 0 ? ' — ' . fa_num((string)$aff) . ' اکانت' : '') . '.');
+                    } else {
+                        flash('err', 'ریست گروهی انجام نشد: ' . h((string)($g['msg'] ?? 'نامشخص')));
+                    }
+                } catch (Throwable $e) {
+                    flash('err', 'ریست گروهی انجام نشد: ' . h($e->getMessage()));
+                }
+            }
+        } elseif ($act === 'x3log') {
+            try {
+                $lines = $x3->serverLogs(30);
+                if (!$lines) {
+                    flash('err', 'لاگی از پنل دریافت نشد؛ این نسخهٔ پنل ممکن است لاگ سرور را ارائه نکند.');
+                } else {
+                    $logOut = [];
+                    foreach (array_slice($lines, 0, 12) as $ln) $logOut[] = '<code>' . h(mb_substr((string)$ln, 0, 160)) . '</code>';
+                    flash('ok', 'آخرین لاگ‌های پنل:<br>' . implode('<br>', $logOut));
+                }
+            } catch (Throwable $e) {
+                flash('err', 'دریافت لاگ انجام نشد: ' . h($e->getMessage()));
+            }
         } elseif ($act === 'x3orph') {
             try {
                 $n = $x3->delOrphans();
@@ -465,6 +496,17 @@ foreach ($panels as $p) { if (!empty($p['last_error']) && (int)$p['active']) $pn
             <input type="hidden" name="act" value="x3orph">
             <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
             <button class="btn btn-sm">🧹 پاک‌سازی بی‌صاحب‌ها</button>
+          </form>
+          <form method="post" data-confirm="ترافیک گروه واردشده صفر شود؟"><?= csrf_field() ?>
+            <input type="hidden" name="act" value="x3grp">
+            <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
+            <input class="mono ltr" type="text" name="group" placeholder="subId" style="max-width:120px">
+            <button class="btn btn-sm">♻️ ریست گروه</button>
+          </form>
+          <form method="post"><?= csrf_field() ?>
+            <input type="hidden" name="act" value="x3log">
+            <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
+            <button class="btn btn-sm">☰ لاگ پنل</button>
           </form>
         <?php endif; ?>
         <a class="btn btn-sm" href="index.php?p=panels&inb=<?= (int)$p['id'] ?>">📡 اینباندها</a>

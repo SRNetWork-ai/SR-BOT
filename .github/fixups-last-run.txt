@@ -1,170 +1,45 @@
 Python 3.12.3
-Mon Sep 21 15:45:56 UTC 2026
-== PANELS x3-tools handler (admin/pages/panels.php lines 152-212 of 1219) ==
-  152|    }
-  153|
-  154|    /* 0.0.2 #x3-tools: ابزارهای پنل نسل جدید سنایی (3x-ui) */
-  155|    if ($act === 'x3upd' || $act === 'x3orph') {
-  156|        need('panels.edit', 'panels');
-  157|        $id = pint('id');
-  158|        $x  = Xui::forPanel($id);
-  159|        $x3 = ($x && method_exists($x, 'isXui3') && $x->isXui3()) ? $x->xui3() : null;
-  160|        if (!$x3) {
-  161|            flash('err', 'این ابزار فقط برای پنل نسل جدید سنایی (3x-ui) با توکن API کار می‌کند.');
-  162|        } elseif ($act === 'x3orph') {
-  163|            try {
-  164|                $n = $x3->delOrphans();
-  165|                flash('ok', $n > 0
-  166|                    ? ('🧹 ' . fa_num((string)$n) . ' اکانت بی‌صاحب حذف شد.')
-  167|                    : 'اکانت بی‌صاحبی برای حذف پیدا نشد.');
-  168|            } catch (Throwable $e) {
-  169|                flash('err', 'پاک‌سازی انجام نشد: ' . h($e->getMessage()));
-  170|            }
-  171|        } else {
-  172|            try {
-  173|                $u = $x3->panelUpdateInfo();
-  174|                if (!$u) {
-  175|                    flash('err', 'دریافت اطلاعات نسخهٔ پنل ناموفق بود.');
-  176|                } elseif (!empty($u['available'])) {
-  177|                    flash('ok', '⬆️ نسخهٔ تازهٔ پنل موجود است: <code>' . h((string)$u['latest'])
-  178|                        . '</code> (نسخهٔ فعلی: <code>' . h((string)$u['current']) . '</code>)');
-  179|                } else {
-  180|                    flash('ok', '✅ پنل به‌روز است'
-  181|                        . ((string)$u['current'] !== '' ? ' (نسخهٔ <code>' . h((string)$u['current']) . '</code>)' : '') . '.');
-  182|                }
-  183|            } catch (Throwable $e) {
-  184|                flash('err', 'بررسی نسخه انجام نشد: ' . h($e->getMessage()));
-  185|            }
-  186|        }
-  187|        back('panels', ['inb' => $id]);
-  188|    }
-  189|
-  190|    if ($act === 'health') {
-  191|        need('panels.health', 'panels');
-  192|        $id = pint('id');
-  193|        $x  = Xui::forPanel($id);
-  194|        if (!$x) {
-  195|            flash('err', 'پنل پیدا نشد.');
-  196|        } else {
-  197|            $r = $x->healthCheck();
-  198|            if (!empty($r['ok'])) {
-  199|                $cnt = isset($r['inbounds']) ? (is_array($r['inbounds']) ? count($r['inbounds']) : (int)$r['inbounds']) : null;
-  200|                flash('ok', '✅ اتصال به پنل موفق بود.' . ($cnt !== null ? ' تعداد اینباند: ' . fa_num($cnt) : ''));
-  201|            } else {
-  202|                flash('err', '❌ اتصال ناموفق: ' . h((string)($r['error'] ?? $r['message'] ?? 'نامشخص')));
-  203|            }
-  204|        }
-  205|        back('panels', ['inb' => $id]);
-  206|    }
-  207|}
-  208|
-  209|$panels = DB::all('SELECT * FROM {p}panels ORDER BY sort ASC, id ASC');
-  210|$editId = (int)($_GET['edit'] ?? 0);
-  211|$e      = $editId ? DB::one('SELECT * FROM {p}panels WHERE id = :id', [':id' => $editId]) : null;
-  212|$inbId  = (int)($_GET['inb'] ?? 0);
-== PANELS x3-tools UI (admin/pages/panels.php lines 453-491 of 1219) ==
-  453|            <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
-  454|            <button class="btn btn-sm">🔍 تست اتصال</button>
-  455|          </form>
-  456|        <?php endif; ?>
-  457|        <?php /* 0.0.2 #x3-tools-ui */ if (can('panels.edit') && class_exists('Xui')
-  458|            && Xui::normType((string)($p['type'] ?? '')) === 'sanaei'): ?>
-  459|          <form method="post"><?= csrf_field() ?>
-  460|            <input type="hidden" name="act" value="x3upd">
-  461|            <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
-  462|            <button class="btn btn-sm">⬆️ نسخهٔ پنل</button>
-  463|          </form>
-  464|          <form method="post" data-confirm="اکانت‌های بی‌صاحب پنل «<?= h((string)$p['name']) ?>» حذف شوند؟"><?= csrf_field() ?>
-  465|            <input type="hidden" name="act" value="x3orph">
-  466|            <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
-  467|            <button class="btn btn-sm">🧹 پاک‌سازی بی‌صاحب‌ها</button>
-  468|          </form>
-  469|        <?php endif; ?>
-  470|        <a class="btn btn-sm" href="index.php?p=panels&inb=<?= (int)$p['id'] ?>">📡 اینباندها</a>
-  471|        <?php if (can('panels.edit')): ?>
-  472|          <form method="post"><?= csrf_field() ?>
-  473|            <input type="hidden" name="act" value="toggle">
-  474|            <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
-  475|            <button class="btn btn-sm"><?= $on ? '⏸' : '▶️' ?></button>
-  476|          </form>
-  477|        <?php endif; ?>
-  478|        <?php if (can('panels.delete')): ?>
-  479|          <form method="post" data-confirm="پنل «<?= h((string)$p['name']) ?>» حذف شود؟"><?= csrf_field() ?>
-  480|            <input type="hidden" name="act" value="del">
-  481|            <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
-  482|            <button class="btn btn-sm btn-red">🗑</button>
-  483|          </form>
-  484|        <?php endif; ?>
-  485|      </div>
-  486|    </div>
-  487|  <?php endforeach; ?>
-  488|
-  489|  <?php if (can('panels.create')): ?>
-  490|    <button type="button" class="pn-add" data-modal="mPanel">
-  491|      <span class="p">➕</span>
-== XUI3 delOrphans (app/Panel/Xui3.php lines 835-875 of 928) ==
-  835|            'depleted' => (int)($s['depletedCount'] ?? 0),
-  836|            'expiring' => (int)($s['expiringCount'] ?? 0),
-  837|        ];
-  838|    }
-  839|
-  840|    /** delete clients that are no longer attached to any inbound */
-  841|    public function delOrphans(): int
-  842|    {
-  843|        $r = $this->api('/clients/delOrphans', [], 'POST');
-  844|        if (($r['success'] ?? false) !== true) return 0;
-  845|        return (int)(((array)($r['obj'] ?? []))['deleted'] ?? 0);
-  846|    }
-  847|
-  848|    /** zero the counters of many accounts in one call; returns affected count */
-  849|    public function bulkResetTraffic(array $emails): int
-  850|    {
-  851|        $emails = array_values(array_filter(array_map('strval', $emails), static fn($e) => trim($e) !== ''));
-  852|        if (!$emails) return 0;
-  853|        $r = $this->api('/clients/bulkResetTraffic', ['emails' => $emails], 'POST');
-  854|        if (($r['success'] ?? false) !== true) return 0;
-  855|        return (int)(((array)($r['obj'] ?? []))['affected'] ?? 0);
-  856|    }
-  857|
-  858|    /** can per-client IP limits be enforced on this host? (needs Fail2ban) */
-  859|    public function ipLimitStatus(): array
-  860|    {
-  861|        $r = $this->api('/server/fail2banStatus');
-  862|        $o = (array)($r['obj'] ?? []);
-  863|        return [
-  864|            'ok'        => ($r['success'] ?? false) === true,
-  865|            'usable'    => !empty($o['usable']),
-  866|            'installed' => !empty($o['installed']),
-  867|            'enabled'   => !empty($o['enabled']),
-  868|        ];
-  869|    }
-  870|
-  871|    /** is a newer 3x-ui release available for this panel? */
-  872|    public function panelUpdateInfo(): array
-  873|    {
-  874|        $r = $this->api('/server/getPanelUpdateInfo');
-  875|        if (($r['success'] ?? false) !== true) return [];
-== grep PANELS act cases (admin/pages/panels.php) \$act === ' ==
-  11: if ($act === 'save') {
-  126: if ($act === 'del') {
-  134: if ($act === 'toggle') {
-  142: if ($act === 'setinb') { /* fixed79: ثبت گروه‌ها/اینباندهای تیک‌خورده */
-  155: if ($act === 'x3upd' || $act === 'x3orph') {
-  162: } elseif ($act === 'x3orph') {
-  190: if ($act === 'health') {
-== grep PANELS flash/back (admin/pages/panels.php) flash\('(ok|err)' ==
-  63: flash('err', '⛔️ در «سنایی قدیم» کانفیگ فقط روی یک اینباند ساخته می‌شود؛ لطفاً کد همان اینباند را وارد کنید.');
-  85: flash('err', $isPg
-  107: flash('err', '⚠️ ستون «توکن API» به دیتابیس اضافه نشد و توکن ذخیره نشد؛ از صفحهٔ «بروزرسانی»، تکمیل دیتابیس را اجرا کن ...
-  116: flash('ok', '✅ پنل <b>' . h($data['name']) . '</b> به‌روز شد.');
-  121: flash('ok', '✅ پنل جدید افزوده شد. دکمه‌ی «تست اتصال» را بزنید.');
-  130: flash('ok', '🗑 پنل حذف شد. (سرویس‌های قبلی در دیتابیس باقی ماندند)');
-  146: if (!$ids) { flash('err', 'هیچ موردی تیک نخورده است.'); back('panels', ['inb' => $id]); }
-  147: if (!DB::one('SELECT id FROM {p}panels WHERE id = :id', [':id' => $id])) { flash('err', 'پنل پیدا نشد.'); back('panels ...
-  150: flash('ok', '✅ ' . fa_num((string)count($ids)) . ' مورد به‌عنوان گروه/اینباند پنل ثبت شد: <code>' . h(implode(',', $id ...
-  161: flash('err', 'این ابزار فقط برای پنل نسل جدید سنایی (3x-ui) با توکن API کار می‌کند.');
-  165: flash('ok', $n > 0
-  169: flash('err', 'پاک‌سازی انجام نشد: ' . h($e->getMessage()));
-build: fixed112
-changed files: 0 (recon run)
+Mon Sep 21 15:50:41 UTC 2026
+patched app/Panel/Xui3.php by regex (0.0.2 #x3-groups)
+patched admin/pages/panels.php by regex ('x3orph' || $act === 'x3grp')
+patched admin/pages/panels.php by regex (elseif ($act === 'x3grp'))
+patched admin/pages/panels.php by regex (value="x3grp")
+wrote app/Panel/Xui3.php
+wrote admin/pages/panels.php
+php lint: on
+changed files: 2
+sanity app/Panel/Xui3.php / function groupResetTraffic : ok
+sanity app/Panel/Xui3.php / function serverLogs : ok
+sanity admin/pages/panels.php / elseif ($act === 'x3grp') : ok
+sanity admin/pages/panels.php / value="x3log" : ok
+sanity admin/pages/panels.php / x3orph : ok
+== PANELS tools row (admin/pages/panels.php lines 457-482 of 1261) ==
+  457|
+  458|      <div class="pn-tags">
+  459|        <span class="badge b-blue"><?= Xui::normType((string)($p['type'] ?? '')) === 'pasarguard' ? '🗂 گروه' : '📡 اینباند' ?>: <?= h((string)($p['inbound_ids'] ?: 'همه')) ?></span>
+  460|        <?php if ((int)$p['test_enabled']): ?>
+  461|          <span class="badge b-orange">🧪 تست <?= h(Svc::testVolumeLabel($p)) ?></span>
+  462|        <?php endif; ?>
+  463|        <?php if (!empty($p['node_host'])): ?><span class="badge b-gray">🔀 Node</span><?php endif; ?>
+  464|        <?php if (!$on): ?><span class="badge b-gray">غیرفعال</span><?php endif; ?>
+  465|      </div>
+  466|
+  467|      <div class="pn-cap">
+  468|        <span>👥 <?= fa_num($used) ?></span>
+  469|        <span class="pn-bar <?= $pct >= 85 ? 'hot' : '' ?>"><i style="width:<?= max(3, $pct) ?>%"></i></span>
+  470|        <span><?= $lim < 0 ? '∞' : fa_num($lim) ?></span>
+  471|      </div>
+  472|
+  473|      <?php if ($on && !empty($p['last_error'])): ?>
+  474|        <div class="pn-err">⚠️ <?= h(mb_substr((string)$p['last_error'], 0, 120)) ?></div>
+  475|      <?php endif; ?>
+  476|
+  477|      <div class="pn-acts">
+  478|        <?php if (can('panels.edit')): ?>
+  479|          <a class="btn btn-sm" href="index.php?p=panels&edit=<?= (int)$p['id'] ?>">✏️ ویرایش</a>
+  480|        <?php endif; ?>
+  481|        <?php if (can('panels.health')): ?>
+  482|          <form method="post"><?= csrf_field() ?>
+changelog: entry added
+build: fixed113
 exit: 0

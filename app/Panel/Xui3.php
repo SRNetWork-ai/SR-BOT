@@ -855,6 +855,61 @@ class Xui3
         return (int)(((array)($r['obj'] ?? []))['affected'] ?? 0);
     }
 
+    /* 0.0.2 #x3-groups: ریست ترافیک گروهی و لاگ سرور — پنل نسل جدید سنایی */
+
+    /** emails of one client group (subId group) */
+    public function groupEmails(string $name): array
+    {
+        $name = trim($name);
+        if ($name === '') return [];
+        $r = $this->api('/clients/groups/' . rawurlencode($name) . '/emails');
+        if (($r['success'] ?? false) !== true) return [];
+        $out = [];
+        foreach ((array)($r['obj'] ?? []) as $row) {
+            if (is_string($row)) {
+                $e = trim($row);
+            } else {
+                $row = (array)$row;
+                $e = trim((string)($row['email'] ?? $row['name'] ?? ''));
+            }
+            if ($e !== '') $out[] = $e;
+        }
+        return array_values(array_unique($out));
+    }
+
+    /** zero the traffic counters of one or more client groups */
+    public function groupResetTraffic(array $names): array
+    {
+        $names = array_values(array_filter(array_map('trim', array_map('strval', $names)), static fn($n) => $n !== ''));
+        if (!$names) return ['ok' => false, 'affected' => 0, 'msg' => 'نام گروه خالی است'];
+        $r = $this->api('/clients/groups/resetTraffic', ['groups' => $names], 'POST');
+        if (($r['success'] ?? false) !== true) {
+            $r2 = $this->api('/clients/groups/resetTraffic', ['names' => $names], 'POST');
+            if (($r2['success'] ?? false) !== true) {
+                return ['ok' => false, 'affected' => 0, 'msg' => (string)($r['msg'] ?? 'خطا در ریست گروهی')];
+            }
+            $r = $r2;
+        }
+        $o = (array)($r['obj'] ?? []);
+        return ['ok' => true, 'affected' => (int)($o['affected'] ?? $o['count'] ?? 0)];
+    }
+
+    /** last lines of the panel server log */
+    public function serverLogs(int $count = 50): array
+    {
+        $count = max(1, min(500, $count));
+        $r = $this->api('/server/logs/' . $count);
+        if (($r['success'] ?? false) !== true) $r = $this->api('/server/logs/' . $count, [], 'POST');
+        if (($r['success'] ?? false) !== true) return [];
+        $out = [];
+        foreach ((array)($r['obj'] ?? []) as $row) {
+            $line = is_string($row) ? $row : (string)(((array)$row)['line'] ?? ((array)$row)['msg'] ?? '');
+            $line = trim($line);
+            if ($line !== '') $out[] = $line;
+        }
+        return $out;
+    }
+
     /** can per-client IP limits be enforced on this host? (needs Fail2ban) */
     public function ipLimitStatus(): array
     {
