@@ -730,7 +730,7 @@ class Svc
          */
         if (!$t) {
             $alive = false;
-            try { $alive = $xui->inbounds() !== []; } catch (Throwable $e) { $alive = false; }
+            try { $alive = method_exists($xui, 'pingFast') ? $xui->pingFast() : ($xui->inbounds() !== []); } catch (Throwable $e) { $alive = false; }
             if (!$alive) { $stamp($sid); return array_merge($service, ['last_sync' => now()]); }
 
             $miss = (int)($service['panel_miss'] ?? 0) + 1;

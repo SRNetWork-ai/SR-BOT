@@ -27,6 +27,8 @@ class Xui3
     private array $created = [];
     /** کش اینباندها در طول عمر همین درخواست */
     private ?array $inboundCache = null;
+    /** کش فهرست سبک اینباندها (list/slim) */
+    private ?array $slimCache = null;
     /** کش لینک‌های هر اکانت */
     private array $linksCache = [];
     /** لینک‌هایی که در حلقه ساخت سرویس قبلاً تحویل شده‌اند (جلوگیری از تکرار) */
@@ -184,6 +186,40 @@ class Xui3
     {
         $r = $this->api('/inbounds/options');
         return ($r['success'] ?? false) === true ? (array)($r['obj'] ?? []) : [];
+    }
+
+    /* 0.0.2 #x3-slim: فهرست سبک اینباندها — مناسب انتخاب و تست سریع */
+    public function inboundsSlim(): array
+    {
+        if ($this->slimCache !== null) return $this->slimCache;
+        $r    = $this->api('/inbounds/list/slim');
+        $rows = ($r['success'] ?? false) === true ? (array)($r['obj'] ?? []) : $this->inboundOptions();
+        $out  = [];
+        foreach ($rows as $row) {
+            if (is_numeric($row)) {
+                $out[] = ['id' => (int)$row, 'remark' => '', 'protocol' => '', 'port' => 0, 'enable' => true, 'clients' => 0];
+                continue;
+            }
+            $row = (array)$row;
+            $id  = (int)($row['id'] ?? 0);
+            if ($id <= 0) continue;
+            $out[] = [
+                'id'       => $id,
+                'remark'   => (string)($row['remark'] ?? $row['name'] ?? ''),
+                'protocol' => (string)($row['protocol'] ?? ''),
+                'port'     => (int)($row['port'] ?? 0),
+                'enable'   => !isset($row['enable']) || !empty($row['enable']),
+                'clients'  => (int)($row['clientCount'] ?? $row['clients'] ?? 0),
+            ];
+        }
+        return $this->slimCache = $out;
+    }
+
+    /** تست سریع زنده‌بودن پنل با یک درخواست سبک */
+    public function ping(): bool
+    {
+        if ($this->inboundsSlim() !== []) return true;
+        return $this->inbounds() !== [];
     }
 
     public function allowedInboundIds(): array

@@ -281,6 +281,31 @@ class Xui
         return ($r['success'] ?? false) ? (array)($r['obj'] ?? []) : [];
     }
 
+    /* 0.0.2 #x3-slim: فهرست سبک اینباندها و تست سریع اتصال */
+    public function inboundsSlim(): array
+    {
+        if ($this->x3) return $this->x3->inboundsSlim();
+        $out = [];
+        foreach ($this->inbounds() as $in) {
+            $out[] = [
+                'id'       => (int)($in['id'] ?? 0),
+                'remark'   => (string)($in['remark'] ?? ''),
+                'protocol' => (string)($in['protocol'] ?? ''),
+                'port'     => (int)($in['port'] ?? 0),
+                'enable'   => !isset($in['enable']) || !empty($in['enable']),
+                'clients'  => 0,
+            ];
+        }
+        return $out;
+    }
+
+    /** تست سریع زنده‌بودن پنل بدون خواندن کل اینباندها */
+    public function pingFast(): bool
+    {
+        if ($this->x3) return $this->x3->ping();
+        return $this->inbounds() !== [];
+    }
+
     public function inbound(int $id): ?array
     {
         if ($this->mz) return $this->mz->inbound($id);
