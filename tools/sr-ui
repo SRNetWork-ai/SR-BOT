@@ -1,0 +1,273 @@
+#!/usr/bin/env bash
+# SR-UI — مدیر خط فرمان SR-BOT
+#   sr-ui                 منوی تعاملی
+#   sr-ui status|restart|update|backup|restore|logs|webhook|token|ssl|domain|cron|db|perms|info|uninstall
+set -uo pipefail
+
+CONF="/etc/sr-bot/sr-ui.conf"
+if [ ! -r "$CONF" ]; then
+  echo "SR-BOT روی این سرور نصب نشده است (فایل $CONF پیدا نشد)."
+  echo "نصب: bash <(curl -fsSL https://raw.githubusercontent.com/SRNetWork-ai/SR-BOT/main/install.sh)"
+  exit 1
+fi
+# shellcheck disable=SC1090
+. "$CONF"
+
+ROOT_DIR="${ROOT_DIR:-/var/www/sr-bot}"
+PHPBIN="${PHPBIN:-php}"
+WEBUSER="${WEBUSER:-www-data}"
+FPM_SERVICE="${FPM_SERVICE:-php-fpm}"
+PORT="${PORT:-80}"
+DOMAIN="${DOMAIN:-}"
+VHOST="${VHOST:-/etc/nginx/conf.d/sr-bot.conf}"
+DB_NAME="${DB_NAME:-srbot}"
+DB_USER="${DB_USER:-srbot}"
+DB_PASS="${DB_PASS:-}"
+REPO="${REPO:-SRNetWork-ai/SR-BOT}"
+BRANCH="${BRANCH:-main}"
+
+C0=$'\033[0m'; CB=$'\033[1;36m'; CG=$'\033[1;32m'; CY=$'\033[1;33m'; CR=$'\033[1;31m'
+say(){ printf '%s %s\n' "${CB}==>${C0}" "$*"; }
+ok(){ printf '%s %s\n' "${CG}[ok]${C0}" "$*"; }
+warn(){ printf '%s %s\n' "${CY}[!]${C0}" "$*"; }
+err(){ printf '%s %s\n' "${CR}[x]${C0}" "$*"; }
+pause(){ printf '\n'; read -r -p "برای ادامه Enter بزنید…" _ || true; }
+
+cli(){
+  if command -v sudo >/dev/null 2>&1 && id -u "$WEBUSER" >/dev/null 2>&1; then
+    ( cd "$ROOT_DIR" && sudo -u "$WEBUSER" "$PHPBIN" cli.php "$@" )
+  else
+    ( cd "$ROOT_DIR" && "$PHPBIN" cli.php "$@" )
+  fi
+}
+
+svc(){ systemctl "$1" "$2" >/dev/null 2>&1 && ok "$2: $1" || warn "$2: عملیات $1 انجام نشد"; }
+
+site_url(){
+  local host="$DOMAIN"
+  if [ -z "$host" ]; then host="$(hostname -I 2>/dev/null | awk '{print $1}')"; fi
+  if [ "$PORT" = "443" ] || grep -q "listen 443" "$VHOST" 2>/dev/null; then
+    printf 'https://%s' "$host"
+  elif [ "$PORT" = "80" ]; then
+    printf 'http://%s' "$host"
+  else
+    printf 'http://%s:%s' "$host" "$PORT"
+  fi
+}
+
+c_status(){
+  say "وضعیت سرویس‌ها"
+  local s
+  for s in nginx "$FPM_SERVICE" mariadb mysql; do
+    if systemctl list-unit-files 2>/dev/null | grep -q "^$s.service"; then
+      printf '  %-16s %s\n' "$s" "$(systemctl is-active "$s" 2>/dev/null)"
+    fi
+  done
+  if [ -f /etc/cron.d/sr-bot ]; then printf '  %-16s %s\n' "cron" "نصب شده"; else printf '  %-16s %s\n' "cron" "نصب نشده"; fi
+  printf '  %-16s %s\n' "مسیر" "$ROOT_DIR"
+  printf '  %-16s %s\n' "آدرس" "$(site_url)"
+  if [ -f "$ROOT_DIR/version.json" ]; then
+    printf '  %-16s %s\n' "نسخه" "$("$PHPBIN" -r '$j=json_decode(file_get_contents($argv[1]),true);echo ($j["version"]??"?")." (".($j["build"]??"-").")";' "$ROOT_DIR/version.json" 2>/dev/null)"
+  fi
+  if [ -f "$ROOT_DIR/config.php" ]; then ok "config.php موجود است"; else warn "config.php ساخته نشده؛ نصاب وب را باز کنید: $(site_url)/install/"; fi
+  local code
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 "$(site_url)/" 2>/dev/null || echo 000)"
+  printf '  %-16s %s\n' "پاسخ وب" "$code"
+}
+
+c_restart(){ svc restart nginx; svc restart "$FPM_SERVICE"; }
+c_start(){ svc start nginx; svc start "$FPM_SERVICE"; }
+c_stop(){ svc stop nginx; }
+
+c_update(){
+  say "به‌روزرسانی از مخزن $REPO@$BRANCH"
+  cli check || true
+  local a=""
+  read -r -p "به‌روزرسانی انجام شود؟ (y/n) [y]: " a || true
+  if [ "$a" = "n" ] || [ "$a" = "N" ]; then return 0; fi
+  cli update
+  c_perms
+  svc restart "$FPM_SERVICE"
+}
+
+c_backup(){
+  local a=""
+  read -r -p "نوع بکاپ (db/full) [db]: " a || true
+  if [ "$a" != "full" ]; then a="db"; fi
+  cli backup "$a"
+}
+
+c_restore(){
+  cli list
+  local f=""
+  read -r -p "نام فایل بکاپ: " f || true
+  if [ -z "$f" ]; then warn "نامی وارد نشد."; return 0; fi
+  cli restore "$f"
+}
+
+c_logs(){
+  say "۲۰ خط آخر لاگ‌ها"
+  local f
+  for f in /var/log/nginx/sr-bot.error.log "$ROOT_DIR/storage/logs/app.log" "$ROOT_DIR/storage/logs/error.log"; do
+    if [ -f "$f" ]; then printf '\n--- %s ---\n' "$f"; tail -n 20 "$f"; fi
+  done
+  if [ -d "$ROOT_DIR/storage/logs" ]; then
+    printf '\n--- آخرین فایل‌های لاگ ---\n'
+    ls -1t "$ROOT_DIR/storage/logs" 2>/dev/null | head -n 10
+  fi
+}
+
+c_webhook(){
+  local a=""
+  read -r -p "عملیات وبهوک (info/set/del) [info]: " a || true
+  if [ -z "$a" ]; then a="info"; fi
+  cli hook "$a"
+}
+
+c_token(){
+  local t=""
+  read -r -p "توکن جدید ربات: " t || true
+  if [ -z "$t" ]; then warn "توکنی وارد نشد."; return 0; fi
+  cli token "$t" --force
+}
+
+c_ssl(){
+  if [ -z "$DOMAIN" ]; then
+    read -r -p "دامنه: " DOMAIN || true
+    if [ -z "$DOMAIN" ]; then warn "بدون دامنه ممکن نیست."; return 0; fi
+    sed -i "s|^DOMAIN=.*|DOMAIN=\"$DOMAIN\"|" "$CONF"
+  fi
+  if ! command -v certbot >/dev/null 2>&1; then
+    if command -v apt-get >/dev/null 2>&1; then DEBIAN_FRONTEND=noninteractive apt-get install -y certbot python3-certbot-nginx >/dev/null 2>&1
+    else (dnf install -y certbot python3-certbot-nginx || yum install -y certbot python3-certbot-nginx) >/dev/null 2>&1; fi
+  fi
+  certbot --nginx -d "$DOMAIN" --agree-tos --redirect --non-interactive --register-unsafely-without-email && ok "SSL فعال شد." || err "نصب SSL ناموفق بود."
+}
+
+c_domain(){
+  local d="" p=""
+  read -r -p "دامنهٔ جدید (خالی = بدون دامنه) [$DOMAIN]: " d || true
+  read -r -p "پورت جدید [$PORT]: " p || true
+  if [ -n "$d" ]; then DOMAIN="$d"; fi
+  if [ -n "$p" ]; then PORT="$p"; fi
+  if [ -f "$VHOST" ]; then
+    sed -i "s|^\( *listen \).*;|\1$PORT;|" "$VHOST"
+    sed -i "s|^\( *server_name \).*;|\1${DOMAIN:-_};|" "$VHOST"
+    nginx -t >/dev/null 2>&1 && systemctl reload nginx >/dev/null 2>&1 && ok "وب‌سرور به‌روزرسانی شد." || err "پیکربندی nginx معتبر نیست."
+  fi
+  sed -i "s|^DOMAIN=.*|DOMAIN=\"$DOMAIN\"|" "$CONF"
+  sed -i "s|^PORT=.*|PORT=\"$PORT\"|" "$CONF"
+  if [ -f "$ROOT_DIR/config.php" ]; then
+    warn "آدرس سایت را در «تنظیمات → آدرس» پنل هم به‌روز کنید و سپس وبهوک را دوباره ست کنید."
+  fi
+}
+
+c_cron(){
+  if [ -f /etc/cron.d/sr-bot ]; then
+    printf '%s\n' "$(cat /etc/cron.d/sr-bot)"
+    local a=""
+    read -r -p "حذف شود؟ (y/n) [n]: " a || true
+    if [ "$a" = "y" ]; then rm -f /etc/cron.d/sr-bot; ok "کران حذف شد."; fi
+  else
+    printf '%s\n' "*/5 * * * * $WEBUSER $PHPBIN $ROOT_DIR/cron/tasks.php >/dev/null 2>&1" >/etc/cron.d/sr-bot
+    chmod 644 /etc/cron.d/sr-bot
+    ok "کران هر ۵ دقیقه نصب شد."
+  fi
+}
+
+c_db(){
+  say "کنسول دیتابیس ($DB_NAME) — برای خروج exit بزنید"
+  mysql -u"$DB_USER" -p"$DB_PASS" "$DB_NAME"
+}
+
+c_perms(){
+  chown -R "$WEBUSER":"$WEBUSER" "$ROOT_DIR" 2>/dev/null || true
+  find "$ROOT_DIR" -type d -exec chmod 755 {} + 2>/dev/null || true
+  find "$ROOT_DIR" -type f -exec chmod 644 {} + 2>/dev/null || true
+  chmod -R 775 "$ROOT_DIR/storage" 2>/dev/null || true
+  if [ -f "$ROOT_DIR/config.php" ]; then chmod 640 "$ROOT_DIR/config.php"; fi
+  ok "مجوزها اصلاح شد."
+}
+
+c_info(){
+  say "اطلاعات نصب"
+  printf '  مسیر    : %s\n' "$ROOT_DIR"
+  printf '  آدرس    : %s\n' "$(site_url)"
+  printf '  دیتابیس : %s (کاربر %s)\n' "$DB_NAME" "$DB_USER"
+  printf '  مخزن    : %s@%s\n' "$REPO" "$BRANCH"
+  printf '  وب‌سرور : %s | php-fpm: %s\n' "nginx" "$FPM_SERVICE"
+  cli version 2>/dev/null || true
+}
+
+c_uninstall(){
+  warn "این کار فایل‌ها، وب‌سرور و کران SR-BOT را حذف می‌کند."
+  local a=""
+  read -r -p "برای تأیید کلمهٔ yes را تایپ کنید: " a || true
+  if [ "$a" != "yes" ]; then say "لغو شد."; return 0; fi
+  local b=""
+  read -r -p "دیتابیس $DB_NAME هم حذف شود؟ (y/n) [n]: " b || true
+  if [ -d "$ROOT_DIR/storage/backups" ]; then
+    mkdir -p /root/sr-bot-backups
+    cp -a "$ROOT_DIR/storage/backups/." /root/sr-bot-backups/ 2>/dev/null || true
+    ok "بکاپ‌ها در /root/sr-bot-backups نگه داشته شد."
+  fi
+  rm -f /etc/cron.d/sr-bot
+  rm -f "$VHOST" /etc/nginx/sites-enabled/sr-bot.conf
+  systemctl reload nginx >/dev/null 2>&1 || true
+  rm -rf "$ROOT_DIR"
+  if [ "$b" = "y" ]; then mysql -uroot -e "DROP DATABASE IF EXISTS $DB_NAME;" >/dev/null 2>&1 || warn "حذف دیتابیس ناموفق بود."; fi
+  rm -f /usr/local/bin/srui
+  ok "حذف شد. (برای پاک کردن کامل: rm -f /usr/local/bin/sr-ui /etc/sr-bot/sr-ui.conf)"
+  exit 0
+}
+
+menu(){
+  while true; do
+    printf '\n%s\n' "${CB}============ SR-UI — مدیریت SR-BOT ============${C0}"
+    printf '%s\n' "  1) وضعیت سرویس‌ها"
+    printf '%s\n' "  2) ری‌استارت وب‌سرور و PHP"
+    printf '%s\n' "  3) به‌روزرسانی ربات"
+    printf '%s\n' "  4) بکاپ گرفتن"
+    printf '%s\n' "  5) بازیابی بکاپ"
+    printf '%s\n' "  6) مهاجرت دیتابیس (migrate)"
+    printf '%s\n' "  7) وبهوک تلگرام"
+    printf '%s\n' "  8) تغییر توکن ربات"
+    printf '%s\n' "  9) نصب/تمدید SSL"
+    printf '%s\n' " 10) تغییر دامنه یا پورت"
+    printf '%s\n' " 11) مدیریت کران"
+    printf '%s\n' " 12) نمایش لاگ‌ها"
+    printf '%s\n' " 13) اصلاح مجوز فایل‌ها"
+    printf '%s\n' " 14) کنسول دیتابیس"
+    printf '%s\n' " 15) اطلاعات نصب"
+    printf '%s\n' " 16) حذف کامل"
+    printf '%s\n' "  0) خروج"
+    local c=""
+    read -r -p "انتخاب: " c || true
+    case "$c" in
+      1) c_status; pause ;;
+      2) c_restart; pause ;;
+      3) c_update; pause ;;
+      4) c_backup; pause ;;
+      5) c_restore; pause ;;
+      6) cli migrate; pause ;;
+      7) c_webhook; pause ;;
+      8) c_token; pause ;;
+      9) c_ssl; pause ;;
+      10) c_domain; pause ;;
+      11) c_cron; pause ;;
+      12) c_logs; pause ;;
+      13) c_perms; pause ;;
+      14) c_db; pause ;;
+      15) c_info; pause ;;
+      16) c_uninstall ;;
+      0) exit 0 ;;
+      *) warn "گزینهٔ نامعتبر" ;;
+    esac
+  done
+}
+
+case "${1:-}" in
+  status) c_status ;;
+  start) c_start ;;
+  stop) c_stop ;;
+  restart) c_restart
