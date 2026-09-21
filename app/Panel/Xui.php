@@ -1048,7 +1048,7 @@ class Xui
     public function isOnline(string $email): ?bool
     {
         try {
-            if ($this->x3 !== null) return in_array($email, $this->x3->onlines(), true);
+            if ($this->x3 !== null) return in_array($email, $this->x3->onlinesAll(), true);
         } catch (Throwable $e) { }
         $ts = $this->lastOnlineOf($email);
         if ($ts <= 0) return ($this->pg !== null || $this->mz !== null) ? false : null;

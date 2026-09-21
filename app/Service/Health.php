@@ -427,6 +427,23 @@ class Health
                                 . ' | غیرفعال: ' . fa_num((string)(int)($x3sum['deactive'] ?? 0))
                         );
                     }
+                    /* 0.0.2 #x3-nodes-ui: آنلاین‌ها روی چند نود */
+                    $x3g = $x3drv->onlinesByGuid();
+                    if ($x3g) {
+                        $x3nd = [];
+                        foreach ($x3g as $x3row) {
+                            foreach ((array)($x3row['nodes'] ?? []) as $x3n) {
+                                $x3n = trim((string)$x3n);
+                                if ($x3n !== '') $x3nd[$x3n] = true;
+                            }
+                        }
+                        $out[] = self::it(
+                            'آنلاین‌های ' . $x3name,
+                            fa_num((string)count($x3g)) . ' کاربر روی ' . fa_num((string)max(1, count($x3nd))) . ' نود',
+                            'ok',
+                            $x3nd ? ('نودها: ' . implode('، ', array_slice(array_keys($x3nd), 0, 6))) : ''
+                        );
+                    }
                     $x3ip = $x3drv->ipLimitStatus();
                     if ($x3ip) {
                         $x3on = !empty($x3ip['usable']) && !empty($x3ip['enabled']);

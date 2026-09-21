@@ -450,6 +450,65 @@ class Xui3
         return is_array($o) ? array_values($o) : [];
     }
 
+    /* 0.0.2 #x3-nodes: آنلاین‌های چندنودی */
+
+    /** آنلاین‌ها به تفکیک نود (پنل‌های چندنودی) */
+    public function onlinesByGuid(): array
+    {
+        $r = $this->api('/clients/onlinesByGuid', [], 'POST');
+        if (($r['success'] ?? false) !== true) $r = $this->api('/clients/onlinesByGuid');
+        if (($r['success'] ?? false) !== true) return [];
+        $out = [];
+        foreach ((array)($r['obj'] ?? []) as $k => $row) {
+            if (is_string($row)) {
+                $em = trim($row);
+                if ($em !== '') $out[$em] = ['email' => $em, 'nodes' => []];
+                continue;
+            }
+            $row = (array)$row;
+            $em  = trim((string)($row['email'] ?? $row['name'] ?? (is_string($k) ? $k : '')));
+            if ($em === '') continue;
+            $nodes = [];
+            foreach ((array)($row['nodes'] ?? $row['node'] ?? $row['inbounds'] ?? []) as $nd) {
+                $nd = is_array($nd) ? (string)($nd['name'] ?? $nd['remark'] ?? $nd['id'] ?? '') : (string)$nd;
+                $nd = trim($nd);
+                if ($nd !== '') $nodes[] = $nd;
+            }
+            $out[$em] = ['email' => $em, 'nodes' => array_values(array_unique($nodes))];
+        }
+        return $out;
+    }
+
+    /** اینباندهای فعال روی همهٔ نودها */
+    public function activeInbounds(): array
+    {
+        $r = $this->api('/clients/activeInbounds');
+        if (($r['success'] ?? false) !== true) $r = $this->api('/clients/activeInbounds', [], 'POST');
+        if (($r['success'] ?? false) !== true) return [];
+        $out = [];
+        foreach ((array)($r['obj'] ?? []) as $row) {
+            if (is_scalar($row)) {
+                $out[] = ['id' => (int)$row, 'remark' => (string)$row, 'node' => ''];
+                continue;
+            }
+            $row   = (array)$row;
+            $out[] = [
+                'id'     => (int)($row['id'] ?? 0),
+                'remark' => (string)($row['remark'] ?? $row['name'] ?? ''),
+                'node'   => (string)($row['node'] ?? $row['nodeName'] ?? $row['server'] ?? ''),
+            ];
+        }
+        return $out;
+    }
+
+    /** فهرست یکتای ایمیل آنلاین‌ها؛ روی پنل چندنودی همهٔ نودها را پوشش می‌دهد */
+    public function onlinesAll(): array
+    {
+        $g = $this->onlinesByGuid();
+        if ($g) return array_values(array_unique(array_map('strval', array_keys($g))));
+        return $this->onlines();
+    }
+
     /** آخرین زمان اتصال کلاینت‌ها */
     public function lastOnline(): array
     {

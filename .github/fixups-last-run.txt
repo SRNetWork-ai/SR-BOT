@@ -1,130 +1,27 @@
 Python 3.12.3
-Mon Sep 21 16:40:39 UTC 2026
-== XUI3 onlines (app/Panel/Xui3.php lines 439-491 of 1019) ==
-  439|        return ($r['success'] ?? false) === true
-  440|            ? ['success' => true, 'obj' => $r['obj'] ?? null]
-  441|            : ['success' => false, 'msg' => (string)($r['msg'] ?? 'تمدید گروهی ناموفق بود')];
-  442|    }
-  443|
-  444|    /** فهرست ایمیل کلاینت‌های آنلاین */
-  445|    public function onlines(): array
-  446|    {
-  447|        $r = $this->api('/clients/onlines', [], 'POST');
-  448|        if (($r['success'] ?? false) !== true) return [];
-  449|        $o = $r['obj'] ?? [];
-  450|        return is_array($o) ? array_values($o) : [];
-  451|    }
-  452|
-  453|    /** آخرین زمان اتصال کلاینت‌ها */
-  454|    public function lastOnline(): array
-  455|    {
-  456|        $r = $this->api('/clients/lastOnline', [], 'POST');
-  457|        if (($r['success'] ?? false) !== true) return [];
-  458|        $o = $r['obj'] ?? [];
-  459|        return is_array($o) ? $o : [];
-  460|    }
-  461|
-  462|    /** همهٔ کلاینت‌های متعلق به یک آیدی تلگرام؛ برای بازیابی سرویس‌ها و ضدتکرار اکانت تست */
-  463|    public function byTgId($tgId): array
-  464|    {
-  465|        $r = $this->api('/clients/get/tgId/' . rawurlencode((string)$tgId));
-  466|        if (($r['success'] ?? false) !== true) return [];
-  467|        $o = $r['obj'] ?? [];
-  468|        if (!is_array($o)) return [];
-  469|        if (isset($o['email'])) return [self::cleanClient((array)$o)];
-  470|        $out = [];
-  471|        foreach ($o as $c) {
-  472|            if (is_array($c)) $out[] = self::cleanClient($c);
-  473|        }
-  474|        return $out;
-  475|    }
-  476|
-  477|    /** فعال یا غیرفعال کردن گروهی کلاینت‌ها */
-  478|    public function setEnabled(array $emails, bool $on): array
-  479|    {
-  480|        $emails = array_values(array_filter(array_map('strval', $emails)));
-  481|        if (!$emails) return ['success' => false, 'msg' => 'فهرست ایمیل خالی است'];
-  482|        $r = $this->api($on ? '/clients/bulkEnable' : '/clients/bulkDisable', ['emails' => $emails], 'POST');
-  483|        return ($r['success'] ?? false) === true
-  484|            ? ['success' => true]
-  485|            : ['success' => false, 'msg' => (string)($r['msg'] ?? 'تغییر وضعیت گروهی ناموفق بود')];
-  486|    }
-  487|
-  488|    /* ---------------------- فاز ۳ و ۴: نگهداری و مانیتورینگ ---------------------- */
-  489|
-  490|    /** حذف کلاینت‌های تمام‌شده (حجم یا زمان) — inboundId = -1 یعنی همهٔ اینباندها */
-  491|    public function delDepleted(int $inboundId = -1): array
-== HEALTH x3 block (app/Service/Health.php lines 402-453 of 500) ==
-  402|        $out[] = self::it('پنل‌های ثبت‌شده',
-  403|            fa_num((string)$tot) . ' پنل (فعال: ' . fa_num((string)$act) . ')',
-  404|            $act > 0 ? 'ok' : 'err', $act > 0 ? '' : 'حداقل یک پنل فعال لازم است.');
-  405|        /* 0.0.2 #x3-health: آمار زندهٔ پنل‌های نسل جدید سنایی (3x-ui) */
-  406|        if ($live && class_exists('Xui3')) {
-  407|            $x3seen = 0;
-  408|            foreach ((DB::all('SELECT * FROM {p}panels WHERE active = 1 ORDER BY id') ?: []) as $x3p) {
-  409|                if ($x3seen >= 3) break;
-  410|                $x3type = class_exists('Xui') ? Xui::normType((string)($x3p['type'] ?? '')) : '';
-  411|                if ($x3type !== 'sanaei' || !Xui3::hasToken($x3p)) continue;
-  412|                $x3seen++;
-  413|                $x3name = trim((string)($x3p['name'] ?? '')) !== ''
-  414|                    ? (string)$x3p['name']
-  415|                    : ('#' . (int)($x3p['id'] ?? 0));
-  416|                try {
-  417|                    $x3drv = new Xui3($x3p);
-  418|                    $x3sum = $x3drv->clientsSummary();
-  419|                    if ($x3sum) {
-  420|                        $out[] = self::it(
-  421|                            'کاربران ' . $x3name,
-  422|                            'کل ' . fa_num((string)(int)($x3sum['total'] ?? 0))
-  423|                                . ' • آنلاین ' . fa_num((string)(int)($x3sum['online'] ?? 0)),
-  424|                            'ok',
-  425|                            'رو به انقضا: ' . fa_num((string)(int)($x3sum['expiring'] ?? 0))
-  426|                                . ' | اتمام حجم: ' . fa_num((string)(int)($x3sum['depleted'] ?? 0))
-  427|                                . ' | غیرفعال: ' . fa_num((string)(int)($x3sum['deactive'] ?? 0))
-  428|                        );
-  429|                    }
-  430|                    $x3ip = $x3drv->ipLimitStatus();
-  431|                    if ($x3ip) {
-  432|                        $x3on = !empty($x3ip['usable']) && !empty($x3ip['enabled']);
-  433|                        $out[] = self::it(
-  434|                            'محدودیت IP ' . $x3name,
-  435|                            $x3on ? 'فعال' : (!empty($x3ip['installed']) ? 'نصب است ولی خاموش' : 'نصب نیست'),
-  436|                            $x3on ? 'ok' : 'warn',
-  437|                            'برای جلوگیری از اشتراک‌گذاری کانفیگ، Fail2ban را در پنل روشن کنید.'
-  438|                        );
-  439|                    }
-  440|                } catch (Throwable $x3e) {
-  441|                    $out[] = self::it('پنل ' . $x3name, 'بررسی نشد', 'warn', $x3e->getMessage());
-  442|                }
-  443|            }
-  444|        }
-  445|
-  446|
-  447|        $rows  = DB::all('SELECT name, last_error, user_limit, users_created FROM {p}panels WHERE active = 1 ORDER BY sort ASC, id ASC');
-  448|        $clean = true;
-  449|        foreach ($rows as $p) {
-  450|            $name = (string)($p['name'] ?? '-');
-  451|            $err  = trim((string)($p['last_error'] ?? ''));
-  452|            if ($err !== '') {
-  453|                $clean = false;
-== grep_tree onlines callers -> ->onlines\(|activeInbounds|onlinesByGuid ==
-  app/Panel/Xui.php:1051: if ($this->x3 !== null) return in_array($email, $this->x3->onlines(), true);
-  cron/tasks.php:213: $ox = (new Xui3($pn))->onlines();
-== grep_tree cron entry -> tasks\.php ==
-  CHANGELOG.md:91: - `cron/tasks.php`: نگهداری لاگ‌ها از تنظیم `logs_keep_days` خوانده می‌شود (حداقل ۷ روز).
-  CHANGELOG.md:118: - فایل‌های تغییریافته: `app/Bot/Bot.php`, `app/Bot/AdminBot.php`, `app/Bot/AdminHub.php`, `app/Service/M ...
-  CONTRIBUTING.md:27: | `cron/tasks.php` | وظایف دوره‌ای |
-  README.md:81: */5 * * * * php /var/www/srbot/cron/tasks.php >/dev/null 2>&1
-  README.md:99: php /home/USER/public_html/cron/tasks.php
-  README.md:221: ├── cron/tasks.php         وظایف دوره‌ای
-  install/index.php:533: <div class="copy-line"><code>php <?= h(APP_ROOT) ?>/cron/tasks.php</code>
-  install/index.php:534: <button class="btn btn-sm" data-copy="php <?= h(APP_ROOT) ?>/cron/tasks.php">کپی</button></div>
-  app/Service/Health.php:357: $cmd  = 'php ' . APP_ROOT . '/cron/tasks.php';
-  admin/pages/backup.php:595: <div class="ln"><code>*/5 * * * * php <?= h(APP_ROOT) ?>/cron/tasks.php &gt;/dev/null 2&gt;&amp;1</code> ...
-  admin/pages/health.php:381: <div class="copy-line" data-copy="*/10 * * * * php <?= h(APP_ROOT) ?>/cron/tasks.php >/dev/null 2>&1">*/ ...
-  admin/pages/settings.php:1127: <div class="copy-line"><code>*/10 * * * * php <?= h(APP_ROOT) ?>/cron/tasks.php >/dev/null 2>&amp;1</cod ...
-  admin/pages/settings.php:1128: <button class="btn btn-sm" data-copy="*/10 * * * * php <?= h(APP_ROOT) ?>/cron/tasks.php >/dev/null 2>&1 ...
-  cron/tasks.php:4: * اجرا: php /path/to/cron/tasks.php   (هر ۵ تا ۱۵ دقیقه یکبار)
-build: fixed116
-changed files: 0 (recon run)
+Mon Sep 21 16:52:36 UTC 2026
+bash -n install.sh : ok
+chmod 0755 install.sh (mode 0o755)
+bash -n tools/sr-ui : ok
+chmod 0755 tools/sr-ui (mode 0o755)
+patched app/Panel/Xui3.php (function onlinesByGuid)
+patched app/Panel/Xui.php (x3->onlinesAll()
+patched cron/tasks.php (onlinesAll())
+patched app/Service/Health.php (0.0.2 #x3-nodes-ui)
+wrote app/Panel/Xui3.php
+wrote app/Panel/Xui.php
+wrote cron/tasks.php
+wrote app/Service/Health.php
+php lint: on
+changed files: 4
+sanity app/Panel/Xui3.php / function onlinesByGuid : ok
+sanity app/Panel/Xui3.php / function activeInbounds : ok
+sanity app/Panel/Xui3.php / function onlinesAll : ok
+sanity app/Panel/Xui.php / x3->onlinesAll( : ok
+sanity cron/tasks.php / onlinesAll() : ok
+sanity app/Service/Health.php / 0.0.2 #x3-nodes-ui : ok
+sanity install.sh / install_srui : ok
+sanity tools/sr-ui / c_uninstall : ok
+changelog: entry added
+build: fixed117
 exit: 0

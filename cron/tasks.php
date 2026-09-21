@@ -210,7 +210,7 @@ try {
                 $onl = -1;
                 if ($isOn && $ok && class_exists('Xui3') && Xui3::hasToken($pn)) {
                     try {
-                        $ox = (new Xui3($pn))->onlines();
+                        $x3d = new Xui3($pn); $ox = method_exists($x3d, 'onlinesAll') ? $x3d->onlinesAll() : $x3d->onlines();
                         if (is_array($ox)) $onl = count($ox);
                     } catch (Throwable $e) { $onl = -1; }
                 }
