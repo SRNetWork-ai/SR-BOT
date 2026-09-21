@@ -1,45 +1,148 @@
 Python 3.12.3
-Mon Sep 21 15:50:41 UTC 2026
-patched app/Panel/Xui3.php by regex (0.0.2 #x3-groups)
-patched admin/pages/panels.php by regex ('x3orph' || $act === 'x3grp')
-patched admin/pages/panels.php by regex (elseif ($act === 'x3grp'))
-patched admin/pages/panels.php by regex (value="x3grp")
-wrote app/Panel/Xui3.php
-wrote admin/pages/panels.php
-php lint: on
-changed files: 2
-sanity app/Panel/Xui3.php / function groupResetTraffic : ok
-sanity app/Panel/Xui3.php / function serverLogs : ok
-sanity admin/pages/panels.php / elseif ($act === 'x3grp') : ok
-sanity admin/pages/panels.php / value="x3log" : ok
-sanity admin/pages/panels.php / x3orph : ok
-== PANELS tools row (admin/pages/panels.php lines 457-482 of 1261) ==
-  457|
-  458|      <div class="pn-tags">
-  459|        <span class="badge b-blue"><?= Xui::normType((string)($p['type'] ?? '')) === 'pasarguard' ? '🗂 گروه' : '📡 اینباند' ?>: <?= h((string)($p['inbound_ids'] ?: 'همه')) ?></span>
-  460|        <?php if ((int)$p['test_enabled']): ?>
-  461|          <span class="badge b-orange">🧪 تست <?= h(Svc::testVolumeLabel($p)) ?></span>
-  462|        <?php endif; ?>
-  463|        <?php if (!empty($p['node_host'])): ?><span class="badge b-gray">🔀 Node</span><?php endif; ?>
-  464|        <?php if (!$on): ?><span class="badge b-gray">غیرفعال</span><?php endif; ?>
-  465|      </div>
-  466|
-  467|      <div class="pn-cap">
-  468|        <span>👥 <?= fa_num($used) ?></span>
-  469|        <span class="pn-bar <?= $pct >= 85 ? 'hot' : '' ?>"><i style="width:<?= max(3, $pct) ?>%"></i></span>
-  470|        <span><?= $lim < 0 ? '∞' : fa_num($lim) ?></span>
-  471|      </div>
-  472|
-  473|      <?php if ($on && !empty($p['last_error'])): ?>
-  474|        <div class="pn-err">⚠️ <?= h(mb_substr((string)$p['last_error'], 0, 120)) ?></div>
-  475|      <?php endif; ?>
-  476|
-  477|      <div class="pn-acts">
-  478|        <?php if (can('panels.edit')): ?>
-  479|          <a class="btn btn-sm" href="index.php?p=panels&edit=<?= (int)$p['id'] ?>">✏️ ویرایش</a>
-  480|        <?php endif; ?>
-  481|        <?php if (can('panels.health')): ?>
-  482|          <form method="post"><?= csrf_field() ?>
-changelog: entry added
-build: fixed113
+Mon Sep 21 15:53:54 UTC 2026
+== XUI3 inbounds (app/Panel/Xui3.php lines 145-233 of 983) ==
+  145|        if ($code === 404)                  $msg = 'این پنل از API نسل جدید پشتیبانی نمی‌کند (HTTP 404)';
+  146|        return ['success' => false, 'msg' => $msg, 'obj' => null, 'code' => $code];
+  147|    }
+  148|
+  149|    /* ---------------------- اینباندها ---------------------- */
+  150|
+  151|    /** تنظیمات تو در توی نسل جدید برای سازگاری با بقیهٔ ربات به رشتهٔ JSON برمی‌گردد */
+  152|    private static function normInbound($in): array
+  153|    {
+  154|        $in = (array)$in;
+  155|        foreach (['settings', 'streamSettings', 'sniffing', 'allocate'] as $k) {
+  156|            if (isset($in[$k]) && is_array($in[$k])) $in[$k] = jenc($in[$k]);
+  157|        }
+  158|        return $in;
+  159|    }
+  160|
+  161|    public function inbounds(): array
+  162|    {
+  163|        if ($this->inboundCache !== null) return $this->inboundCache;
+  164|        $r   = $this->api('/inbounds/list');
+  165|        $out = [];
+  166|        if (($r['success'] ?? false) === true) {
+  167|            foreach ((array)($r['obj'] ?? []) as $in) $out[] = self::normInbound($in);
+  168|        }
+  169|        return $this->inboundCache = $out;
+  170|    }
+  171|
+  172|    public function inbound(int $id): ?array
+  173|    {
+  174|        foreach ($this->inbounds() as $in) {
+  175|            if ((int)($in['id'] ?? 0) === $id) return $in;
+  176|        }
+  177|        $r = $this->api('/inbounds/get/' . $id);
+  178|        if (($r['success'] ?? false) && !empty($r['obj'])) return self::normInbound($r['obj']);
+  179|        return null;
+  180|    }
+  181|
+  182|    /** خلاصهٔ اینباندها (id/remark/protocol/port) — سبک؛ برای انتخاب و تشخیص نسخه */
+  183|    public function inboundOptions(): array
+  184|    {
+  185|        $r = $this->api('/inbounds/options');
+  186|        return ($r['success'] ?? false) === true ? (array)($r['obj'] ?? []) : [];
+  187|    }
+  188|
+  189|    public function allowedInboundIds(): array
+  190|    {
+  191|        $raw = trim((string)($this->panel['inbound_ids'] ?? ''));
+  192|        if ($raw !== '') {
+  193|            $ids = array_filter(array_map('intval', preg_split('/[\s,;]+/', en_num($raw)) ?: []));
+  194|            return array_values(array_unique($ids));
+  195|        }
+  196|        /* خالی = همهٔ اینباندهای پنل مجاز هستند */
+  197|        return $this->assignableInboundIds();
+  198|    }
+  199|
+  200|    public function assignableInboundIds(): array
+  201|    {
+  202|        $ids = [];
+  203|        foreach ($this->inboundOptions() as $row) {
+  204|            if (is_array($row))       $ids[] = (int)($row['id'] ?? 0);
+  205|            elseif (is_numeric($row)) $ids[] = (int)$row;
+  206|        }
+  207|        return Xui::idList($ids);
+  208|    }
+  209|
+  210|    /* ---------------------- کلاینت‌ها ---------------------- */
+  211|
+  212|    /** ردیف کلاینت از پاسخ پنل؛ هر دو شکل {client:{...},inboundIds:[...]} و تختِ ساده پشتیبانی می‌شود */
+  213|    private static function rowOf($obj): array
+  214|    {
+  215|        $obj = (array)$obj;
+  216|        if (isset($obj['client']) && is_array($obj['client'])) {
+  217|            $row = $obj['client'];
+  218|            foreach (['inboundIds', 'externalConfigIds'] as $k) {
+  219|                if (isset($obj[$k]) && !isset($row[$k])) $row[$k] = $obj[$k];
+  220|            }
+  221|            return $row;
+  222|        }
+  223|        return $obj;
+  224|    }
+  225|
+  226|    /** خواندن کامل یک کلاینت با ایمیل (null = پیدا نشد) */
+  227|    private function clientRow(string $email): ?array
+  228|    {
+  229|        $email = trim($email);
+  230|        if ($email === '') return null;
+  231|        $r = $this->api('/clients/get/' . rawurlencode($email));
+  232|        if (($r['success'] ?? false) !== true || empty($r['obj'])) return null;
+  233|        $row = self::rowOf($r['obj']);
+== XUI facade inbounds (app/Panel/Xui.php lines 271-301 of 1108) ==
+  271|    }
+  272|
+  273|    /* ---------------------- اینباوندها ---------------------- */
+  274|
+  275|    public function inbounds(): array
+  276|    {
+  277|        if ($this->mz) return $this->mz->inbounds();
+  278|        if ($this->pg) return $this->pg->inbounds();
+  279|        if ($this->x3) return $this->x3->inbounds();
+  280|        $r = $this->call('list');
+  281|        return ($r['success'] ?? false) ? (array)($r['obj'] ?? []) : [];
+  282|    }
+  283|
+  284|    public function inbound(int $id): ?array
+  285|    {
+  286|        if ($this->mz) return $this->mz->inbound($id);
+  287|        if ($this->pg) return $this->pg->inbound($id);
+  288|        if ($this->x3) return $this->x3->inbound($id);
+  289|        $r = $this->call('get', ['id' => $id]);
+  290|        if (($r['success'] ?? false) && !empty($r['obj'])) return (array)$r['obj'];
+  291|        foreach ($this->inbounds() as $in) if ((int)$in['id'] === $id) return $in;
+  292|        return null;
+  293|    }
+  294|
+  295|    /** اینباوندهای مجاز این پنل (کدهای واردشده در تنظیمات) */
+  296|    public function allowedInboundIds(): array
+  297|    {
+  298|        if ($this->mz) return $this->mz->allowedInboundIds();
+  299|        if ($this->pg) return $this->pg->allowedInboundIds();
+  300|        if ($this->x3) return $this->x3->allowedInboundIds();
+  301|        $raw = trim((string)($this->panel['inbound_ids'] ?? ''));
+== grep_tree inbounds callers -> ->inbounds\( ==
+  app/Service/Svc.php:733: try { $alive = $xui->inbounds() !== []; } catch (Throwable $e) { $alive = false; }
+  app/Panel/Marzban.php:233: foreach ($this->inbounds() as $in) {
+  app/Panel/Marzban.php:591: $inb   = $this->inbounds();
+  app/Panel/PasarGuard.php:440: foreach ($this->inbounds() as $in) {
+  app/Panel/PasarGuard.php:814: $inb  = $this->inbounds();
+  app/Panel/Xui.php:277: if ($this->mz) return $this->mz->inbounds();
+  app/Panel/Xui.php:278: if ($this->pg) return $this->pg->inbounds();
+  app/Panel/Xui.php:279: if ($this->x3) return $this->x3->inbounds();
+  app/Panel/Xui.php:291: foreach ($this->inbounds() as $in) if ((int)$in['id'] === $id) return $in;
+  app/Panel/Xui.php:1099: $inbounds = $this->inbounds();
+  app/Panel/Xui3.php:174: foreach ($this->inbounds() as $in) {
+  app/Panel/Xui3.php:960: $inbounds = $this->inbounds();
+  app/Bot/AdminHub.php:958: try { $x = new Xui($p); $list = (array)$x->inbounds(); } catch (\Throwable $e) { $err = $e->getMessage() ...
+  admin/pages/panels.php:563: <?php if ($inbId && ($ix = Xui::forPanel($inbId))): $list = $ix->inbounds(); ?>
+  admin/pages/resellers.php:1102: $lst = (new Xui($pn))->inbounds();
+== grep PANELS inbound view (admin/pages/panels.php) inbounds\(|\$inbId|listInbounds ==
+  243: $inbId  = (int)($_GET['inb'] ?? 0);
+  563: <?php if ($inbId && ($ix = Xui::forPanel($inbId))): $list = $ix->inbounds(); ?>
+  565: $inbPanel = DB::one('SELECT * FROM {p}panels WHERE id = :id', [':id' => $inbId]) ?: [];
+  603: <input type="hidden" name="id" value="<?= (int)$inbId ?>">
+build: fixed114
+changed files: 0 (recon run)
 exit: 0
