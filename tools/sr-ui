@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # SR-UI — مدیر خط فرمان SR-BOT
 #   sr-ui                 منوی تعاملی
-#   sr-ui status|restart|update|backup|restore|logs|webhook|token|ssl|domain|cron|db|perms|info|uninstall
+#   sr-ui status|start|stop|restart|update|backup|restore|migrate|webhook|token|ssl|domain|cron|logs|perms|db|info|url|uninstall
 set -uo pipefail
 
 CONF="/etc/sr-bot/sr-ui.conf"
 if [ ! -r "$CONF" ]; then
-  echo "SR-BOT روی این سرور نصب نشده است (فایل $CONF پیدا نشد)."
+  echo "SR-BOT روی این سرور نصب نشده (فایل $CONF پیدا نشد)."
   echo "نصب: bash <(curl -fsSL https://raw.githubusercontent.com/SRNetWork-ai/SR-BOT/main/install.sh)"
   exit 1
 fi
@@ -31,7 +31,7 @@ say(){ printf '%s %s\n' "${CB}==>${C0}" "$*"; }
 ok(){ printf '%s %s\n' "${CG}[ok]${C0}" "$*"; }
 warn(){ printf '%s %s\n' "${CY}[!]${C0}" "$*"; }
 err(){ printf '%s %s\n' "${CR}[x]${C0}" "$*"; }
-pause(){ printf '\n'; read -r -p "برای ادامه Enter بزنید…" _ || true; }
+pause(){ printf '\n'; read -r -p "Enter برای ادامه…" _ || true; }
 
 cli(){
   if command -v sudo >/dev/null 2>&1 && id -u "$WEBUSER" >/dev/null 2>&1; then
@@ -41,18 +41,14 @@ cli(){
   fi
 }
 
-svc(){ systemctl "$1" "$2" >/dev/null 2>&1 && ok "$2: $1" || warn "$2: عملیات $1 انجام نشد"; }
+svc(){ if systemctl "$1" "$2" >/dev/null 2>&1; then ok "$2 ← $1"; else warn "$2: $1 انجام نشد"; fi; }
 
 site_url(){
   local host="$DOMAIN"
   if [ -z "$host" ]; then host="$(hostname -I 2>/dev/null | awk '{print $1}')"; fi
-  if [ "$PORT" = "443" ] || grep -q "listen 443" "$VHOST" 2>/dev/null; then
-    printf 'https://%s' "$host"
-  elif [ "$PORT" = "80" ]; then
-    printf 'http://%s' "$host"
-  else
-    printf 'http://%s:%s' "$host" "$PORT"
-  fi
+  if grep -q "listen 443" "$VHOST" 2>/dev/null; then printf 'https://%s' "$host"
+  elif [ "$PORT" = "80" ]; then printf 'http://%s' "$host"
+  else printf 'http://%s:%s' "$host" "$PORT"; fi
 }
 
 c_status(){
@@ -60,27 +56,36 @@ c_status(){
   local s
   for s in nginx "$FPM_SERVICE" mariadb mysql; do
     if systemctl list-unit-files 2>/dev/null | grep -q "^$s.service"; then
-      printf '  %-16s %s\n' "$s" "$(systemctl is-active "$s" 2>/dev/null)"
+      printf '  %-14s %s\n' "$s" "$(systemctl is-active "$s" 2>/dev/null)"
     fi
   done
-  if [ -f /etc/cron.d/sr-bot ]; then printf '  %-16s %s\n' "cron" "نصب شده"; else printf '  %-16s %s\n' "cron" "نصب نشده"; fi
-  printf '  %-16s %s\n' "مسیر" "$ROOT_DIR"
-  printf '  %-16s %s\n' "آدرس" "$(site_url)"
+  if [ -f /etc/cron.d/sr-bot ]; then printf '  %-14s %s\n' "cron" "فعال"; else printf '  %-14s %s\n' "cron" "غیرفعال"; fi
+  printf '  %-14s %s\n' "path" "$ROOT_DIR"
+  printf '  %-14s %s\n' "url" "$(site_url)"
   if [ -f "$ROOT_DIR/version.json" ]; then
-    printf '  %-16s %s\n' "نسخه" "$("$PHPBIN" -r '$j=json_decode(file_get_contents($argv[1]),true);echo ($j["version"]??"?")." (".($j["build"]??"-").")";' "$ROOT_DIR/version.json" 2>/dev/null)"
+    printf '  %-14s %s\n' "version" "$(grep -o '\"version\"[^,]*' "$ROOT_DIR/version.json" | head -n1 | cut -d: -f2 | tr -d ' \"')"
+    printf '  %-14s %s\n' "build" "$(grep -o '\"build\"[^,]*' "$ROOT_DIR/version.json" | head -n1 | cut -d: -f2 | tr -d ' \"')"
   fi
-  if [ -f "$ROOT_DIR/config.php" ]; then ok "config.php موجود است"; else warn "config.php ساخته نشده؛ نصاب وب را باز کنید: $(site_url)/install/"; fi
-  local code
-  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 "$(site_url)/" 2>/dev/null || echo 000)"
-  printf '  %-16s %s\n' "پاسخ وب" "$code"
+  if [ -f "$ROOT_DIR/config.php" ]; then ok "config.php موجود است"
+  else warn "config.php ساخته نشده؛ نصاب وب: $(site_url)/install/"; fi
+  printf '  %-14s %s\n' "http" "$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 "$(site_url)/" 2>/dev/null || echo 000)"
 }
 
 c_restart(){ svc restart nginx; svc restart "$FPM_SERVICE"; }
 c_start(){ svc start nginx; svc start "$FPM_SERVICE"; }
 c_stop(){ svc stop nginx; }
 
+c_perms(){
+  chown -R "$WEBUSER":"$WEBUSER" "$ROOT_DIR" 2>/dev/null || true
+  find "$ROOT_DIR" -type d -exec chmod 755 {} + 2>/dev/null || true
+  find "$ROOT_DIR" -type f -exec chmod 644 {} + 2>/dev/null || true
+  chmod -R 775 "$ROOT_DIR/storage" 2>/dev/null || true
+  if [ -f "$ROOT_DIR/config.php" ]; then chmod 640 "$ROOT_DIR/config.php"; fi
+  ok "مجوزها اصلاح شد."
+}
+
 c_update(){
-  say "به‌روزرسانی از مخزن $REPO@$BRANCH"
+  say "بررسی نسخه از $REPO@$BRANCH"
   cli check || true
   local a=""
   read -r -p "به‌روزرسانی انجام شود؟ (y/n) [y]: " a || true
@@ -112,7 +117,7 @@ c_logs(){
     if [ -f "$f" ]; then printf '\n--- %s ---\n' "$f"; tail -n 20 "$f"; fi
   done
   if [ -d "$ROOT_DIR/storage/logs" ]; then
-    printf '\n--- آخرین فایل‌های لاگ ---\n'
+    printf '\n--- فایل‌های لاگ ---\n'
     ls -1t "$ROOT_DIR/storage/logs" 2>/dev/null | head -n 10
   fi
 }
@@ -138,109 +143,106 @@ c_ssl(){
     sed -i "s|^DOMAIN=.*|DOMAIN=\"$DOMAIN\"|" "$CONF"
   fi
   if ! command -v certbot >/dev/null 2>&1; then
-    if command -v apt-get >/dev/null 2>&1; then DEBIAN_FRONTEND=noninteractive apt-get install -y certbot python3-certbot-nginx >/dev/null 2>&1
-    else (dnf install -y certbot python3-certbot-nginx || yum install -y certbot python3-certbot-nginx) >/dev/null 2>&1; fi
+    if command -v apt-get >/dev/null 2>&1; then
+      DEBIAN_FRONTEND=noninteractive apt-get install -y certbot python3-certbot-nginx >/dev/null 2>&1 || true
+    elif command -v dnf >/dev/null 2>&1; then
+      dnf install -y certbot python3-certbot-nginx >/dev/null 2>&1 || true
+    else
+      yum install -y certbot python3-certbot-nginx >/dev/null 2>&1 || true
+    fi
   fi
-  certbot --nginx -d "$DOMAIN" --agree-tos --redirect --non-interactive --register-unsafely-without-email && ok "SSL فعال شد." || err "نصب SSL ناموفق بود."
+  if certbot --nginx -d "$DOMAIN" --agree-tos --redirect --non-interactive --register-unsafely-without-email; then
+    ok "SSL فعال شد: https://$DOMAIN"
+  else
+    err "نصب SSL ناموفق بود."
+  fi
 }
 
 c_domain(){
   local d="" p=""
-  read -r -p "دامنهٔ جدید (خالی = بدون دامنه) [$DOMAIN]: " d || true
+  read -r -p "دامنهٔ جدید [$DOMAIN]: " d || true
   read -r -p "پورت جدید [$PORT]: " p || true
   if [ -n "$d" ]; then DOMAIN="$d"; fi
   if [ -n "$p" ]; then PORT="$p"; fi
   if [ -f "$VHOST" ]; then
-    sed -i "s|^\( *listen \).*;|\1$PORT;|" "$VHOST"
-    sed -i "s|^\( *server_name \).*;|\1${DOMAIN:-_};|" "$VHOST"
-    nginx -t >/dev/null 2>&1 && systemctl reload nginx >/dev/null 2>&1 && ok "وب‌سرور به‌روزرسانی شد." || err "پیکربندی nginx معتبر نیست."
+    sed -i "s|^\\( *listen \\).*;|\\1$PORT;|" "$VHOST"
+    sed -i "s|^\\( *server_name \\).*;|\\1${DOMAIN:-_};|" "$VHOST"
+    if nginx -t >/dev/null 2>&1; then
+      systemctl reload nginx >/dev/null 2>&1 || true
+      ok "وب‌سرور به‌روز شد."
+    else
+      err "پیکربندی nginx معتبر نیست؛ تغییر را برگردانید."
+    fi
   fi
   sed -i "s|^DOMAIN=.*|DOMAIN=\"$DOMAIN\"|" "$CONF"
   sed -i "s|^PORT=.*|PORT=\"$PORT\"|" "$CONF"
-  if [ -f "$ROOT_DIR/config.php" ]; then
-    warn "آدرس سایت را در «تنظیمات → آدرس» پنل هم به‌روز کنید و سپس وبهوک را دوباره ست کنید."
-  fi
+  warn "آدرس سایت را در پنل (تنظیمات ← آدرس) هم عوض کنید و وبهوک را دوباره ست کنید (گزینهٔ ۷)."
 }
 
 c_cron(){
   if [ -f /etc/cron.d/sr-bot ]; then
-    printf '%s\n' "$(cat /etc/cron.d/sr-bot)"
+    cat /etc/cron.d/sr-bot
     local a=""
     read -r -p "حذف شود؟ (y/n) [n]: " a || true
     if [ "$a" = "y" ]; then rm -f /etc/cron.d/sr-bot; ok "کران حذف شد."; fi
   else
     printf '%s\n' "*/5 * * * * $WEBUSER $PHPBIN $ROOT_DIR/cron/tasks.php >/dev/null 2>&1" >/etc/cron.d/sr-bot
     chmod 644 /etc/cron.d/sr-bot
-    ok "کران هر ۵ دقیقه نصب شد."
+    ok "کران هر ۵ دقیقه فعال شد."
   fi
 }
 
 c_db(){
-  say "کنسول دیتابیس ($DB_NAME) — برای خروج exit بزنید"
+  say "کنسول دیتابیس $DB_NAME (خروج: exit)"
   mysql -u"$DB_USER" -p"$DB_PASS" "$DB_NAME"
-}
-
-c_perms(){
-  chown -R "$WEBUSER":"$WEBUSER" "$ROOT_DIR" 2>/dev/null || true
-  find "$ROOT_DIR" -type d -exec chmod 755 {} + 2>/dev/null || true
-  find "$ROOT_DIR" -type f -exec chmod 644 {} + 2>/dev/null || true
-  chmod -R 775 "$ROOT_DIR/storage" 2>/dev/null || true
-  if [ -f "$ROOT_DIR/config.php" ]; then chmod 640 "$ROOT_DIR/config.php"; fi
-  ok "مجوزها اصلاح شد."
 }
 
 c_info(){
   say "اطلاعات نصب"
-  printf '  مسیر    : %s\n' "$ROOT_DIR"
-  printf '  آدرس    : %s\n' "$(site_url)"
-  printf '  دیتابیس : %s (کاربر %s)\n' "$DB_NAME" "$DB_USER"
-  printf '  مخزن    : %s@%s\n' "$REPO" "$BRANCH"
-  printf '  وب‌سرور : %s | php-fpm: %s\n' "nginx" "$FPM_SERVICE"
+  printf '  path  : %s\n' "$ROOT_DIR"
+  printf '  url   : %s\n' "$(site_url)"
+  printf '  db    : %s (user %s)\n' "$DB_NAME" "$DB_USER"
+  printf '  repo  : %s@%s\n' "$REPO" "$BRANCH"
+  printf '  fpm   : %s\n' "$FPM_SERVICE"
   cli version 2>/dev/null || true
 }
 
 c_uninstall(){
-  warn "این کار فایل‌ها، وب‌سرور و کران SR-BOT را حذف می‌کند."
-  local a=""
-  read -r -p "برای تأیید کلمهٔ yes را تایپ کنید: " a || true
+  warn "فایل‌ها، وب‌سرور و کران SR-BOT حذف می‌شود."
+  local a="" b=""
+  read -r -p "برای تأیید yes تایپ کنید: " a || true
   if [ "$a" != "yes" ]; then say "لغو شد."; return 0; fi
-  local b=""
   read -r -p "دیتابیس $DB_NAME هم حذف شود؟ (y/n) [n]: " b || true
   if [ -d "$ROOT_DIR/storage/backups" ]; then
     mkdir -p /root/sr-bot-backups
     cp -a "$ROOT_DIR/storage/backups/." /root/sr-bot-backups/ 2>/dev/null || true
     ok "بکاپ‌ها در /root/sr-bot-backups نگه داشته شد."
   fi
-  rm -f /etc/cron.d/sr-bot
-  rm -f "$VHOST" /etc/nginx/sites-enabled/sr-bot.conf
+  rm -f /etc/cron.d/sr-bot "$VHOST" /etc/nginx/sites-enabled/sr-bot.conf
   systemctl reload nginx >/dev/null 2>&1 || true
   rm -rf "$ROOT_DIR"
-  if [ "$b" = "y" ]; then mysql -uroot -e "DROP DATABASE IF EXISTS $DB_NAME;" >/dev/null 2>&1 || warn "حذف دیتابیس ناموفق بود."; fi
+  if [ "$b" = "y" ]; then
+    mysql -uroot -e "DROP DATABASE IF EXISTS $DB_NAME;" >/dev/null 2>&1 || warn "حذف دیتابیس ناموفق بود."
+  fi
   rm -f /usr/local/bin/srui
-  ok "حذف شد. (برای پاک کردن کامل: rm -f /usr/local/bin/sr-ui /etc/sr-bot/sr-ui.conf)"
+  ok "حذف شد. برای پاکسازی کامل: rm -f /usr/local/bin/sr-ui /etc/sr-bot/sr-ui.conf"
   exit 0
 }
 
 menu(){
   while true; do
-    printf '\n%s\n' "${CB}============ SR-UI — مدیریت SR-BOT ============${C0}"
-    printf '%s\n' "  1) وضعیت سرویس‌ها"
-    printf '%s\n' "  2) ری‌استارت وب‌سرور و PHP"
-    printf '%s\n' "  3) به‌روزرسانی ربات"
-    printf '%s\n' "  4) بکاپ گرفتن"
-    printf '%s\n' "  5) بازیابی بکاپ"
-    printf '%s\n' "  6) مهاجرت دیتابیس (migrate)"
-    printf '%s\n' "  7) وبهوک تلگرام"
-    printf '%s\n' "  8) تغییر توکن ربات"
-    printf '%s\n' "  9) نصب/تمدید SSL"
-    printf '%s\n' " 10) تغییر دامنه یا پورت"
-    printf '%s\n' " 11) مدیریت کران"
-    printf '%s\n' " 12) نمایش لاگ‌ها"
-    printf '%s\n' " 13) اصلاح مجوز فایل‌ها"
-    printf '%s\n' " 14) کنسول دیتابیس"
-    printf '%s\n' " 15) اطلاعات نصب"
-    printf '%s\n' " 16) حذف کامل"
-    printf '%s\n' "  0) خروج"
+    printf '\n%s\n' "${CB}=========== SR-UI | مدیریت SR-BOT ===========${C0}"
+    cat <<'M'
+ 1) وضعیت سرویس‌ها        9) نصب یا تمدید SSL
+ 2) ری‌استارت وب و PHP    10) تغییر دامنه یا پورت
+ 3) به‌روزرسانی ربات      11) مدیریت کران
+ 4) بکاپ گرفتن           12) نمایش لاگ‌ها
+ 5) بازیابی بکاپ         13) اصلاح مجوز فایل‌ها
+ 6) مهاجرت دیتابیس       14) کنسول دیتابیس
+ 7) وبهوک تلگرام          15) اطلاعات نصب
+ 8) تغییر توکن ربات        16) حذف کامل
+ 0) خروج
+M
     local c=""
     read -r -p "انتخاب: " c || true
     case "$c" in
@@ -270,4 +272,26 @@ case "${1:-}" in
   status) c_status ;;
   start) c_start ;;
   stop) c_stop ;;
-  restart) c_restart
+  restart) c_restart ;;
+  update) c_update ;;
+  backup) c_backup ;;
+  restore) c_restore ;;
+  migrate) cli migrate ;;
+  check) cli check ;;
+  webhook|hook) c_webhook ;;
+  token) c_token ;;
+  ssl) c_ssl ;;
+  domain) c_domain ;;
+  cron) c_cron ;;
+  logs) c_logs ;;
+  perms) c_perms ;;
+  db) c_db ;;
+  info) c_info ;;
+  url) site_url; printf '\n' ;;
+  version) cli version ;;
+  uninstall) c_uninstall ;;
+  help|-h|--help)
+    printf '%s\n' "sr-ui [status|start|stop|restart|update|backup|restore|migrate|check|webhook|token|ssl|domain|cron|logs|perms|db|info|url|version|uninstall]" ;;
+  "") menu ;;
+  *) err "دستور ناشناخته: $1"; exit 1 ;;
+esac
