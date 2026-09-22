@@ -1,283 +1,422 @@
 Python 3.12.3
-Tue Sep 22 18:27:14 UTC 2026
-info miniapp/api.php: 141754 bytes, 2911 lines
----- find api_devices : 'svc_devices' -> 1 hits [1035] ----
-  -- around line 1035 --
- 1033     }
- 1034 
- 1035     case 'svc_devices': {
- 1036         $sid = (int)($in['id'] ?? 0);
- 1037         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
- 1038             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
- 1039         if (!$s) ma_fail('سرویس یافت نشد.');
- 1040         if (!class_exists('Devices') || !Devices::supported($s)) {
- 1041             ma_out(['ok' => true, 'supported' => false, 'count' => 0, 'items' => [], 'limit' => 0]);
- 1042         }
- 1043         $items = Devices::listFor($s);
- 1044         ma_out([
- 1045             'ok'        => true,
- 1046             'supported' => true,
- 1047             'count'     => count($items),
- 1048             'items'     => $items,
- 1049             'limit'     => Devices::limitOf($s),
- 1050         ]);
- 1051     }
- 1052 
- 1053     case 'svc_device_del': {
- 1054         $sid = (int)($in['id'] ?? 0);
- 1055         $dev = (int)($in['device'] ?? 0);
- 1056         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
- 1057             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
- 1058         if (!$s) ma_fail('سرویس یافت نشد.');
- 1059         if (!class_exists('Devices') || !Devices::supported($s)) ma_fail('این پنل از مدیریت دستگاه پشتیبانی نمی‌کند.');
- 1060         if ($dev <= 0) ma_fail('دستگاه نامعتبر است.');
- 1061         if (!Devices::remove($s, $dev)) ma_fail('حذف دستگاه انجام نشد.');
- 1062         $items = Devices::listFor($s);
- 1063         ma_out([
- 1064             'ok'      => true,
- 1065             'message' => 'دستگاه حذف شد.',
- 1066             'count'   => count($items),
- 1067             'items'   => $items,
- 1068             'limit'   => Devices::limitOf($s),
- 1069         ]);
----- end find api_devices ----
----- find api_devdel : 'svc_device_del' -> 1 hits [1053] ----
-  -- around line 1053 --
- 1051     }
- 1052 
- 1053     case 'svc_device_del': {
- 1054         $sid = (int)($in['id'] ?? 0);
- 1055         $dev = (int)($in['device'] ?? 0);
- 1056         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
- 1057             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
- 1058         if (!$s) ma_fail('سرویس یافت نشد.');
- 1059         if (!class_exists('Devices') || !Devices::supported($s)) ma_fail('این پنل از مدیریت دستگاه پشتیبانی نمی‌کند.');
- 1060         if ($dev <= 0) ma_fail('دستگاه نامعتبر است.');
- 1061         if (!Devices::remove($s, $dev)) ma_fail('حذف دستگاه انجام نشد.');
- 1062         $items = Devices::listFor($s);
- 1063         ma_out([
- 1064             'ok'      => true,
- 1065             'message' => 'دستگاه حذف شد.',
- 1066             'count'   => count($items),
- 1067             'items'   => $items,
- 1068             'limit'   => Devices::limitOf($s),
- 1069         ]);
- 1070     }
- 1071 
- 1072     case 'svc_devices_clear': {
- 1073         $sid = (int)($in['id'] ?? 0);
- 1074         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
- 1075             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
- 1076         if (!$s) ma_fail('سرویس یافت نشد.');
- 1077         if (!class_exists('Devices') || !Devices::supported($s)) ma_fail('این پنل از مدیریت دستگاه پشتیبانی نمی‌کند.');
- 1078         $n = Devices::clear($s);
- 1079         ma_out([
----- end find api_devdel ----
----- find api_devclear : 'svc_devices_clear' -> 1 hits [1072] ----
-  -- around line 1072 --
- 1070     }
- 1071 
- 1072     case 'svc_devices_clear': {
- 1073         $sid = (int)($in['id'] ?? 0);
- 1074         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
- 1075             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
- 1076         if (!$s) ma_fail('سرویس یافت نشد.');
- 1077         if (!class_exists('Devices') || !Devices::supported($s)) ma_fail('این پنل از مدیریت دستگاه پشتیبانی نمی‌کند.');
- 1078         $n = Devices::clear($s);
- 1079         ma_out([
- 1080             'ok'      => true,
- 1081             'message' => $n > 0 ? ('همهٔ دستگاه‌ها حذف شدند (' . fa_num((string)$n) . ').') : 'دستگاهی برای حذف نبود.',
- 1082             'removed' => $n,
- 1083             'count'   => 0,
- 1084             'items'   => [],
- 1085             'limit'   => Devices::limitOf($s),
- 1086         ]);
- 1087     }
- 1088 
- 1089     case 'svc_dead': {
- 1090         $items = []; $sum = 0;
- 1091         foreach (Svc::deadForUser($UID) as $s) {
- 1092             $q = Svc::deleteQuote($s);
- 1093             $sum += (int)$q['refund'];
- 1094             $items[] = [
----- end find api_devclear ----
----- find api_links : 'svc_links' -> 1 hits [1019] ----
-  -- around line 1019 --
- 1017     /* 0.0.2: مدیریت دستگاه‌های ثبت‌شده (HWID) — فقط پنل نسل جدید سنایی */
- 1018     /* 0.0.2 #happ-links: لینک Happ و لینک‌های خارجی سرویس */
- 1019     case 'svc_links': {
- 1020         $sid = (int)($in['id'] ?? 0);
- 1021         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
- 1022             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
- 1023         if (!$s) ma_fail('سرویس یافت نشد.');
- 1024         if (!class_exists('Links') || !Links::supported($s)) {
- 1025             ma_out(['ok' => true, 'supported' => false, 'happ' => '', 'items' => []]);
- 1026         }
- 1027         ma_out([
- 1028             'ok'        => true,
- 1029             'supported' => true,
- 1030             'happ'      => Links::happ($s),
- 1031             'items'     => Links::external($s),
- 1032         ]);
- 1033     }
- 1034 
- 1035     case 'svc_devices': {
- 1036         $sid = (int)($in['id'] ?? 0);
- 1037         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
- 1038             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
- 1039         if (!$s) ma_fail('سرویس یافت نشد.');
- 1040         if (!class_exists('Devices') || !Devices::supported($s)) {
- 1041             ma_out(['ok' => true, 'supported' => false, 'count' => 0, 'items' => [], 'limit' => 0]);
- 1042         }
- 1043         $items = Devices::listFor($s);
- 1044         ma_out([
- 1045             'ok'        => true,
- 1046             'supported' => true,
- 1047             'count'     => count($items),
- 1048             'items'     => $items,
- 1049             'limit'     => Devices::limitOf($s),
- 1050         ]);
- 1051     }
- 1052 
- 1053     case 'svc_device_del': {
----- end find api_links ----
-info miniapp/index.php: 211070 bytes, 4125 lines
----- grep idx_svc_actions : svc_(renew|dead|purge_dead|links|devices|device_del|detail|list|extend|traffic) -> 4 hits ----
- 1846     api('svc_renew_plans', { id: id }).then(function (r) {
- 1864     api('svc_renew', { id: id, plan_id: planId }).then(function (r) {
- 1909     api('svc_dead').then(function (r) {
- 1932     api('svc_purge_dead', { confirm: 'yes' }).then(function (r) {
----- end grep idx_svc_actions ----
----- grep idx_functions : function [A-Za-z0-9_]+\s*\( -> 132 hits ----
-  987   function haptic(kind) {
-  999   function esc(s) {
- 1005   function fa(s) {
- 1011   function toast(msg, kind) {
- 1020   function copy(text, btn) {
- 1030   function fallback(text, done) {
- 1039   function api(action, data) {
- 1059   function sheet(title, html) {
- 1068   function closeSheet() {
- 1077   function skeleton(n) {
- 1083   function empty(icon, title, sub, btn) {
- 1089   function paintHeader() {
- 1100   function viewHome() {
- 1186   function homeSvc() {
- 1218   function hmSvcRow(s) {
+Tue Sep 22 18:31:19 UTC 2026
+---- dump idx_row_copybox : miniapp/index.php (4125 lines) ----
+ 1228   }
+ 1229 
+ 1230 
  1231   function row(ic, title, sub, val) {
+ 1232     return '<div class="row"><div class="ri">' + ic + '</div><div class="rt"><b>' + title + '</b>' +
+ 1233       (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div><div class="rv">' + val + '</div></div>';
+ 1234   }
+ 1235 
  1236   function copyBox(text) {
+ 1237     return '<div class="copy"><code>' + esc(text) + '</code>' +
+ 1238       '<button type="button" data-copy="' + esc(text) + '">کپی</button></div>';
+ 1239   }
+ 1240 
+ 1241   /* ================= محصولات ================= */
  1242   function viewShop() {
- 1258   function shopPanels() {
- 1262   function shopPanel(id) {
- 1269   function shopCrumb(step) {
- 1291   function prodCard(p) {
- 1336   function paintShop() {
- 1360   function paintShopPanels() {
- 1383   function paintShopCats() {
- 1417   function paintShopList() {
- 1437   function cusServers() {
- 1441   function cusMoney(n) {
- 1447   function cusLim(c, sv) {
- 1457   function cusApplyLim() {
- 1469   function cusQuote() {
- 1482   function cusSheet() {
- 1511   function cusDoBuy() {
- 1541   function buySheet(id) {
- 1564   function doBuy(id, btn) {
- 1592   function viewSvc() {
- 1607   function svcMatch(s, f) {
- 1616   function paintSvc() {
- 1661   function paintSvcChips() {
- 1680   function paintSvcList() {
- 1698   function svcCard(s) {
- 1726   function bar3d(pct, kind) {
- 1733   function tile3d(ic, lbl, val, kind) {
- 1742   function svcPct(s) {
+ 1243     skeleton(3);
+ 1244     var pr = api('products');
+ 1245     var cu = (S.cus === undefined) ? api('cus_info') : null;
+ 1246     var done = function (r) {
+---- end dump idx_row_copybox ----
+---- dump idx_svc_sheet : miniapp/index.php (4125 lines) ----
+ 1744     var usd = Number(s.used_gb || s.used || 0);
+ 1745     if (!tot || tot <= 0) return -1;
+ 1746     return Math.min(100, (usd / tot) * 100);
+ 1747   }
+ 1748 
  1749   function serviceSheet(s, fresh) {
- 1812   function tilt3d(id) {
- 1818     function apply() {
- 1823     function move(cx, cy) {
- 1831     function reset() {
- 1845   function renewSheet(id) {
- 1862   function doRenew(id, planId, btn) {
- 1876   function delSheet(id) {
- 1893   function doDel(id, btn) {
- 1908   function deadSheet() {
- 1930   function doPurgeDead(btn) {
- 1945   function viewWallet() {
- 1958   function paintWallet() {
- 1997   function paintWfChips() {
- 2016   function paintWtx() {
- 2044   function chargeSheet() {
----- end grep idx_functions ----
----- grep idx_screens : (id=\"(scr|screen|page|view|tab)[A-Za-z0-9_-]*\"|data-(screen|page|tab)=) -> 7 hits ----
-  934   <main class="view" id="view">
-  940   <nav class="tabs" id="tabs">
-  941     <button type="button" data-tab="home" class="on"><span class="ic">🏠</span>خانه</button>
-  942     <button type="button" data-tab="shop"><span class="ic">🛒</span>محصولات</button>
-  943     <button type="button" data-tab="svc"><span class="ic">📦</span>سرویس‌ها</button>
-  944     <button type="button" data-tab="wallet"><span class="ic">💳</span>کیف پول</button>
-  945     <button type="button" data-tab="help"><span class="ic">👤</span>من</button>
----- end grep idx_screens ----
----- find idx_api_helper : function api\s*\( -> 1 hits [1039] ----
-  -- around line 1039 --
- 1036   }
- 1037 
- 1038   /* ================= ارتباط با سرور ================= */
- 1039   function api(action, data) {
- 1040     var body = Object.assign({ action: action, initData: INIT }, data || {});
- 1041     return fetch('api.php', {
- 1042       method: 'POST',
- 1043       headers: { 'Content-Type': 'application/json', 'X-TG-Init-Data': INIT },
- 1044       body: JSON.stringify(body)
- 1045     }).then(function (r) {
- 1046       return r.text().then(function (t) {
- 1047         try { return JSON.parse(t); }
- 1048         catch (e) {
- 1049           var snip = String(t || '').replace(/<[^>]*>/g, ' ').replace(/  +/g, ' ').trim().slice(0, 200);
- 1050           return { ok: false, message: 'پاسخ سرور معتبر نبود (کد ' + r.status + ').' + (snip ? '  —  ' + snip : '') };
- 1051         }
- 1052       });
- 1053     }).catch(function () {
- 1054       return { ok: false, message: 'اتصال به سرور برقرار نشد.' };
- 1055     });
- 1056   }
- 1057 
- 1058   /* ================= شیت ================= */
- 1059   function sheet(title, html) {
- 1060     $('sh').innerHTML =
- 1061       '<div class="sh-h"><div class="sh-bar"></div>' +
- 1062       '<div class="sh-t"><span>' + title + '</span>' +
- 1063       '<button type="button" class="sh-x" data-x>✕</button></div></div>' + html;
- 1064     $('sw').classList.add('on');
- 1065     document.body.style.overflow = 'hidden';
- 1066   }
- 1067 
- 1068   function closeSheet() {
- 1069     $('sw').classList.remove('on');
- 1070     document.body.style.overflow = '';
- 1071   }
- 1072 
- 1073   $('sw').addEventListener('click', function (e) {
----- end find idx_api_helper ----
----- grep idx_srv_buttons : (\u062a\u0645\u062f\u06cc\u062f|\u062c\u0632\u0626\u06cc\u0627\u062a \u0633\u0631\u0648\u06cc\u0633|\u062d\u0630\u0641 \u0633\u0631\u0648\u06cc\u0633|\u06a9\u067e\u06cc \u0644\u06cc\u0646\u06a9|QR|\u062f\u0633\u062a\u06af\u0627\u0647) -> 15 hits ----
- 1207           ' سرویس به پایان حجم نزدیک است؛ برای جلوگیری از قطعی، تمدید کنید.</div>';
- 1640         'با دکمهٔ تمدید حجم تازه بگیرید.</div>';
- 1716         (sub ? '<button type="button" data-copy="' + esc(sub) + '">📋 کپی لینک</button>' : '') +
- 1717         '<button type="button" data-renew="' + s.id + '">🔄 تمدید</button>' +
- 1722   /* ============ جزئیات سرویس – کارت سه‌بعدی ============ */
+ 1750     var cfg = '';
+ 1751     (s.configs || []).forEach(function (c, i) {
+ 1752       cfg += '<div class="cfg-h">⚙️ کانفیگ ' + fa(i + 1) + '</div>' + copyBox(c);
+ 1753     });
+ 1754 
+ 1755     var pct   = svcPct(s);
+ 1756     var kind  = pct < 0 ? 'ok' : (pct >= 90 ? 'er' : (pct >= 70 ? 'wr' : 'ok'));
+ 1757     var state = (s.active === false || s.enabled === false) ? 'off' : 'on';
+ 1758 
+ 1759     var head = '<div class="svc3d ' + kind + '" id="svc3d">' +
+ 1760       '<div class="glow"></div>' +
+ 1761       '<div class="sheen"></div>' +
+ 1762       '<div class="in">' +
+ 1763         '<div class="hd">' +
+ 1764           '<div class="chip3d ' + state + '">' + (state === 'on' ? '● فعال' : '○ غیرفعال') + '</div>' +
+ 1765           '<div class="nmw"><span class="nm mono">' + esc(s.name) + '</span></div>' +
+ 1766         '</div>' +
+ 1767         (pct >= 0
+ 1768           ? '<div class="ring3d"><svg viewBox="0 0 120 120">' +
+ 1769               '<circle class="trk" cx="60" cy="60" r="50"></circle>' +
+ 1770               '<circle class="val" cx="60" cy="60" r="50" ' +
+ 1771                 'stroke-dasharray="' + (2 * Math.PI * 50).toFixed(1) + '" ' +
+ 1772                 'stroke-dashoffset="' + (2 * Math.PI * 50 * (1 - pct / 100)).toFixed(1) + '"></circle>' +
+ 1773             '</svg><div class="ctr"><b>' + fa(Math.round(pct)) + '٪</b><span>مصرف شده</span></div></div>'
+ 1774           : '<div class="ring3d inf"><div class="ctr"><b>∞</b><span>بدون محدودیت</span></div></div>') +
+ 1775         '<div class="g3d">' +
+ 1776           tile3d('📊', 'حجم کل', esc(s.volume_txt), '') +
+ 1777           tile3d('📉', 'مصرف شده', esc(s.used_txt), 'wr') +
+ 1778           tile3d('📈', 'باقی‌مانده', esc(s.left_txt), 'ok') +
+ 1779           tile3d('⏱', 'زمان مانده', esc(s.remain_txt), '') +
+ 1780         '</div>' +
+ 1781       '</div>' +
+ 1782     '</div>';
+ 1783 
+ 1784     var body = head +
+ 1785       '<div class="card tight g3">' +
+ 1786         row('⏰', 'تاریخ انقضا', '', esc(s.expire_txt)) +
+ 1787         (s.plan_txt    ? row('🏷', 'طرح', '', esc(s.plan_txt))            : '') +
+ 1788         (s.panel_txt   ? row('🖥', 'سرور', '', esc(s.panel_txt))           : '') +
  1789         (s.device      ? row('📱', 'دستگاه مجاز', '', fa(s.device))     : '') +
+ 1790         (s.created_txt ? row('📅', 'تاریخ ساخت', '', esc(s.created_txt)) : '') +
+ 1791       '</div>' +
+ 1792       (pct >= 0 ? '<div class="sec-t"><span>📉 مصرف حجم</span></div>' + bar3d(pct, kind) : '') +
+ 1793       (s.sub
+ 1794         ? '<div class="sec-t"><span>🔗 لینک اشتراک (پیشنهادی)</span></div>' +
+ 1795           '<div class="hint3d">یک لینک برای همهٔ کانفیگ‌ها با به‌روزرسانی خودکار</div>' +
+ 1796           copyBox(s.sub)
+ 1797         : '') +
+ 1798       (cfg ? '<div class="sec-t"><span>⚙️ کانفیگ‌های مستقیم</span></div>' + cfg : '') +
+ 1799       (!s.sub && !cfg ? '<div class="alert e">لینک اتصال ثبت نشده است؛ با پشتیبانی تماس بگیرید.</div>' : '') +
+ 1800       '<div class="btn-row" style="margin-top:14px">' +
+ 1801         (s.can_sync !== false ? '<button type="button" class="btn gh b3d" data-sync="' + s.id + '">🔄 به‌روزرسانی مصرف</button>' : '') +
+ 1802         (s.can_tut  !== false ? '<button type="button" class="btn gh b3d" data-go="tut">🎓 راهنمای اتصال</button>' : '') +
+ 1803       '</div>' +
  1804       (s.can_renew ? '<button type="button" class="btn b3d" style="width:100%;margin-top:4px" data-renew="' + s.id + '">♻️ تمدید سرویس</button>' : '') +
  1805       (s.can_del ? '<button type="button" class="btn gh b3d" style="width:100%;margin-top:8px" data-del="' + s.id + '">🗑 حذف سرویس و عودت وجه</button>' : '');
+ 1806 
  1807     sheet((fresh ? '🎉 سرویس آماده است' : '📦 جزئیات سرویس'), body);
- 1844   /* ================= تمدید و حذف سرویس ================= */
- 1848       if (!r.plans || !r.plans.length) { toast('طرحی برای تمدید این سرویس موجود نیست.', 'err'); return; }
- 1857       h += '<div style="font-size:11px;color:var(--mut)">مبلغ طرح از کیف پول کسر می‌شود و حجم و زمان طبق روش تمدید همان سرور اعمال می‌شود.</div>';
- 1858       sheet('♻️ تمدید سرویس', h);
- 1889       sheet('🗑 حذف سرویس', h);
- 2324         ['حجم من تمام شد، چه کنم؟', 'از بخش سرویس‌ها همان سرویس را باز کنید و تمدید بزنید؛ حجم و زمان از نو محاسبه می‌شود.'],
----- end grep idx_srv_buttons ----
+ 1808     tilt3d('svc3d');
+ 1809   }
+ 1810 
+ 1811   /** چرخش سه‌بعدی کارت بر اساس موقعیت اشاره‌گر */
+ 1812   function tilt3d(id) {
+ 1813     var el = $(id);
+ 1814     if (!el) return;
+ 1815 
+---- end dump idx_svc_sheet ----
+---- grep idx_closest : closest\( -> 45 hits ----
+ 1074     if (e.target === $('sw') || (e.target.closest && e.target.closest('[data-x]'))) closeSheet();
+ 3643     if ((el = t.closest('[data-tab]'))) { haptic(); go(el.getAttribute('data-tab')); return; }
+ 3644     if ((el = t.closest('.tstPick'))) { haptic(); doTestRun(+el.getAttribute('data-pid') || 0); return; } /* fixed79 */
+ 3645     if ((el = t.closest('#meEdit'))) { haptic(); profileSheet(); return; }
+ 3646     if ((el = t.closest('#gGo'))) { haptic(); redeemGift(el); return; }
+ 3647     if ((el = t.closest('#refShare'))) { haptic(); shareRef(); return; }
+ 3648     if ((el = t.closest('[data-go]'))) { haptic(); go(el.getAttribute('data-go')); return; }
+ 3649     if ((el = t.closest('[data-copy]'))) { copy(el.getAttribute('data-copy'), el); return; }
+ 3650     if ((el = t.closest('[data-hpchk]'))) { haptic(); hpCheck(el); return; }
+ 3651     if ((el = t.closest('#crdSave'))) { haptic(); doCardAdd(el); return; }
+ 3652     if ((el = t.closest('[data-crddel]'))) { haptic(); doCardDel(+el.getAttribute('data-crddel')); return; }
+ 3653     if ((el = t.closest('[data-crdpick]'))) {
+ 3660     if ((el = t.closest('#rsGo'))) { haptic(); rsCalcNow(); return; }
+ 3661     if ((el = t.closest('#rsMake'))) { haptic(); doRsCreate(el); return; }
+ 3663     if ((el = t.closest('[data-pnl]'))) {
+ 3666     if ((el = t.closest('[data-scat]'))) {
+ 3669     if ((el = t.closest('[data-sback]'))) {
+ 3676     if ((el = t.closest('[data-cat]'))) { S.cat = el.getAttribute('data-cat'); S.shopStep = 3; paintShop(); return; }
+ 3677     if ((el = t.closest('[data-buy]'))) { haptic(); buySheet(+el.getAttribute('data-buy')); return; }
+ 3678     if ((el = t.closest('[data-do-buy]'))) { doBuy(+el.getAttribute('data-do-buy'), el); return; }
+ 3680     if ((el = t.closest('[data-svc]'))) {
+ 3689     if ((el = t.closest('[data-renew]'))) { haptic(); renewSheet(+el.getAttribute('data-renew')); return; }
+ 3690     if ((el = t.closest('[data-rnw]'))) { haptic(); var pr = (el.getAttribute('data-rnw') || '').split(':'); doRenew(+pr[0], +pr[1], el); return; }
+ 3691     if ((el = t.closest('[data-del]'))) { haptic(); delSheet(+el.getAttribute('data-del')); return; }
+ 3692     if ((el = t.closest('[data-delok]'))) { haptic(); doDel(+el.getAttribute('data-delok'), el); return; }
+ 3693     if ((el = t.closest('[data-sync]'))) {
+ 3703     if ((el = t.closest('[data-pm]'))) {
+ 3712     if ((el = t.closest('[data-tpback]'))) {
+ 3718     if ((el = t.closest('[data-qamt]'))) {
+ 3727     if ((el = t.closest('[data-pmc]'))) {
+ 3736     if (t.closest('#tpGo')) { haptic(); tpNext(); return; }
+ 3737     if (t.closest('#cGo')) { doTopup(); return; }
+ 3738     if (t.closest('#rcpPick')) { haptic(); pickReceipt(); return; }
+ 3739     if (t.closest('#rcpGo')) { haptic(); sendReceipt(); return; }
+ 3740     if (t.closest('#hxGo')) { submitHash(); return; }
+ 3742     if (t.closest('[data-bot]')) {
+ 3748     if ((el = t.closest('[data-tk]'))) { haptic(); ticketSheet(+el.getAttribute('data-tk')); return; }
+ 3749     if (t.closest('#tkGo')) {
+ 3759     if ((el = t.closest('[data-reply]'))) {
+ 3770     if ((el = t.closest('[data-vk]'))) { verifyStart(el.getAttribute('data-vk')); return; }
+---- end grep idx_closest ----
+---- find idx_click_delegate : \[data-renew\] -> 1 hits [3689] ----
+  -- around line 3689 --
+ 3681       var sid = +el.getAttribute('data-svc');
+ 3682       haptic();
+ 3683       api('service', { id: sid }).then(function (r) {
+ 3684         if (!r.ok) { toast(r.message, 'err'); return; }
+ 3685         serviceSheet(r.service, false);
+ 3686       });
+ 3687       return;
+ 3688     }
+ 3689     if ((el = t.closest('[data-renew]'))) { haptic(); renewSheet(+el.getAttribute('data-renew')); return; }
+ 3690     if ((el = t.closest('[data-rnw]'))) { haptic(); var pr = (el.getAttribute('data-rnw') || '').split(':'); doRenew(+pr[0], +pr[1], el); return; }
+ 3691     if ((el = t.closest('[data-del]'))) { haptic(); delSheet(+el.getAttribute('data-del')); return; }
+ 3692     if ((el = t.closest('[data-delok]'))) { haptic(); doDel(+el.getAttribute('data-delok'), el); return; }
+ 3693     if ((el = t.closest('[data-sync]'))) {
+ 3694       var b = el; b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+ 3695       api('sync', { id: +el.getAttribute('data-sync') }).then(function (r) {
+ 3696         if (!r.ok) { toast(r.message, 'err'); b.disabled = false; b.textContent = '🔄 به‌روزرسانی مصرف'; return; }
+ 3697         toast(r.message, 'ok');
+ 3698         serviceSheet(r.service, false);
+ 3699       });
+ 3700       return;
+ 3701     }
+ 3702 
+ 3703     if ((el = t.closest('[data-pm]'))) {
+ 3704       S.pm = el.getAttribute('data-pm');
+ 3705       Array.prototype.forEach.call($('pmRow').children, function (c) {
+ 3706         c.classList.toggle('on', c === el);
+ 3707       });
+ 3708       var v = parseInt(($('cAmt') && $('cAmt').value) || '0', 10) || 0;
+ 3709       if (S.pm === 'crypto' && v > 0) liveRate(v); else $('rateBox').innerHTML = '';
+ 3710       return;
+ 3711     }
+ 3712     if ((el = t.closest('[data-tpback]'))) {
+ 3713       haptic();
+---- end find idx_click_delegate ----
+info app/Service/Devices.php: 6857 bytes, 183 lines
+---- dump dev_all : app/Service/Devices.php (183 lines) ----
+    1 <?php
+    2 
+    3 /**
+    4  * مدیریت دستگاه‌های ثبت‌شدهٔ هر سرویس (HWID)
+    5  *
+    6  * فقط روی پنل‌های نسل جدید سنایی (3x-ui) که توکن API دارند کار می‌کند؛
+    7  * روی بقیهٔ پنل‌ها بی‌صدا غیرفعال است تا چیزی در ربات/مینی‌اپ خراب نشود.
+    8  *
+    9  * مرجع: https://docs.sanaei.dev/docs/reference/api/clients
+   10  *   GET    /panel/api/clients/hwids/{email}
+   11  *   DELETE /panel/api/clients/hwids/{email}/{id}
+   12  *   POST   /panel/api/clients/bulkAdjust   (limitHwid)
+   13  */
+   14 final class Devices
+   15 {
+   16     /** کش پنل‌ها در طول یک درخواست */
+   17     private static array $panels = [];
+   18 
+   19     /** کلید تنظیمات برای خاموش کردن کل قابلیت */
+   20     public const S_ENABLED = 'dev_manage';
+   21 
+   22     public static function enabled(): bool
+   23     {
+   24         try {
+   25             return (string)DB::setting(self::S_ENABLED, '1') === '1';
+   26         } catch (Throwable $e) {
+   27             return true;
+   28         }
+   29     }
+   30 
+   31     private static function panel(int $panelId): ?array
+   32     {
+   33         if ($panelId <= 0) return null;
+   34         if (!array_key_exists($panelId, self::$panels)) {
+   35             try {
+   36                 self::$panels[$panelId] = DB::one('SELECT * FROM {p}panels WHERE id = :i', [':i' => $panelId]) ?: null;
+   37             } catch (Throwable $e) {
+   38                 self::$panels[$panelId] = null;
+   39             }
+   40         }
+   41         return self::$panels[$panelId];
+   42     }
+   43 
+   44     /** درایور نسل جدید برای این سرویس؛ در غیر این صورت null */
+   45     public static function driver(array $service): ?Xui3
+   46     {
+   47         if (!self::enabled()) return null;
+   48         if (!class_exists('Xui3')) return null;
+   49         $p = self::panel((int)($service['panel_id'] ?? 0));
+   50         if (!$p) return null;
+   51         $type = class_exists('Xui') ? Xui::normType((string)($p['type'] ?? '')) : (string)($p['type'] ?? '');
+   52         if ($type !== 'sanaei' || !Xui3::hasToken($p)) return null;
+   53         return new Xui3($p);
+   54     }
+   55 
+   56     /** آیا برای این سرویس می‌توان دستگاه‌ها را مدیریت کرد؟ */
+   57     public static function supported(array $service): bool
+   58     {
+   59         return trim((string)($service['client_email'] ?? '')) !== '' && self::driver($service) !== null;
+   60     }
+   61 
+   62     /** فهرست دستگاه‌های ثبت‌شده */
+   63     public static function listFor(array $service): array
+   64     {
+   65         $x     = self::driver($service);
+   66         $email = trim((string)($service['client_email'] ?? ''));
+   67         if (!$x || $email === '') return [];
+   68         try {
+   69             $rows = $x->devices($email);
+   70         } catch (Throwable $e) {
+   71             app_log('panel', 'devices list: ' . $e->getMessage(), ['svc' => (int)($service['id'] ?? 0)]);
+   72             return [];
+   73         }
+   74         $out = [];
+   75         foreach ($rows as $d) {
+   76             $id = (int)($d['id'] ?? 0);
+   77             if ($id <= 0) continue;
+   78             $seen  = (int)($d['seen'] ?? 0);
+   79             $out[] = [
+   80                 'id'       => $id,
+   81                 'title'    => self::title((array)$d),
+   82                 'seen'     => $seen,
+   83                 'seen_txt' => self::when($seen),
+   84             ];
+   85         }
+   86         return $out;
+   87     }
+   88 
+   89     /** سقف دستگاه‌های مجاز (۰ یعنی بدون محدودیت) */
+   90     public static function limitOf(array $service): int
+   91     {
+   92         $x     = self::driver($service);
+   93         $email = trim((string)($service['client_email'] ?? ''));
+   94         if (!$x || $email === '') return 0;
+   95         try {
+   96             $row = $x->accountRow($email);
+   97         } catch (Throwable $e) {
+   98             return 0;
+   99         }
+  100         return max(0, (int)(($row['limitHwid'] ?? 0)));
+  101     }
+  102 
+  103     /** حذف یک دستگاه (آزاد شدن یک ظرفیت) */
+  104     public static function remove(array $service, int $deviceId): bool
+  105     {
+  106         $x     = self::driver($service);
+  107         $email = trim((string)($service['client_email'] ?? ''));
+  108         if (!$x || $email === '' || $deviceId <= 0) return false;
+  109         try {
+  110             $r = $x->deviceDelete($email, $deviceId);
+  111         } catch (Throwable $e) {
+  112             app_log('panel', 'device del: ' . $e->getMessage(), ['svc' => (int)($service['id'] ?? 0), 'dev' => $deviceId]);
+  113             return false;
+  114         }
+  115         $ok = ($r['success'] ?? false) === true;
+  116         if ($ok && class_exists('Logs')) {
+  117             try {
+  118                 Logs::send('services', Logs::fmt('حذف دستگاه', [
+  119                     'سرویس'  => (string)($service['client_email'] ?? ''),
+  120                     'شناسه'  => (string)$deviceId,
+  121                 ]));
+  122             } catch (Throwable $e) { }
+  123         }
+  124         return $ok;
+  125     }
+  126 
+  127     /** حذف همهٔ دستگاه‌ها؛ تعداد حذف‌شده برمی‌گردد */
+  128     public static function clear(array $service): int
+  129     {
+  130         $x     = self::driver($service);
+  131         $email = trim((string)($service['client_email'] ?? ''));
+  132         if (!$x || $email === '') return 0;
+  133         try {
+  134             $n = $x->devicesClear($email);
+  135         } catch (Throwable $e) {
+  136             app_log('panel', 'device clear: ' . $e->getMessage(), ['svc' => (int)($service['id'] ?? 0)]);
+  137             return 0;
+  138         }
+  139         if ($n > 0 && class_exists('Logs')) {
+  140             try {
+  141                 Logs::send('services', Logs::fmt('پاک‌سازی دستگاه‌ها', [
+  142                     'سرویس' => (string)($service['client_email'] ?? ''),
+  143                     'تعداد' => (string)$n,
+  144                 ]));
+  145             } catch (Throwable $e) { }
+  146         }
+  147         return $n;
+  148     }
+  149 
+  150     /** متن خلاصه برای نمایش در ربات */
+---- end dump dev_all ----
+info app/Service/Links.php: 3268 bytes, 87 lines
+---- dump links_all : app/Service/Links.php (87 lines) ----
+    1 <?php
+    2 
+    3 /**
+    4  * لینک‌های تکمیلی سرویس روی پنل‌های نسل جدید 3x-ui (docs.sanaei.dev)
+    5  *
+    6  *  - happ():     دیپ‌لینک اختصاصی Happ برای ایمپورت یک‌ضربه‌ای اشتراک
+    7  *  - external(): لینک‌هایی که ادمین روی خود پنل برای آن اکانت تعریف کرده است
+    8  *
+    9  * روی پنل‌هایی که 3x-ui نیستند یا توکن API ندارند، بی‌صدا خاموش می‌ماند تا
+   10  * هیچ بخشی از ربات/مینی‌اپ به خطا نخورد.
+   11  *
+   12  * 0.0.2 #happ-links
+   13  */
+   14 final class Links
+   15 {
+   16     /** کلید تنظیمات برای خاموش‌کردن کل قابلیت */
+   17     public const S_ENABLED = 'happ_link';
+   18 
+   19     /** کش درایور به ازای هر پنل تا در یک درخواست چندبار ساخته نشود */
+   20     private static $drv = [];
+   21 
+   22     public static function enabled(): bool
+   23     {
+   24         if (!class_exists('DB')) return false;
+   25         return (string)DB::setting(self::S_ENABLED, '1') === '1';
+   26     }
+   27 
+   28     /** درایور نسل جدیدِ پنلِ همین سرویس (بدون هیچ تماس شبکه‌ای) */
+   29     private static function driver(array $svc)
+   30     {
+   31         $pid = (int)($svc['panel_id'] ?? 0);
+   32         if ($pid <= 0 || !class_exists('Xui')) return null;
+   33         if (array_key_exists($pid, self::$drv)) return self::$drv[$pid];
+   34 
+   35         $out = null;
+   36         try {
+   37             $x = Xui::forPanel($pid);
+   38             if ($x && method_exists($x, 'isXui3') && $x->isXui3()) {
+   39                 $d = $x->xui3();
+   40                 if (is_object($d)) $out = $d;
+   41             }
+   42         } catch (Throwable $e) {
+   43             $out = null;
+   44         }
+   45         self::$drv[$pid] = $out;
+   46         return $out;
+   47     }
+   48 
+   49     /** آیا برای این سرویس اصلاً لینک تکمیلی در دسترس است؟ */
+   50     public static function supported(array $svc): bool
+   51     {
+   52         if (!self::enabled()) return false;
+   53         if (trim((string)($svc['client_email'] ?? '')) === '') return false;
+   54         return self::driver($svc) !== null;
+   55     }
+   56 
+   57     /** دیپ‌لینک Happ سرویس؛ رشتهٔ خالی یعنی در دسترس نیست */
+   58     public static function happ(array $svc): string
+   59     {
+   60         if (!self::supported($svc)) return '';
+   61         $d = self::driver($svc);
+   62         if (!$d || !method_exists($d, 'happLink')) return '';
+   63         try {
+   64             return trim((string)$d->happLink((string)$svc['client_email']));
+   65         } catch (Throwable $e) {
+   66             if (function_exists('app_log')) {
+   67                 app_log('panel', 'happ link failed', ['svc' => (int)($svc['id'] ?? 0), 'err' => $e->getMessage()]);
+   68             }
+   69             return '';
+   70         }
+   71     }
+   72 
+   73     /** لینک‌های خارجی اکانت به شکل [['title' => ..., 'link' => ...], ...] */
+   74     public static function external(array $svc): array
+   75     {
+   76         if (!self::supported($svc)) return [];
+   77         $d = self::driver($svc);
+   78         if (!$d || !method_exists($d, 'externalLinks')) return [];
+   79         try {
+   80             $rows = $d->externalLinks((string)$svc['client_email']);
+   81             return is_array($rows) ? $rows : [];
+   82         } catch (Throwable $e) {
+   83             return [];
+   84         }
+   85     }
+   86 }
+   87 
+---- end dump links_all ----
 changelog: skipped (recon build)
-build: fixed120 (was fixed119)
+build: fixed121 (was fixed120)
 exit: 0
 exit: 0
