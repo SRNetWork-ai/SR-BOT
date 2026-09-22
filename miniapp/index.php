@@ -1800,6 +1800,8 @@ body.light .amt3 .v{-webkit-text-fill-color:initial;background:none}
       '<div class="btn-row" style="margin-top:14px">' +
         (s.can_sync !== false ? '<button type="button" class="btn gh b3d" data-sync="' + s.id + '">🔄 به‌روزرسانی مصرف</button>' : '') +
         (s.can_tut  !== false ? '<button type="button" class="btn gh b3d" data-go="tut">🎓 راهنمای اتصال</button>' : '') +
+        (s.can_devs ? '<button type="button" class="btn gh b3d" data-devs="' + s.id + '">📱 دستگاه‌های من</button>' : '') +
+        (s.can_links ? '<button type="button" class="btn gh b3d" data-links="' + s.id + '">🔗 لینک‌ها و Happ</button>' : '') +
       '</div>' +
       (s.can_renew ? '<button type="button" class="btn b3d" style="width:100%;margin-top:4px" data-renew="' + s.id + '">♻️ تمدید سرویس</button>' : '') +
       (s.can_del ? '<button type="button" class="btn gh b3d" style="width:100%;margin-top:8px" data-del="' + s.id + '">🗑 حذف سرویس و عودت وجه</button>' : '');
@@ -1839,6 +1841,102 @@ body.light .amt3 .v{-webkit-text-fill-color:initial;background:none}
       if (e.touches && e.touches[0]) move(e.touches[0].clientX, e.touches[0].clientY);
     }, { passive: true });
     el.addEventListener('touchend', reset);
+  }
+
+  /* ============ دستگاه‌ها و لینک‌های تکمیلی (0.0.2 #ma-dev-ui) ============ */
+  function maLoading(title) {
+    sheet(title, '<div class="card tight g3"><div class="row"><div class="ri">⏳</div>' +
+      '<div class="rt"><b>در حال دریافت اطلاعات…</b><span>چند لحظه صبر کنید</span></div></div></div>');
+  }
+
+  function devicesSheet(id) {
+    maLoading('📱 دستگاه‌های من');
+    api('svc_devices', { id: id }).then(function (r) {
+      if (!r.ok) { toast(r.message || 'دریافت فهرست دستگاه‌ها ناموفق بود.', 'err'); closeSheet(); return; }
+      paintDevices(id, r);
+    });
+  }
+
+  function paintDevices(id, r) {
+    if (!r.supported) {
+      sheet('📱 دستگاه‌های من',
+        '<div class="alert e">سرور این سرویس از مدیریت دستگاه‌ها پشتیبانی نمی‌کند.</div>');
+      return;
+    }
+    var items = r.items || [];
+    var lim   = +(r.limit || 0);
+    var h = '<div class="card tight g3">' +
+      row('📱', 'دستگاه‌های ثبت‌شده', '', fa(items.length) + (lim > 0 ? ' / ' + fa(lim) : '')) +
+      (lim > 0 ? row('⚖', 'ظرفیت آزاد', '', fa(Math.max(0, lim - items.length))) : '') +
+      '</div>';
+    if (!items.length) {
+      h += '<div class="hint3d">هنوز دستگاهی روی این سرویس ثبت نشده است؛ با اولین اتصال ثبت می‌شود.</div>';
+    } else {
+      h += '<div class="sec-t"><span>📱 فهرست دستگاه‌ها</span></div><div class="card tight g3">';
+      items.forEach(function (d) {
+        h += '<div class="row"><div class="ri">📱</div><div class="rt"><b>' + esc(d.title || ('#' + d.id)) + '</b>' +
+          (d.seen_txt ? '<span>' + esc(d.seen_txt) + '</span>' : '') + '</div>' +
+          '<div class="rv"><button type="button" class="btn gh b3d" data-devdel="' + id + ':' + d.id + '">🗑</button></div></div>';
+      });
+      h += '</div><button type="button" class="btn gh b3d" style="width:100%;margin-top:10px" data-devclr="' + id + '">🧹 حذف همهٔ دستگاه‌ها</button>';
+    }
+    h += '<div style="font-size:11px;color:var(--mut);margin-top:10px">با حذف هر دستگاه، یک ظرفیت آزاد می‌شود و می‌توانید روی دستگاه تازه وصل شوید.</div>';
+    sheet('📱 دستگاه‌های من', h);
+  }
+
+  function doDevDel(id, dev, btn) {
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span>'; }
+    api('svc_device_del', { id: id, device: dev }).then(function (r) {
+      if (!r.ok) {
+        toast(r.message || 'حذف دستگاه انجام نشد.', 'err');
+        if (btn) { btn.disabled = false; btn.textContent = '🗑'; }
+        return;
+      }
+      toast(r.message || 'دستگاه حذف شد.', 'ok');
+      paintDevices(id, { supported: true, items: r.items || [], limit: r.limit || 0 });
+    });
+  }
+
+  function doDevClear(id, btn) {
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span>'; }
+    api('svc_devices_clear', { id: id }).then(function (r) {
+      if (!r.ok) {
+        toast(r.message || 'پاک‌سازی دستگاه‌ها انجام نشد.', 'err');
+        if (btn) { btn.disabled = false; btn.textContent = '🧹 حذف همهٔ دستگاه‌ها'; }
+        return;
+      }
+      toast(r.message || 'دستگاه‌ها پاک شدند.', 'ok');
+      paintDevices(id, { supported: true, items: r.items || [], limit: r.limit || 0 });
+    });
+  }
+
+  function linksSheet(id) {
+    maLoading('🔗 لینک‌ها و Happ');
+    api('svc_links', { id: id }).then(function (r) {
+      if (!r.ok) { toast(r.message || 'دریافت لینک‌ها ناموفق بود.', 'err'); closeSheet(); return; }
+      if (!r.supported) {
+        sheet('🔗 لینک‌ها و Happ',
+          '<div class="alert e">برای این سرویس لینک تکمیلی در دسترس نیست.</div>');
+        return;
+      }
+      var h = '';
+      if (r.happ) {
+        h += '<div class="sec-t"><span>🚀 ایمپورت یک‌ضربه‌ای در Happ</span></div>' +
+          '<div class="hint3d">این لینک را کپی کنید و در اپلیکیشن Happ باز کنید تا اشتراک خودکار اضافه شود.</div>' +
+          copyBox(String(r.happ));
+      }
+      var items = r.items || [];
+      if (items.length) {
+        h += '<div class="sec-t"><span>🔗 لینک‌های دیگر</span></div>';
+        items.forEach(function (it) {
+          var u = String(it.link || it.url || '');
+          if (!u) return;
+          h += '<div class="cfg-h">' + esc(it.title || it.name || 'لینک') + '</div>' + copyBox(u);
+        });
+      }
+      if (!h) h = '<div class="alert e">لینکی برای این سرویس ثبت نشده است.</div>';
+      sheet('🔗 لینک‌ها و Happ', h);
+    });
   }
 
   /* ================= تمدید و حذف سرویس ================= */
@@ -3687,6 +3785,10 @@ body.light .amt3 .v{-webkit-text-fill-color:initial;background:none}
       return;
     }
     if ((el = t.closest('[data-renew]'))) { haptic(); renewSheet(+el.getAttribute('data-renew')); return; }
+    if ((el = t.closest('[data-devs]'))) { haptic(); devicesSheet(+el.getAttribute('data-devs')); return; }
+    if ((el = t.closest('[data-links]'))) { haptic(); linksSheet(+el.getAttribute('data-links')); return; }
+    if ((el = t.closest('[data-devdel]'))) { haptic(); var dv = (el.getAttribute('data-devdel') || '').split(':'); doDevDel(+dv[0], +dv[1], el); return; }
+    if ((el = t.closest('[data-devclr]'))) { haptic(); doDevClear(+el.getAttribute('data-devclr'), el); return; }
     if ((el = t.closest('[data-rnw]'))) { haptic(); var pr = (el.getAttribute('data-rnw') || '').split(':'); doRenew(+pr[0], +pr[1], el); return; }
     if ((el = t.closest('[data-del]'))) { haptic(); delSheet(+el.getAttribute('data-del')); return; }
     if ((el = t.closest('[data-delok]'))) { haptic(); doDel(+el.getAttribute('data-delok'), el); return; }
