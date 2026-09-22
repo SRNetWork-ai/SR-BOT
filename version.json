@@ -3,6 +3,7 @@
   "released": "2026-09-08",
   "min_php": "8.1",
   "changelog": [
+    "اجرای اختیاری با داکر: Dockerfile، docker-compose.yml (nginx + PHP-FPM + MariaDB + cron)، راهنمای docs/DOCKER.md و بخش داکر در README",
     "مستندسازی نصاب خودکار: راهنمای docs/INSTALL-SR-UI.md، بخش نصب تک‌خطی در README و اجرایی ماندن install.sh و sr-ui در زیپ ریلیز",
     "آنلاین‌های چندنودی پنل نسل جدید + نصاب هوشمند install.sh و مدیر خط فرمان sr-ui",
     "بهینه‌سازی سرعت: فهرست سبک اینباندها (list/slim) و تست سریع زنده‌بودن پنل",
@@ -206,6 +207,6 @@
   ],
   "channel": "beta",
   "pinned": true,
-  "build": "fixed118",
+  "build": "fixed119",
   "version_locked": true
 }

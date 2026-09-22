@@ -1,77 +1,42 @@
 Python 3.12.3
-Tue Sep 22 18:13:50 UTC 2026
+Tue Sep 22 18:24:12 UTC 2026
 bash -n install.sh : ok
 chmod 0755 install.sh (mode 0o755)
 bash -n tools/sr-ui : ok
 chmod 0755 tools/sr-ui (mode 0o755)
----- dump chlog : CHANGELOG.md (183 lines) ----
-   1 # تاریخچه تغییرات SR-BOT
-   2 
-   3 همه بسته‌ها بر پایه نسخه v0.0.1-beta هستند؛ شماره fixedNN ترتیب بسته‌های اصلاحی داخلی است.
-   4 فایل version.json دست‌نخورده باقی می‌ماند.
-   5 
-   6 ## fixed80 — به‌روزرسان هوشمند، دکمه‌های ربات با اسکن خودکار، UI مدیران، فایل‌های ریپو
-   7 
-   8 - به‌روزرسان (Updater): آدرس کامل گیت‌هاب یا owner/repo هر دو پذیرفته می‌شود (normalizeRepo)؛ شاخهٔ پیش‌فرض مخزن و پوشهٔ داخلی حاوی version.json خودکار کشف می‌شود؛ تب «منبع» و «جزئیات بررسی» (آدرس، کد HTTP، راهنمای رفع) به صفحهٔ به‌روزرسانی اضافه شد
-   9 - خطای «فایل version.json در مخزن نیست یا شاخه اشتباه است» دیگر بی‌دلیل نیست: علت واقعی (مخزن خصوصی بدون توکن، شاخهٔ اشتباه، زیرپوشه) نمایش داده می‌شود
-  10 - مقایسهٔ نسخه روی شمارهٔ بیلد fixedNN (Updater::isNewer)؛ نسخهٔ نمایشی قفل می‌ماند؛ ریشهٔ بسته هنگام نصب از محل app/bootstrap.php پیدا می‌شود (بستهٔ دارای پوشهٔ والد هم درست نصب می‌شود)
-  11 - دکمهٔ درونی «مینی‌اپ» در ربات هندلر نداشت و اضافه شد
-  12 - موتور اسکن دکمه‌ها (Btn::scanHandlers / scanReport / autoScan): کد Bot.php خوانده و با فهرست دکمه‌های درونی مقایسه می‌شود؛ دکمهٔ تازه خودکار (خاموش) اضافه و دکمهٔ بدون هندلر گزارش می‌شود؛ اجرا پس از هر به‌روزرسانی، روزانه در کران‌جاب و هنگام باز کردن صفحه (با کش)
-  13 - صفحهٔ دکمه‌های ربات کامل بازنویسی شد: تب چیدمان (کشیدنی + لمسی، هر منو جدا، بازگردانی، پیش‌نمایش گوشی)، تب فهرست (فیلتر منو/نوع/مخاطب/وضعیت، کارهای گروهی روشن/خاموش/حذف/عرض/رنگ/منو/مخاطب)، تب اسکن (وضعیت هر کلید، دکمه‌های کشف‌شده، سلامت و اصلاح خودکار)، تب تنظیمات (حالت کیبورد، تعداد در ردیف، آدرس مینی‌اپ، خروجی/ورودی JSON، بازنشانی)
-  14 - ویرایشگر دکمه با پیش‌نمایش زندهٔ برچسب، انواع لینک/متن/مینی‌اپ/منو/کپی/اشتراک‌گذاری/مخاطب/موقعیت و تکثیر دکمه؛ تنظیمات و دکمه‌های قبلی حفظ می‌شوند
-  15 - صفحهٔ مدیران: نمایش موبایل (کارت‌ها، دکمه‌ها و دسترسی‌ها دیگر از کادر بیرون نمی‌زنند)، نشان وضعیت 2FA در سربرگ (لینک به تنظیمات)، هشدار برای مدیر بدون شناسهٔ تلگرام و راهنمای گرفتن شناسه؛ اصلاح تایپی «تنطیم»
-  16 - پنل وب: باز شدن مستقیم تب با لینک (#tab-<نام>) مثل تنظیمات ← پیشرفته
-  17 - فایل‌های مخزن گیت‌هاب: .gitignore، .gitattributes، ورک‌فلوی CI (php -l روی PHP 8.1 تا 8.3 + PHPStan)، ورک‌فلوی ریلیز (تگ v* ← zip + SHA256SUMS + GitHub Release)، قالب Issue/PR، SECURITY.md، CONTRIBUTING.md، docs/RELEASE.md، README تازه و پوشه‌های storage/{updates,backups,logs}
-  18 - version.json: build=fixed80، released=2026-09-08 (version/version_locked/pinned دست‌نخورده)
-  19 
-  20 ## fixed79 — بستهٔ بزرگ فاز بعدی: ۱۷ قابلیت + حجم تست مگابایتی + اعلان خودکار آپدیت در تاپیک
-  21 
-  22 - حجم اکانت تست بر حسب مگابایت (ستون panels.test_volume_mb) در ربات، مینی‌اپ و پنل وب؛ مثلاً ۵۰۰ مگابایت
-  23 - اعلان خودکار هر بسته در تاپیک آپدیت: ربات بالای CHANGELOG.md را می‌خواند و هر fixedNN را فقط یک‌بار منتشر می‌کند (کران + دکمهٔ دستی در به‌روزرسانی و تنظیمات)
-  24 - پاسارگارد: انتخاب تیک‌زدنی گروه‌ها/اینباندها از لیست در «تست اتصال» پنل و ثبت یک‌کلیکی
-  25 - پاسارگارد: گروه به‌ازای هر محصول (فیلد گروه‌ها در فرم محصول)
-  26 - وضعیت نودها در تست اتصال پاسارگارد/مرزبان + هشدار قطع نود در گروه گزارشات
-  27 - مرزبان: قطع/وصل سرویس، آخرین اتصال و لغو لینک اشتراک
-  28 - کمپین/تخفیف روی خرید حجم و زمان دلخواه (پیش‌فاکتور و کسر موجودی)
-  29 - تبدیل یک‌کلیکی تنظیمات قدیمی حجم دلخواه به محصول (تنظیمات ← فروشگاه)
-  30 - دکمهٔ «🧾 سوابق خرید» در ربات (خریدها و تراکنش‌های کیف پول)
-  31 - اکانت تست به‌ازای هر سرور با فاصلهٔ جدا و انتخاب سرور تست در مینی‌اپ
-  32 - محدودهٔ حجم/زمان هر سرور در خرید دلخواه مینی‌اپ
-  33 - نوار مصرف حجم در جزئیات سرویس
-  34 - تب «تنظیمات پیشرفته» در پنل وب (تست، تمدید خودکار، حذف خودکار، نودها، لاگ‌ها)
-  35 - صفحهٔ «خروجی CSV» در پنل وب با مجوز جدا
-  36 - ورود دومرحله‌ای پنل وب با کد تلگرام
-  37 - رفع باگ فرم محصول دلخواه (فیلد قیمت پنهان مانع ثبت می‌شد) + حداقل ۱ برای حجم/مدت
-  38 - دکمه‌های داخلی تعرفه، کمپین، تمدید، سوابق و تیکت در منوهای فرعی قابل فعال‌سازی از «دکمه‌های ربات»
-  39 
-  40 ## fixed78 — پاسارگارد بدون مجوز groups.read + حذف دکمهٔ تکراری «حجم دلخواه» از مرحلهٔ ۱
-  41 
-  42 ### 🗂 پاسارگارد: ادمین غیر sudo
-  43 - خطای «Permission denied: groups.read (کد 403)» شفاف شد: پیام می‌گوید ادمین مجوز groups.read ندارد و راه حل چیست.
-  44 - وقتی لیست گروه‌ها خوانده نمی‌شود، شناسهٔ گروه‌ها از **کاربران موجودِ همان ادمین** (`GET /api/users`) استنتاج می‌شود؛ ساخت کاربر و «تست اتصال» با همین شناسه‌ها کار می‌کنند (با هشدار).
-  45 - شناسهٔ عددی در فیلد «گروه‌ها» همیشه بدون نیاز به groups.read کار می‌کند؛ نام گروه فقط با مجوز.
-  46 - کلید API با پاسخ «Permission denied» دیگر «نامعتبر» ثبت نمی‌شود.
----- end dump chlog ----
-patched README.md (x-ui-style menu)
-patched README.md (نصب تک‌خطی و خودکار)
-patched README.md (نصاب خودکار سرور)
-patched README.md (مدیر سرور در خط فرمان)
-patched README.md (راهنمای نصب خودکار و دستور sr-ui)
+bash -n docker/entrypoint.sh : ok
+chmod 0755 docker/entrypoint.sh (mode 0o755)
+bash -n docker/cron.sh : ok
+chmod 0755 docker/cron.sh (mode 0o755)
+docker-compose.yml: tabs=0 services=db:,app:,web:,cron:
+patched README.md (اجرای اختیاری با Docker)
+patched README.md (optional Docker Compose stack)
+patched README.md (اجرا با داکر)
+patched README.md (اجرای کانتینری)
+patched README.md (راهنمای اجرای داکری)
+typo README.md: تنطیم -> تنظیم (2)
+typo docs/INSTALL-SR-UI.md: تنطیم -> تنظیم (0)
 wrote README.md
 php lint: n/a
 changed files: 1
-sanity README.md / نصب تک‌خطی و خودکار : ok
-sanity README.md / sr-ui status : ok
-sanity README.md / SRB_NONINTERACTIVE : ok
-sanity README.md / نصاب دستی روی سرور : MISSING
-sanity README.md / نصاب خودکار سرور : ok
-sanity README.md / مدیر سرور در خط فرمان : ok
-sanity README.md / x-ui-style menu : ok
-sanity README.md / [docs/INSTALL-SR-UI.md](docs/INSTALL-SR-UI.md) : ok
-sanity docs/INSTALL-SR-UI.md / sr-ui uninstall : ok
-sanity install.sh / install_srui : ok
-sanity tools/sr-ui / c_uninstall : ok
+sanity README.md / اجرا با داکر : ok
+sanity README.md / docker compose up -d --build : ok
+sanity README.md / [docs/DOCKER.md](docs/DOCKER.md) : ok
+sanity README.md / اجرای کانتینری : ok
+sanity README.md / اجرای اختیاری با Docker : ok
+sanity README.md / optional Docker Compose stack : ok
+sanity README.md / راهنمای اجرای داکری : ok
+sanity Dockerfile / docker-php-ext-install : ok
+sanity docker-compose.yml / mariadb:11 : ok
+sanity docker/nginx.conf / fastcgi_pass app:9000; : ok
+sanity docker/entrypoint.sh / exec "$@" : ok
+sanity docker/cron.sh / cron/tasks.php : ok
+sanity docs/DOCKER.md / docker compose exec : ok
+sanity .dockerignore / config.php : ok
+sanity .env.docker.example / WEB_PORT : ok
+typo left README.md : 0
+typo left docs/INSTALL-SR-UI.md : 0
 changelog: entry added
-build: fixed118 (was fixed117)
+build: fixed119 (was fixed118)
 exit: 0
 exit: 0

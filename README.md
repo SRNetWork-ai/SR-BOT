@@ -4,7 +4,7 @@
 
 ربات تلگرامی فروش کانفیگ VPN با **پنل مدیریت تحت وب**، **مینی‌اپ**، **سیستم نمایندگی** و اتصال به پنل‌های **x-ui / 3x-ui / Marzban / PasarGuard**
 
-نوشته‌شده با PHP + MySQL — بدون نیاز به Composer، Node یا Docker · نصب روی VPS یا هاست اشتراکی
+نوشته‌شده با PHP + MySQL — بدون نیاز به Composer یا Node (اجرای اختیاری با Docker) · نصب روی VPS یا هاست اشتراکی
 
 ![PHP](https://img.shields.io/badge/PHP-8.1%20%E2%80%93%208.3-777bb4?logo=php&logoColor=white)
 ![MySQL](https://img.shields.io/badge/MySQL%20%2F%20MariaDB-5.7%2B-4479a1?logo=mysql&logoColor=white)
@@ -17,7 +17,7 @@
 
 ## English summary
 
-**SR-BOT** is a self-hosted Telegram shop bot for selling VPN configs (Xray / V2Ray) with a full web admin panel, a Telegram Mini App and a reseller system. It connects to **x-ui / 3x-ui**, **Marzban** and **PasarGuard** panels, sells fixed plans or custom volume/duration, handles wallet top-ups (card-to-card with receipt review, NowPayments crypto, HooshPay), test accounts, renewals, auto-delete of expired configs, per-topic report groups, backups and **one-click self-update from this GitHub repository**. Pure PHP 8 + MySQL, no Composer/Node/Docker; runs on a VPS or shared hosting. Interface language is Persian.
+**SR-BOT** is a self-hosted Telegram shop bot for selling VPN configs (Xray / V2Ray) with a full web admin panel, a Telegram Mini App and a reseller system. It connects to **x-ui / 3x-ui**, **Marzban** and **PasarGuard** panels, sells fixed plans or custom volume/duration, handles wallet top-ups (card-to-card with receipt review, NowPayments crypto, HooshPay), test accounts, renewals, auto-delete of expired configs, per-topic report groups, backups and **one-click self-update from this GitHub repository**. Pure PHP 8 + MySQL, no Composer or Node, with an optional Docker Compose stack included; runs on a VPS or shared hosting. Interface language is Persian.
 
 A one-line installer (`install.sh`) provisions nginx, PHP-FPM, MariaDB, cron, firewall and SSL on a fresh Ubuntu/Debian/RHEL server, then installs `sr-ui` - an x-ui-style menu that manages the whole stack from the terminal (status, update, backup/restore, webhook, SSL, domain, logs, uninstall).
 
@@ -66,7 +66,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/SRNetWork-ai/SR-BOT/main/ins
 
 نصاب به‌صورت خودکار: سیستم‌عامل و مدیر بستهٔ آن را تشخیص می‌دهد · nginx، PHP-FPM و افزونه‌های لازم، MariaDB و cron را نصب می‌کند · نسخهٔ PHP را بررسی می‌کند · سرویس و سوکت PHP-FPM را پیدا می‌کند · دیتابیس و کاربر آن را با رمز تصادفی می‌سازد · سورس را از همین مخزن می‌گیرد (اگر `config.php` قبلی باشد حفظ می‌شود) · دسترسی‌ها و SELinux را درست می‌کند · وی‌هاست امن nginx می‌نویسد (`app/`، `database/`، `cron/`، `tools/`، `config.php` و `storage/` بسته می‌شوند) · کران‌جاب پنج‌دقیقه‌ای می‌گذارد · پورت را روی ufw/firewalld باز می‌کند · در صورت دادن دامنه با certbot گواهی SSL می‌گیرد · و در پایان دستور مدیریت `sr-ui` را نصب می‌کند.
 
-در پایان، آدرس `http(s)://دامنه[:پورت]/install/` را باز کنید تا نصاب وب فایل `config.php` و حساب مدیر را بسازد. رمز دیتابیس و خلاصهٔ نصب در `/root/sr-bot-install.txt` و تنطیمات سرور در `/etc/sr-bot/sr-ui.conf` ذخیره می‌شود.
+در پایان، آدرس `http(s)://دامنه[:پورت]/install/` را باز کنید تا نصاب وب فایل `config.php` و حساب مدیر را بسازد. رمز دیتابیس و خلاصهٔ نصب در `/root/sr-bot-install.txt` و تنظیمات سرور در `/etc/sr-bot/sr-ui.conf` ذخیره می‌شود.
 
 ### نصب بی‌سؤال (بدون پرسش)
 
@@ -97,7 +97,7 @@ sr-ui update            # بررسی و نصب نسخهٔ جدید از گیت�
 sr-ui backup            # بکاپ دیتابیس یا کامل
 sr-ui restore           # بازگردانی از فهرست بکاپ‌ها
 sr-ui migrate | check   # مایگریشن / بررسی نسخه
-sr-ui webhook | token   # وضعیت و تنطیم وب‌هوک، تغییر توکن ربات
+sr-ui webhook | token   # وضعیت و تنظیم وب‌هوک، تغییر توکن ربات
 sr-ui ssl | domain      # گواهی SSL، تغییر دامنه و پورت
 sr-ui logs | perms | db # لاگ‌ها، اصلاح دسترسی، کنسول دیتابیس
 sr-ui uninstall         # حذف کامل (با بکاپ در /root/sr-bot-backups)
@@ -133,6 +133,39 @@ nginx -t && systemctl reload nginx && certbot --nginx -d bot.example.com
 ```bash
 */5 * * * * php /var/www/srbot/cron/tasks.php >/dev/null 2>&1
 ```
+
+---
+
+## ☁️ اجرا با داکر (اختیاری)
+
+اگر ترجیح می‌دهید همه‌چیز داخل کانتینر باشد (nginx + PHP-FPM + MariaDB + وظایف دوره‌ای):
+
+```bash
+git clone https://github.com/SRNetWork-ai/SR-BOT.git /opt/sr-bot && cd /opt/sr-bot
+cp .env.docker.example .env      # حداقل DB_PASS و DB_ROOT_PASS را عوض کنید
+docker compose up -d --build
+```
+
+سپس `http://SERVER_IP:8080/install/` را باز کنید؛ در نصاب وب **هاست دیتابیس را `db`** و پورت را `3306` بگذارید.
+
+| سرویس | کار |
+|---|---|
+| `db` | MariaDB 11 با ولوم پایدار `dbdata` |
+| `app` | PHP-FPM 8.3 با افزونه‌های `pdo_mysql, zip, gd, intl, bcmath, opcache` |
+| `web` | nginx روی پورت `WEB_PORT` با وی‌هاست امن `docker/nginx.conf` |
+| `cron` | اجرای `cron/tasks.php` هر `CRON_INTERVAL` ثانیه |
+
+پوشهٔ پروژه داخل کانتینرها mount می‌شود؛ پس `config.php`، `storage/` و به‌روزرسانی از داخل پنل روی هاست باقی می‌مانند. دستورهای پرکاربرد:
+
+```bash
+docker compose ps
+docker compose logs -f app web cron
+docker compose exec -u www-data app php cli.php check
+docker compose exec -u www-data app php cli.php migrate
+```
+
+وب‌هوک تلگرام به HTTPS نیاز دارد؛ یک پراکسی (nginx/caddy/Cloudflare) جلوی پورت `8080` بگذارید.
+راهنمای کامل داکر: [docs/DOCKER.md](docs/DOCKER.md)
 
 ---
 
@@ -276,6 +309,7 @@ php cli.php prune 7        # پاک‌سازی بکاپ‌های قدیمی
 ├── database/              schema.sql + migrations/
 ├── tools/                 sr-ui (مدیر سرور در خط فرمان)، lint.sh (php -l)، botcheck.php
 ├── storage/               لاگ، بکاپ، به‌روزرسانی، رسیدها (خارج از گیت)
+├── docker/                Dockerfile، docker-compose.yml و اجرای کانتینری (اختیاری)
 ├── version.json           نسخه و بیلد (مقایسهٔ به‌روزرسانی روی build)
 └── CHANGELOG.md           تاریخچهٔ تغییرات (ربات آخرین بلوک را اعلام می‌کند)
 ```
@@ -331,6 +365,7 @@ php cli.php prune 7        # پاک‌سازی بکاپ‌های قدیمی
 
 - راهنمای مشارکت: [CONTRIBUTING.md](CONTRIBUTING.md)
 - راهنمای نصب خودکار و دستور sr-ui: [docs/INSTALL-SR-UI.md](docs/INSTALL-SR-UI.md)
+- راهنمای اجرای داکری: [docs/DOCKER.md](docs/DOCKER.md)
 - راهنمای انتشار نسخه: [docs/RELEASE.md](docs/RELEASE.md)
 - تاریخچهٔ تغییرات: [CHANGELOG.md](CHANGELOG.md)
 - CI: بررسی سینتکس روی PHP 8.1 تا 8.3 و PHPStan؛ با زدن تگ `v*` زیپ ریلیز + `SHA256SUMS` خودکار منتشر می‌شود.
