@@ -33,6 +33,13 @@ jobs:
       - name: Lint before packaging
         run: bash tools/lint.sh
 
+      - name: Check installer scripts
+        run: |
+          set -e
+          bash -n install.sh
+          bash -n tools/sr-ui
+          echo "installer syntax: ok"
+
       - name: Read version info
         id: v
         run: |
@@ -52,6 +59,10 @@ jobs:
           # git archive به export-ignore در .gitattributes احترام می‌گذارد (بدون .github و فایل‌های توسعه)
           git archive --format=tar HEAD | tar -x -C dist/"$NAME"
           rm -f dist/"$NAME"/config.php
+          # نصاب خودکار و مدیر خط فرمان باید داخل زیپ اجرایی بمانند
+          chmod 0755 dist/"$NAME"/install.sh dist/"$NAME"/tools/sr-ui 2>/dev/null || true
+          test -x dist/"$NAME"/install.sh || { echo "install.sh missing or not executable"; exit 1; }
+          test -x dist/"$NAME"/tools/sr-ui || { echo "tools/sr-ui missing or not executable"; exit 1; }
           mkdir -p dist/"$NAME"/storage/{updates,backups,logs,receipts,tmp}
           cd dist
           zip -qr "$NAME.zip" "$NAME" -x '*.DS_Store'
@@ -70,6 +81,12 @@ jobs:
             echo
             echo '---'
             echo '**نصب / به‌روزرسانی:** فایل zip را در پنل مدیریت ← به‌روزرسانی ← «نصب از فایل» بدهید، یا روی دکمهٔ «بررسی نسخهٔ جدید» بزنید تا مستقیم از همین مخزن نصب شود.'
+            echo
+            echo '**نصب روی سرور تازه (تک‌خطی):**'
+            echo '```bash'
+            echo 'bash <(curl -fsSL https://raw.githubusercontent.com/SRNetWork-ai/SR-BOT/main/install.sh)'
+            echo '```'
+            echo 'یا پس از خارج‌کردن همین زیپ: `bash install.sh` — بعد از نصب، مدیریت کامل سرور با دستور `sr-ui` انجام می‌شود (راهنما: `docs/INSTALL-SR-UI.md`).'
             echo
             echo '`config.php` و پوشهٔ `storage/` هرگز جایگزین نمی‌شوند.'
           } >> RELEASE_NOTES.md
