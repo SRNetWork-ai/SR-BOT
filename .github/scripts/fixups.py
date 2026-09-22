@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-# fixed120 - recon only: mini-app front-end anchors for devices/links screens
+# fixed121 - recon #2: exact anchors in miniapp/index.php + Devices/Links item shapes
 import io, os, re, sys, json
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed120').strip() or 'fixed120'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed121').strip() or 'fixed121'
 
 CACHE = {}
 
@@ -74,22 +74,19 @@ def grep_lines(tag, path, pattern, limit=40):
     print('---- end grep %s ----' % tag)
 
 
-# ------------------------------------------------------------ API side (already built)
-info('miniapp/api.php')
-dump_find('api_devices', 'miniapp/api.php', r"'svc_devices'", 2, 34, 1)
-dump_find('api_devdel', 'miniapp/api.php', r"'svc_device_del'", 2, 26, 1)
-dump_find('api_devclear', 'miniapp/api.php', r"'svc_devices_clear'", 2, 22, 1)
-dump_find('api_links', 'miniapp/api.php', r"'svc_links'", 2, 34, 1)
+# ---------------------------------------------- mini-app: service sheet + delegates
+dump('idx_row_copybox', 'miniapp/index.php', 1228, 1246)
+dump('idx_svc_sheet', 'miniapp/index.php', 1744, 1815)
+grep_lines('idx_closest', 'miniapp/index.php', r"closest\(", 40)
+dump_find('idx_click_delegate', 'miniapp/index.php', r"\[data-renew\]", 8, 24, 2)
 
-# ------------------------------------------------------------ front-end side (to build)
-info('miniapp/index.php')
-grep_lines('idx_svc_actions', 'miniapp/index.php', r"svc_(renew|dead|purge_dead|links|devices|device_del|detail|list|extend|traffic)", 50)
-grep_lines('idx_functions', 'miniapp/index.php', r"function [A-Za-z0-9_]+\s*\(", 60)
-grep_lines('idx_screens', 'miniapp/index.php', r"(id=\"(scr|screen|page|view|tab)[A-Za-z0-9_-]*\"|data-(screen|page|tab)=)", 40)
-dump_find('idx_api_helper', 'miniapp/index.php', r"function api\s*\(", 3, 34, 1)
-grep_lines('idx_srv_buttons', 'miniapp/index.php', r"(\u062a\u0645\u062f\u06cc\u062f|\u062c\u0632\u0626\u06cc\u0627\u062a \u0633\u0631\u0648\u06cc\u0633|\u062d\u0630\u0641 \u0633\u0631\u0648\u06cc\u0633|\u06a9\u067e\u06cc \u0644\u06cc\u0646\u06a9|QR|\u062f\u0633\u062a\u06af\u0627\u0647)", 50)
+# ---------------------------------------------- service layer shapes
+info('app/Service/Devices.php')
+dump('dev_all', 'app/Service/Devices.php', 1, 150)
+info('app/Service/Links.php')
+dump('links_all', 'app/Service/Links.php', 1, 120)
 
-# ------------------------------------------------------------ version bump (recon build)
+# ---------------------------------------------- version bump (recon build)
 vpath = os.path.join(ROOT, 'version.json')
 with io.open(vpath, 'r', encoding='utf-8') as fh:
     vj = json.load(fh)
