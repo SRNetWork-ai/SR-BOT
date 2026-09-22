@@ -1,10 +1,9 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""fixed117 - multi-node onlines (onlinesByGuid/activeInbounds) + installer sanity"""
-import io, json, os, re, subprocess, sys, tempfile
+# fixed118 - README: one-line installer section + sr-ui manager; recon CHANGELOG head
+import io, os, re, sys, json, tempfile, subprocess
 
-ROOT = os.environ.get("SRC_ROOT") or os.getcwd()
-BUILD = (os.environ.get("NEW_BUILD") or "fixed117").strip() or "fixed117"
+ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed118').strip() or 'fixed118'
 
 CACHE = {}
 NEW = {}
@@ -13,252 +12,233 @@ WARN = []
 
 
 def load(path):
-    if path in NEW:
-        return NEW[path]
-    if path not in CACHE:
-        with io.open(os.path.join(ROOT, path), encoding="utf-8") as fh:
-            CACHE[path] = fh.read()
+    if path in CACHE:
+        return CACHE[path]
+    with io.open(os.path.join(ROOT, path), 'r', encoding='utf-8') as fh:
+        CACHE[path] = fh.read()
     return CACHE[path]
+
+
+def dump(tag, path, start, end):
+    try:
+        lines = load(path).split('\n')
+    except Exception as e:
+        print('dump %s: cannot read %s (%s)' % (tag, path, e))
+        return
+    print('---- dump %s : %s (%d lines) ----' % (tag, path, len(lines)))
+    i = max(1, start)
+    last = min(len(lines), end)
+    while i <= last:
+        print('%4d %s' % (i, lines[i - 1]))
+        i += 1
+    print('---- end dump %s ----' % tag)
 
 
 def rep_rx(path, pattern, fn, marker=None, expect=1, optional=False, flags=re.M):
     try:
         src = load(path)
     except Exception as e:
-        (WARN if optional else ERRORS).append("%s: %s" % (path, e))
+        ERRORS.append('%s: cannot read (%s)' % (path, e))
         return
     if marker and marker in src:
-        print("skip (already applied): %s / %s" % (path, marker))
+        print('skip (already applied): %s / %s' % (path, marker))
         return
-    n = len(re.findall(pattern, src, flags))
+    rx = re.compile(pattern, flags)
+    n = len(rx.findall(src))
     if n != expect:
-        msg = "%s: regex for %s matched %d times (want %d)" % (path, marker or pattern[:44], n, expect)
-        (WARN if optional else ERRORS).append(msg)
+        msg = '%s: regex for %s matched %d times (want %d)' % (path, marker or pattern[:40], n, expect)
+        if optional:
+            WARN.append(msg)
+        else:
+            ERRORS.append(msg)
         return
-    NEW[path] = re.sub(pattern, fn, src, count=expect, flags=flags)
-    print("patched %s (%s)" % (path, marker or "rx"))
+    CACHE[path] = rx.sub(fn, src, count=expect)
+    NEW[path] = True
+    print('patched %s (%s)' % (path, marker or 'ok'))
 
 
 def write_all():
     if ERRORS:
-        print("ABORTED - anchors not found:")
+        print('ABORTED - anchors not found:')
         for e in ERRORS:
-            print("  - " + e)
+            print(' - ' + e)
         sys.exit(1)
-    if WARN:
-        print("warnings (optional patches skipped):")
-        for w in WARN:
-            print("  - " + w)
-    lint = False
-    tmpd = os.environ.get("TMPDIR") or tempfile.gettempdir()
-    for path, text in NEW.items():
-        data = text.encode("utf-8")
-        if path.endswith(".php"):
-            chk = os.path.join(tmpd, "syntax-check.php")
-            with io.open(chk, "wb") as fh:
+    lint = 0
+    for path in sorted(NEW):
+        data = CACHE[path]
+        if path.endswith('.php'):
+            tmp = os.path.join(tempfile.gettempdir(), 'syntax-check.php')
+            with io.open(tmp, 'w', encoding='utf-8') as fh:
                 fh.write(data)
-            r = subprocess.run(["php", "-l", chk], capture_output=True, text=True)
-            lint = True
+            r = subprocess.run(['php', '-l', tmp], capture_output=True, text=True)
             if r.returncode != 0:
-                print("php lint FAILED for %s" % path)
-                print((r.stdout or "") + (r.stderr or ""))
+                print('php lint FAILED for ' + path)
+                print(r.stdout + r.stderr)
                 sys.exit(1)
-        with io.open(os.path.join(ROOT, path), "wb") as fh:
+            lint += 1
+        with io.open(os.path.join(ROOT, path), 'w', encoding='utf-8') as fh:
             fh.write(data)
-        print("wrote " + path)
-    print("php lint: " + ("on" if lint else "off"))
-    print("changed files: %d" % len(NEW))
+        print('wrote ' + path)
+    print('php lint: %s' % ('on' if lint else 'n/a'))
+    print('changed files: %d' % len(NEW))
+    if WARN:
+        print('warnings (optional patches skipped):')
+        for w in WARN:
+            print(' - ' + w)
 
 
-# ------------------------------------------------------------------
-# 0) installer scripts: bash syntax + exec bit
-# ------------------------------------------------------------------
-for rel in ("install.sh", "tools/sr-ui"):
-    p = os.path.join(ROOT, rel)
-    if not os.path.exists(p):
-        print("installer MISSING: " + rel)
+# ------------------------------------------------------------ installer sanity
+for p in ('install.sh', 'tools/sr-ui'):
+    fp = os.path.join(ROOT, p)
+    if not os.path.exists(fp):
+        print('MISSING ' + p)
         sys.exit(1)
-    r = subprocess.run(["bash", "-n", p], capture_output=True, text=True)
-    print("bash -n %s : %s" % (rel, "ok" if r.returncode == 0 else "FAILED"))
+    r = subprocess.run(['bash', '-n', fp], capture_output=True, text=True)
+    print('bash -n %s : %s' % (p, 'ok' if r.returncode == 0 else 'FAILED'))
     if r.returncode != 0:
-        print((r.stdout or "") + (r.stderr or ""))
+        print(r.stdout + r.stderr)
         sys.exit(1)
-    os.chmod(p, 0o755)
-    print("chmod 0755 %s (mode %s)" % (rel, oct(os.stat(p).st_mode & 0o777)))
+    os.chmod(fp, 0o755)
+    print('chmod 0755 %s (mode %s)' % (p, oct(os.stat(fp).st_mode & 0o777)))
 
+# ------------------------------------------------------------ recon for next step
+dump('chlog', 'CHANGELOG.md', 1, 46)
 
-# ------------------------------------------------------------------
-# 1) Xui3: onlinesByGuid / activeInbounds / onlinesAll
-# ------------------------------------------------------------------
-X3 = r'''{I}/* 0.0.2 #x3-nodes: آنلاین‌های چندنودی */
+# ------------------------------------------------------------ README patches
+EN_EXTRA = '\nA one-line installer (`install.sh`) provisions nginx, PHP-FPM, MariaDB, cron, firewall and SSL on a fresh Ubuntu/Debian/RHEL server, then installs `sr-ui` - an x-ui-style menu that manages the whole stack from the terminal (status, update, backup/restore, webhook, SSL, domain, logs, uninstall).\n'
 
-{I}/** آنلاین‌ها به تفکیک نود (پنل‌های چندنودی) */
-{I}public function onlinesByGuid(): array
-{I}{
-{I}    $r = $this->api('/clients/onlinesByGuid', [], 'POST');
-{I}    if (($r['success'] ?? false) !== true) $r = $this->api('/clients/onlinesByGuid');
-{I}    if (($r['success'] ?? false) !== true) return [];
-{I}    $out = [];
-{I}    foreach ((array)($r['obj'] ?? []) as $k => $row) {
-{I}        if (is_string($row)) {
-{I}            $em = trim($row);
-{I}            if ($em !== '') $out[$em] = ['email' => $em, 'nodes' => []];
-{I}            continue;
-{I}        }
-{I}        $row = (array)$row;
-{I}        $em  = trim((string)($row['email'] ?? $row['name'] ?? (is_string($k) ? $k : '')));
-{I}        if ($em === '') continue;
-{I}        $nodes = [];
-{I}        foreach ((array)($row['nodes'] ?? $row['node'] ?? $row['inbounds'] ?? []) as $nd) {
-{I}            $nd = is_array($nd) ? (string)($nd['name'] ?? $nd['remark'] ?? $nd['id'] ?? '') : (string)$nd;
-{I}            $nd = trim($nd);
-{I}            if ($nd !== '') $nodes[] = $nd;
-{I}        }
-{I}        $out[$em] = ['email' => $em, 'nodes' => array_values(array_unique($nodes))];
-{I}    }
-{I}    return $out;
-{I}}
+NEW_SECTION = r'''## ⚡ نصب تک‌خطی و خودکار (پیشنهادی)
 
-{I}/** اینباندهای فعال روی همهٔ نودها */
-{I}public function activeInbounds(): array
-{I}{
-{I}    $r = $this->api('/clients/activeInbounds');
-{I}    if (($r['success'] ?? false) !== true) $r = $this->api('/clients/activeInbounds', [], 'POST');
-{I}    if (($r['success'] ?? false) !== true) return [];
-{I}    $out = [];
-{I}    foreach ((array)($r['obj'] ?? []) as $row) {
-{I}        if (is_scalar($row)) {
-{I}            $out[] = ['id' => (int)$row, 'remark' => (string)$row, 'node' => ''];
-{I}            continue;
-{I}        }
-{I}        $row   = (array)$row;
-{I}        $out[] = [
-{I}            'id'     => (int)($row['id'] ?? 0),
-{I}            'remark' => (string)($row['remark'] ?? $row['name'] ?? ''),
-{I}            'node'   => (string)($row['node'] ?? $row['nodeName'] ?? $row['server'] ?? ''),
-{I}        ];
-{I}    }
-{I}    return $out;
-{I}}
+روی یک سرور تازه (Ubuntu 20/22/24، Debian 11/12، CentOS/Alma/Rocky 8 و 9، Fedora) فقط همین یک دستور را با کاربر root بزنید:
 
-{I}/** فهرست یکتای ایمیل آنلاین‌ها؛ روی پنل چندنودی همهٔ نودها را پوشش می‌دهد */
-{I}public function onlinesAll(): array
-{I}{
-{I}    $g = $this->onlinesByGuid();
-{I}    if ($g) return array_values(array_unique(array_map('strval', array_keys($g))));
-{I}    return $this->onlines();
-{I}}
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/SRNetWork-ai/SR-BOT/main/install.sh)
+```
+
+نصاب به‌صورت خودکار: سیستم‌عامل و مدیر بستهٔ آن را تشخیص می‌دهد · nginx، PHP-FPM و افزونه‌های لازم، MariaDB و cron را نصب می‌کند · نسخهٔ PHP را بررسی می‌کند · سرویس و سوکت PHP-FPM را پیدا می‌کند · دیتابیس و کاربر آن را با رمز تصادفی می‌سازد · سورس را از همین مخزن می‌گیرد (اگر `config.php` قبلی باشد حفظ می‌شود) · دسترسی‌ها و SELinux را درست می‌کند · وی‌هاست امن nginx می‌نویسد (`app/`، `database/`، `cron/`، `tools/`، `config.php` و `storage/` بسته می‌شوند) · کران‌جاب پنج‌دقیقه‌ای می‌گذارد · پورت را روی ufw/firewalld باز می‌کند · در صورت دادن دامنه با certbot گواهی SSL می‌گیرد · و در پایان دستور مدیریت `sr-ui` را نصب می‌کند.
+
+در پایان، آدرس `http(s)://دامنه[:پورت]/install/` را باز کنید تا نصاب وب فایل `config.php` و حساب مدیر را بسازد. رمز دیتابیس و خلاصهٔ نصب در `/root/sr-bot-install.txt` و تنطیمات سرور در `/etc/sr-bot/sr-ui.conf` ذخیره می‌شود.
+
+### نصب بی‌سؤال (بدون پرسش)
+
+```bash
+SRB_NONINTERACTIVE=1 SRB_DOMAIN=bot.example.com SRB_SSL=1 \
+  bash <(curl -fsSL https://raw.githubusercontent.com/SRNetWork-ai/SR-BOT/main/install.sh)
+```
+
+| متغیر | پیش‌فرض | کار |
+|---|---|---|
+| `SRB_DOMAIN` | خالی | دامنهٔ پنل؛ خالی = آی‌پی سرور |
+| `SRB_PORT` | `80` | پورت وب |
+| `SRB_SSL` | `0` | `1` = گرفتن گواهی با certbot |
+| `SRB_ROOT` | `/var/www/sr-bot` | مسیر نصب |
+| `SRB_DB_NAME` / `SRB_DB_USER` / `SRB_DB_PASS` | `srbot` / `srbot` / تصادفی | دیتابیس |
+| `SRB_DB_PREFIX` | `vs_` | پیشوند جدول‌ها |
+| `SRB_REPO` / `SRB_BRANCH` | `SRNetWork-ai/SR-BOT` / `main` | منبع سورس |
+| `SRB_NONINTERACTIVE` | `0` | `1` = بدون هیچ پرسشی |
+
+### مدیریت سرور با دستور `sr-ui`
+
+بعد از نصب فقط بنویسید `sr-ui` تا منوی فارسی (شبیه منوی x-ui) باز شود، یا مستقیم:
+
+```bash
+sr-ui status            # وضعیت nginx / php-fpm / mysql / cron + نسخه و بیلد + کد HTTP سایت
+sr-ui restart           # ری‌استارت nginx و php-fpm
+sr-ui update            # بررسی و نصب نسخهٔ جدید از گیت‌هاب + بکاپ و اصلاح دسترسی‌ها
+sr-ui backup            # بکاپ دیتابیس یا کامل
+sr-ui restore           # بازگردانی از فهرست بکاپ‌ها
+sr-ui migrate | check   # مایگریشن / بررسی نسخه
+sr-ui webhook | token   # وضعیت و تنطیم وب‌هوک، تغییر توکن ربات
+sr-ui ssl | domain      # گواهی SSL، تغییر دامنه و پورت
+sr-ui logs | perms | db # لاگ‌ها، اصلاح دسترسی، کنسول دیتابیس
+sr-ui uninstall         # حذف کامل (با بکاپ در /root/sr-bot-backups)
+```
+
+راهنمای کامل نصاب و همهٔ گزینه‌های `sr-ui`: [docs/INSTALL-SR-UI.md](docs/INSTALL-SR-UI.md)
+
+---
 
 '''
 
-
-def x3_ins(m):
-    return X3.replace("{I}", m.group(1)) + m.group(0)
-
-
 rep_rx(
-    "app/Panel/Xui3.php",
-    r"^([ \t]*)/\*\* [^\n]*\*/\n([ \t]*)public function lastOnline\(\): array\n",
-    x3_ins,
-    marker="function onlinesByGuid",
+    'README.md',
+    r'runs on a VPS or shared hosting\. Interface language is Persian\.\n',
+    lambda m: m.group(0) + EN_EXTRA,
+    marker='x-ui-style menu',
 )
 
-
-# ------------------------------------------------------------------
-# 2) Xui facade: online check across nodes
-# ------------------------------------------------------------------
 rep_rx(
-    "app/Panel/Xui.php",
-    r"return in_array\(\$email, \$this->x3->onlines\(\), true\);",
-    lambda m: "return in_array($email, $this->x3->onlinesAll(), true);",
-    marker="x3->onlinesAll(",
+    'README.md',
+    r'^(## )([^\n]*) نصب روی سرور \(VPS\)\n\nروی Ubuntu 20/22/24 یا Debian 11/12:\n',
+    lambda m: NEW_SECTION + m.group(1) + m.group(2) + ' نصب دستی روی سرور (VPS)\n\nروی Ubuntu 20/22/24 یا Debian 11/12:\n',
+    marker='نصب تک‌خطی و خودکار',
 )
 
-
-# ------------------------------------------------------------------
-# 3) cron: online sync uses every node
-# ------------------------------------------------------------------
 rep_rx(
-    "cron/tasks.php",
-    r"\$ox = \(new Xui3\(\$pn\)\)->onlines\(\);",
-    lambda m: "$x3d = new Xui3($pn); $ox = method_exists($x3d, 'onlinesAll') ? $x3d->onlinesAll() : $x3d->onlines();",
-    marker="onlinesAll()",
+    'README.md',
+    r'^(├── install/ +نصاب وب)',
+    lambda m: '├── install.sh             نصاب خودکار سرور (تک‌خطی) + نصب دستور sr-ui\n' + m.group(1),
+    marker='نصاب خودکار سرور',
 )
 
-
-# ------------------------------------------------------------------
-# 4) Health: per-node online counter
-# ------------------------------------------------------------------
-HL = r'''{I}/* 0.0.2 #x3-nodes-ui: آنلاین‌ها روی چند نود */
-{I}$x3g = $x3drv->onlinesByGuid();
-{I}if ($x3g) {
-{I}    $x3nd = [];
-{I}    foreach ($x3g as $x3row) {
-{I}        foreach ((array)($x3row['nodes'] ?? []) as $x3n) {
-{I}            $x3n = trim((string)$x3n);
-{I}            if ($x3n !== '') $x3nd[$x3n] = true;
-{I}        }
-{I}    }
-{I}    $out[] = self::it(
-{I}        'آنلاین‌های ' . $x3name,
-{I}        fa_num((string)count($x3g)) . ' کاربر روی ' . fa_num((string)max(1, count($x3nd))) . ' نود',
-{I}        'ok',
-{I}        $x3nd ? ('نودها: ' . implode('، ', array_slice(array_keys($x3nd), 0, 6))) : ''
-{I}    );
-{I}}
-'''
-
-
-def hl_ins(m):
-    return HL.replace("{I}", m.group(1)) + m.group(0)
-
-
 rep_rx(
-    "app/Service/Health.php",
-    r"^([ \t]*)\$x3ip = \$x3drv->ipLimitStatus\(\);\n",
-    hl_ins,
-    marker="0.0.2 #x3-nodes-ui",
+    'README.md',
+    r'^(├── tools/)( +)lint\.sh \(php -l\)',
+    lambda m: m.group(1) + m.group(2) + 'sr-ui (مدیر سرور در خط فرمان)، lint.sh (php -l)',
+    marker='مدیر سرور در خط فرمان',
 )
 
+rep_rx(
+    'README.md',
+    r'^- راهنمای انتشار نسخه: \[docs/RELEASE\.md\]\(docs/RELEASE\.md\)\n',
+    lambda m: '- راهنمای نصب خودکار و دستور sr-ui: [docs/INSTALL-SR-UI.md](docs/INSTALL-SR-UI.md)\n' + m.group(0),
+    marker='راهنمای نصب خودکار و دستور sr-ui',
+)
 
 write_all()
 
-
-# ------------------------------------------------------------------
-# sanity
-# ------------------------------------------------------------------
-for path, needle in (
-    ("app/Panel/Xui3.php", "function onlinesByGuid"),
-    ("app/Panel/Xui3.php", "function activeInbounds"),
-    ("app/Panel/Xui3.php", "function onlinesAll"),
-    ("app/Panel/Xui.php", "x3->onlinesAll("),
-    ("cron/tasks.php", "onlinesAll()"),
-    ("app/Service/Health.php", "0.0.2 #x3-nodes-ui"),
-    ("install.sh", "install_srui"),
-    ("tools/sr-ui", "c_uninstall"),
-):
+# ------------------------------------------------------------ sanity
+SANITY = [
+    ('README.md', 'نصب تک‌خطی و خودکار'),
+    ('README.md', 'sr-ui status'),
+    ('README.md', 'SRB_NONINTERACTIVE'),
+    ('README.md', 'نصاب دستی روی سرور'),
+    ('README.md', 'نصاب خودکار سرور'),
+    ('README.md', 'مدیر سرور در خط فرمان'),
+    ('README.md', 'x-ui-style menu'),
+    ('README.md', '[docs/INSTALL-SR-UI.md](docs/INSTALL-SR-UI.md)'),
+    ('docs/INSTALL-SR-UI.md', 'sr-ui uninstall'),
+    ('install.sh', 'install_srui'),
+    ('tools/sr-ui', 'c_uninstall'),
+]
+for path, needle in SANITY:
     try:
-        body = load(path)
-    except Exception as e:
-        print("sanity %s : ERROR %s" % (path, e))
-        continue
-    print("sanity %s / %s : %s" % (path, needle, "ok" if needle in body else "MISSING"))
+        ok = needle in load(path)
+    except Exception:
+        ok = False
+    print('sanity %s / %s : %s' % (path, needle, 'ok' if ok else 'MISSING'))
 
-
-# ------------------------------------------------------------------
-# version.json
-# ------------------------------------------------------------------
-VJ = os.path.join(ROOT, "version.json")
-with io.open(VJ, encoding="utf-8") as fh:
-    v = json.load(fh)
-v["build"] = BUILD
-entry = "آنلاین‌های چندنودی پنل نسل جدید + نصاب هوشمند install.sh و مدیر خط فرمان sr-ui"
-cl = v.get("changelog")
-if isinstance(cl, list) and entry not in cl:
-    cl.insert(0, entry)
-    v["changelog"] = cl
-    print("changelog: entry added")
-with io.open(VJ, "w", encoding="utf-8") as fh:
-    json.dump(v, fh, ensure_ascii=False, indent=2)
-    fh.write("\n")
-print("build: " + BUILD)
+# ------------------------------------------------------------ version + changelog
+vpath = os.path.join(ROOT, 'version.json')
+with io.open(vpath, 'r', encoding='utf-8') as fh:
+    vj = json.load(fh)
+old_build = vj.get('build')
+vj['build'] = BUILD
+ENTRY = 'مستندسازی نصاب خودکار: راهنمای docs/INSTALL-SR-UI.md، بخش نصب تک‌خطی در README و اجرایی ماندن install.sh و sr-ui در زیپ ریلیز'
+cl = vj.get('changelog')
+if isinstance(cl, list) and (len(cl) == 0 or isinstance(cl[0], str)):
+    if ENTRY in cl:
+        print('changelog: already present')
+    else:
+        cl.insert(0, ENTRY)
+        print('changelog: entry added')
+    vj['changelog'] = cl
+else:
+    print('changelog: skipped (shape=%s)' % type(cl).__name__)
+    if isinstance(cl, list) and cl:
+        print('changelog[0] repr: ' + repr(cl[0])[:300])
+with io.open(vpath, 'w', encoding='utf-8') as fh:
+    json.dump(vj, fh, ensure_ascii=False, indent=2)
+    fh.write('\n')
+print('build: %s (was %s)' % (BUILD, old_build))
+print('exit: 0')
