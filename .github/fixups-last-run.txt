@@ -1,42 +1,283 @@
 Python 3.12.3
-Tue Sep 22 18:24:12 UTC 2026
-bash -n install.sh : ok
-chmod 0755 install.sh (mode 0o755)
-bash -n tools/sr-ui : ok
-chmod 0755 tools/sr-ui (mode 0o755)
-bash -n docker/entrypoint.sh : ok
-chmod 0755 docker/entrypoint.sh (mode 0o755)
-bash -n docker/cron.sh : ok
-chmod 0755 docker/cron.sh (mode 0o755)
-docker-compose.yml: tabs=0 services=db:,app:,web:,cron:
-patched README.md (اجرای اختیاری با Docker)
-patched README.md (optional Docker Compose stack)
-patched README.md (اجرا با داکر)
-patched README.md (اجرای کانتینری)
-patched README.md (راهنمای اجرای داکری)
-typo README.md: تنطیم -> تنظیم (2)
-typo docs/INSTALL-SR-UI.md: تنطیم -> تنظیم (0)
-wrote README.md
-php lint: n/a
-changed files: 1
-sanity README.md / اجرا با داکر : ok
-sanity README.md / docker compose up -d --build : ok
-sanity README.md / [docs/DOCKER.md](docs/DOCKER.md) : ok
-sanity README.md / اجرای کانتینری : ok
-sanity README.md / اجرای اختیاری با Docker : ok
-sanity README.md / optional Docker Compose stack : ok
-sanity README.md / راهنمای اجرای داکری : ok
-sanity Dockerfile / docker-php-ext-install : ok
-sanity docker-compose.yml / mariadb:11 : ok
-sanity docker/nginx.conf / fastcgi_pass app:9000; : ok
-sanity docker/entrypoint.sh / exec "$@" : ok
-sanity docker/cron.sh / cron/tasks.php : ok
-sanity docs/DOCKER.md / docker compose exec : ok
-sanity .dockerignore / config.php : ok
-sanity .env.docker.example / WEB_PORT : ok
-typo left README.md : 0
-typo left docs/INSTALL-SR-UI.md : 0
-changelog: entry added
-build: fixed119 (was fixed118)
+Tue Sep 22 18:27:14 UTC 2026
+info miniapp/api.php: 141754 bytes, 2911 lines
+---- find api_devices : 'svc_devices' -> 1 hits [1035] ----
+  -- around line 1035 --
+ 1033     }
+ 1034 
+ 1035     case 'svc_devices': {
+ 1036         $sid = (int)($in['id'] ?? 0);
+ 1037         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+ 1038             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
+ 1039         if (!$s) ma_fail('سرویس یافت نشد.');
+ 1040         if (!class_exists('Devices') || !Devices::supported($s)) {
+ 1041             ma_out(['ok' => true, 'supported' => false, 'count' => 0, 'items' => [], 'limit' => 0]);
+ 1042         }
+ 1043         $items = Devices::listFor($s);
+ 1044         ma_out([
+ 1045             'ok'        => true,
+ 1046             'supported' => true,
+ 1047             'count'     => count($items),
+ 1048             'items'     => $items,
+ 1049             'limit'     => Devices::limitOf($s),
+ 1050         ]);
+ 1051     }
+ 1052 
+ 1053     case 'svc_device_del': {
+ 1054         $sid = (int)($in['id'] ?? 0);
+ 1055         $dev = (int)($in['device'] ?? 0);
+ 1056         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+ 1057             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
+ 1058         if (!$s) ma_fail('سرویس یافت نشد.');
+ 1059         if (!class_exists('Devices') || !Devices::supported($s)) ma_fail('این پنل از مدیریت دستگاه پشتیبانی نمی‌کند.');
+ 1060         if ($dev <= 0) ma_fail('دستگاه نامعتبر است.');
+ 1061         if (!Devices::remove($s, $dev)) ma_fail('حذف دستگاه انجام نشد.');
+ 1062         $items = Devices::listFor($s);
+ 1063         ma_out([
+ 1064             'ok'      => true,
+ 1065             'message' => 'دستگاه حذف شد.',
+ 1066             'count'   => count($items),
+ 1067             'items'   => $items,
+ 1068             'limit'   => Devices::limitOf($s),
+ 1069         ]);
+---- end find api_devices ----
+---- find api_devdel : 'svc_device_del' -> 1 hits [1053] ----
+  -- around line 1053 --
+ 1051     }
+ 1052 
+ 1053     case 'svc_device_del': {
+ 1054         $sid = (int)($in['id'] ?? 0);
+ 1055         $dev = (int)($in['device'] ?? 0);
+ 1056         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+ 1057             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
+ 1058         if (!$s) ma_fail('سرویس یافت نشد.');
+ 1059         if (!class_exists('Devices') || !Devices::supported($s)) ma_fail('این پنل از مدیریت دستگاه پشتیبانی نمی‌کند.');
+ 1060         if ($dev <= 0) ma_fail('دستگاه نامعتبر است.');
+ 1061         if (!Devices::remove($s, $dev)) ma_fail('حذف دستگاه انجام نشد.');
+ 1062         $items = Devices::listFor($s);
+ 1063         ma_out([
+ 1064             'ok'      => true,
+ 1065             'message' => 'دستگاه حذف شد.',
+ 1066             'count'   => count($items),
+ 1067             'items'   => $items,
+ 1068             'limit'   => Devices::limitOf($s),
+ 1069         ]);
+ 1070     }
+ 1071 
+ 1072     case 'svc_devices_clear': {
+ 1073         $sid = (int)($in['id'] ?? 0);
+ 1074         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+ 1075             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
+ 1076         if (!$s) ma_fail('سرویس یافت نشد.');
+ 1077         if (!class_exists('Devices') || !Devices::supported($s)) ma_fail('این پنل از مدیریت دستگاه پشتیبانی نمی‌کند.');
+ 1078         $n = Devices::clear($s);
+ 1079         ma_out([
+---- end find api_devdel ----
+---- find api_devclear : 'svc_devices_clear' -> 1 hits [1072] ----
+  -- around line 1072 --
+ 1070     }
+ 1071 
+ 1072     case 'svc_devices_clear': {
+ 1073         $sid = (int)($in['id'] ?? 0);
+ 1074         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+ 1075             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
+ 1076         if (!$s) ma_fail('سرویس یافت نشد.');
+ 1077         if (!class_exists('Devices') || !Devices::supported($s)) ma_fail('این پنل از مدیریت دستگاه پشتیبانی نمی‌کند.');
+ 1078         $n = Devices::clear($s);
+ 1079         ma_out([
+ 1080             'ok'      => true,
+ 1081             'message' => $n > 0 ? ('همهٔ دستگاه‌ها حذف شدند (' . fa_num((string)$n) . ').') : 'دستگاهی برای حذف نبود.',
+ 1082             'removed' => $n,
+ 1083             'count'   => 0,
+ 1084             'items'   => [],
+ 1085             'limit'   => Devices::limitOf($s),
+ 1086         ]);
+ 1087     }
+ 1088 
+ 1089     case 'svc_dead': {
+ 1090         $items = []; $sum = 0;
+ 1091         foreach (Svc::deadForUser($UID) as $s) {
+ 1092             $q = Svc::deleteQuote($s);
+ 1093             $sum += (int)$q['refund'];
+ 1094             $items[] = [
+---- end find api_devclear ----
+---- find api_links : 'svc_links' -> 1 hits [1019] ----
+  -- around line 1019 --
+ 1017     /* 0.0.2: مدیریت دستگاه‌های ثبت‌شده (HWID) — فقط پنل نسل جدید سنایی */
+ 1018     /* 0.0.2 #happ-links: لینک Happ و لینک‌های خارجی سرویس */
+ 1019     case 'svc_links': {
+ 1020         $sid = (int)($in['id'] ?? 0);
+ 1021         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+ 1022             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
+ 1023         if (!$s) ma_fail('سرویس یافت نشد.');
+ 1024         if (!class_exists('Links') || !Links::supported($s)) {
+ 1025             ma_out(['ok' => true, 'supported' => false, 'happ' => '', 'items' => []]);
+ 1026         }
+ 1027         ma_out([
+ 1028             'ok'        => true,
+ 1029             'supported' => true,
+ 1030             'happ'      => Links::happ($s),
+ 1031             'items'     => Links::external($s),
+ 1032         ]);
+ 1033     }
+ 1034 
+ 1035     case 'svc_devices': {
+ 1036         $sid = (int)($in['id'] ?? 0);
+ 1037         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
+ 1038             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
+ 1039         if (!$s) ma_fail('سرویس یافت نشد.');
+ 1040         if (!class_exists('Devices') || !Devices::supported($s)) {
+ 1041             ma_out(['ok' => true, 'supported' => false, 'count' => 0, 'items' => [], 'limit' => 0]);
+ 1042         }
+ 1043         $items = Devices::listFor($s);
+ 1044         ma_out([
+ 1045             'ok'        => true,
+ 1046             'supported' => true,
+ 1047             'count'     => count($items),
+ 1048             'items'     => $items,
+ 1049             'limit'     => Devices::limitOf($s),
+ 1050         ]);
+ 1051     }
+ 1052 
+ 1053     case 'svc_device_del': {
+---- end find api_links ----
+info miniapp/index.php: 211070 bytes, 4125 lines
+---- grep idx_svc_actions : svc_(renew|dead|purge_dead|links|devices|device_del|detail|list|extend|traffic) -> 4 hits ----
+ 1846     api('svc_renew_plans', { id: id }).then(function (r) {
+ 1864     api('svc_renew', { id: id, plan_id: planId }).then(function (r) {
+ 1909     api('svc_dead').then(function (r) {
+ 1932     api('svc_purge_dead', { confirm: 'yes' }).then(function (r) {
+---- end grep idx_svc_actions ----
+---- grep idx_functions : function [A-Za-z0-9_]+\s*\( -> 132 hits ----
+  987   function haptic(kind) {
+  999   function esc(s) {
+ 1005   function fa(s) {
+ 1011   function toast(msg, kind) {
+ 1020   function copy(text, btn) {
+ 1030   function fallback(text, done) {
+ 1039   function api(action, data) {
+ 1059   function sheet(title, html) {
+ 1068   function closeSheet() {
+ 1077   function skeleton(n) {
+ 1083   function empty(icon, title, sub, btn) {
+ 1089   function paintHeader() {
+ 1100   function viewHome() {
+ 1186   function homeSvc() {
+ 1218   function hmSvcRow(s) {
+ 1231   function row(ic, title, sub, val) {
+ 1236   function copyBox(text) {
+ 1242   function viewShop() {
+ 1258   function shopPanels() {
+ 1262   function shopPanel(id) {
+ 1269   function shopCrumb(step) {
+ 1291   function prodCard(p) {
+ 1336   function paintShop() {
+ 1360   function paintShopPanels() {
+ 1383   function paintShopCats() {
+ 1417   function paintShopList() {
+ 1437   function cusServers() {
+ 1441   function cusMoney(n) {
+ 1447   function cusLim(c, sv) {
+ 1457   function cusApplyLim() {
+ 1469   function cusQuote() {
+ 1482   function cusSheet() {
+ 1511   function cusDoBuy() {
+ 1541   function buySheet(id) {
+ 1564   function doBuy(id, btn) {
+ 1592   function viewSvc() {
+ 1607   function svcMatch(s, f) {
+ 1616   function paintSvc() {
+ 1661   function paintSvcChips() {
+ 1680   function paintSvcList() {
+ 1698   function svcCard(s) {
+ 1726   function bar3d(pct, kind) {
+ 1733   function tile3d(ic, lbl, val, kind) {
+ 1742   function svcPct(s) {
+ 1749   function serviceSheet(s, fresh) {
+ 1812   function tilt3d(id) {
+ 1818     function apply() {
+ 1823     function move(cx, cy) {
+ 1831     function reset() {
+ 1845   function renewSheet(id) {
+ 1862   function doRenew(id, planId, btn) {
+ 1876   function delSheet(id) {
+ 1893   function doDel(id, btn) {
+ 1908   function deadSheet() {
+ 1930   function doPurgeDead(btn) {
+ 1945   function viewWallet() {
+ 1958   function paintWallet() {
+ 1997   function paintWfChips() {
+ 2016   function paintWtx() {
+ 2044   function chargeSheet() {
+---- end grep idx_functions ----
+---- grep idx_screens : (id=\"(scr|screen|page|view|tab)[A-Za-z0-9_-]*\"|data-(screen|page|tab)=) -> 7 hits ----
+  934   <main class="view" id="view">
+  940   <nav class="tabs" id="tabs">
+  941     <button type="button" data-tab="home" class="on"><span class="ic">🏠</span>خانه</button>
+  942     <button type="button" data-tab="shop"><span class="ic">🛒</span>محصولات</button>
+  943     <button type="button" data-tab="svc"><span class="ic">📦</span>سرویس‌ها</button>
+  944     <button type="button" data-tab="wallet"><span class="ic">💳</span>کیف پول</button>
+  945     <button type="button" data-tab="help"><span class="ic">👤</span>من</button>
+---- end grep idx_screens ----
+---- find idx_api_helper : function api\s*\( -> 1 hits [1039] ----
+  -- around line 1039 --
+ 1036   }
+ 1037 
+ 1038   /* ================= ارتباط با سرور ================= */
+ 1039   function api(action, data) {
+ 1040     var body = Object.assign({ action: action, initData: INIT }, data || {});
+ 1041     return fetch('api.php', {
+ 1042       method: 'POST',
+ 1043       headers: { 'Content-Type': 'application/json', 'X-TG-Init-Data': INIT },
+ 1044       body: JSON.stringify(body)
+ 1045     }).then(function (r) {
+ 1046       return r.text().then(function (t) {
+ 1047         try { return JSON.parse(t); }
+ 1048         catch (e) {
+ 1049           var snip = String(t || '').replace(/<[^>]*>/g, ' ').replace(/  +/g, ' ').trim().slice(0, 200);
+ 1050           return { ok: false, message: 'پاسخ سرور معتبر نبود (کد ' + r.status + ').' + (snip ? '  —  ' + snip : '') };
+ 1051         }
+ 1052       });
+ 1053     }).catch(function () {
+ 1054       return { ok: false, message: 'اتصال به سرور برقرار نشد.' };
+ 1055     });
+ 1056   }
+ 1057 
+ 1058   /* ================= شیت ================= */
+ 1059   function sheet(title, html) {
+ 1060     $('sh').innerHTML =
+ 1061       '<div class="sh-h"><div class="sh-bar"></div>' +
+ 1062       '<div class="sh-t"><span>' + title + '</span>' +
+ 1063       '<button type="button" class="sh-x" data-x>✕</button></div></div>' + html;
+ 1064     $('sw').classList.add('on');
+ 1065     document.body.style.overflow = 'hidden';
+ 1066   }
+ 1067 
+ 1068   function closeSheet() {
+ 1069     $('sw').classList.remove('on');
+ 1070     document.body.style.overflow = '';
+ 1071   }
+ 1072 
+ 1073   $('sw').addEventListener('click', function (e) {
+---- end find idx_api_helper ----
+---- grep idx_srv_buttons : (\u062a\u0645\u062f\u06cc\u062f|\u062c\u0632\u0626\u06cc\u0627\u062a \u0633\u0631\u0648\u06cc\u0633|\u062d\u0630\u0641 \u0633\u0631\u0648\u06cc\u0633|\u06a9\u067e\u06cc \u0644\u06cc\u0646\u06a9|QR|\u062f\u0633\u062a\u06af\u0627\u0647) -> 15 hits ----
+ 1207           ' سرویس به پایان حجم نزدیک است؛ برای جلوگیری از قطعی، تمدید کنید.</div>';
+ 1640         'با دکمهٔ تمدید حجم تازه بگیرید.</div>';
+ 1716         (sub ? '<button type="button" data-copy="' + esc(sub) + '">📋 کپی لینک</button>' : '') +
+ 1717         '<button type="button" data-renew="' + s.id + '">🔄 تمدید</button>' +
+ 1722   /* ============ جزئیات سرویس – کارت سه‌بعدی ============ */
+ 1789         (s.device      ? row('📱', 'دستگاه مجاز', '', fa(s.device))     : '') +
+ 1804       (s.can_renew ? '<button type="button" class="btn b3d" style="width:100%;margin-top:4px" data-renew="' + s.id + '">♻️ تمدید سرویس</button>' : '') +
+ 1805       (s.can_del ? '<button type="button" class="btn gh b3d" style="width:100%;margin-top:8px" data-del="' + s.id + '">🗑 حذف سرویس و عودت وجه</button>' : '');
+ 1807     sheet((fresh ? '🎉 سرویس آماده است' : '📦 جزئیات سرویس'), body);
+ 1844   /* ================= تمدید و حذف سرویس ================= */
+ 1848       if (!r.plans || !r.plans.length) { toast('طرحی برای تمدید این سرویس موجود نیست.', 'err'); return; }
+ 1857       h += '<div style="font-size:11px;color:var(--mut)">مبلغ طرح از کیف پول کسر می‌شود و حجم و زمان طبق روش تمدید همان سرور اعمال می‌شود.</div>';
+ 1858       sheet('♻️ تمدید سرویس', h);
+ 1889       sheet('🗑 حذف سرویس', h);
+ 2324         ['حجم من تمام شد، چه کنم؟', 'از بخش سرویس‌ها همان سرویس را باز کنید و تمدید بزنید؛ حجم و زمان از نو محاسبه می‌شود.'],
+---- end grep idx_srv_buttons ----
+changelog: skipped (recon build)
+build: fixed120 (was fixed119)
 exit: 0
 exit: 0
