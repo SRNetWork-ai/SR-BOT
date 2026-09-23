@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-# fixed126 - row 16 finish: feature matrix for the new drivers
+# fixed127 - recon only: products schema, admin form, service creation, happ links
 import io, os, re, sys, json, subprocess
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed126').strip() or 'fixed126'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed127').strip() or 'fixed127'
 
 CACHE = {}
 NEW = {}
@@ -43,123 +43,78 @@ def dump(tag, path, start, end):
     print('---- end dump %s ----' % tag)
 
 
-def rep_rx(path, pattern, fn, marker, expect=1, optional=False, flags=re.M):
+def dump_find(tag, path, pattern, before=6, after=20, limit=2):
     try:
-        s = load(path)
+        lines = load(path).split('\n')
     except Exception as e:
-        ERRORS.append('%s: cannot read (%s)' % (path, e))
-        print('ERROR: %s: cannot read (%s)' % (path, e))
+        print('dump_find %s: cannot read %s (%s)' % (tag, path, e))
         return
-    if marker and marker in s:
-        print('skip (already applied): %s / %s' % (path, marker))
-        return
-    rx = re.compile(pattern, flags)
-    hits = rx.findall(s)
-    if len(hits) != expect:
-        msg = '%s: regex for %s matched %d times (want %d)' % (path, marker, len(hits), expect)
-        if optional:
-            WARN.append(msg)
-            print('warn: ' + msg)
-        else:
-            ERRORS.append(msg)
-            print('ERROR: ' + msg)
-        return
-    out = rx.sub(lambda m: fn(m), s, count=expect)
-    CACHE[path] = out
-    NEW[path] = out
-    print('patched %s (%s)' % (path, marker))
+    rx = re.compile(pattern)
+    hits = [i + 1 for i, ln in enumerate(lines) if rx.search(ln)]
+    print('---- find %s : %s -> %d hits %s ----' % (tag, pattern, len(hits), hits[:40]))
+    for n in hits[:limit]:
+        dump('%s@%d' % (tag, n), path, n - before, n + after)
 
 
-def write_all():
-    if ERRORS:
-        print('ABORTED - anchors not found:')
-        for e in ERRORS:
-            print('  - ' + e)
-        sys.exit(1)
-    tmpdir = os.environ.get('TMPDIR') or '/tmp'
-    tmp = os.path.join(tmpdir, 'syntax-check.php')
-    lint = 'n/a'
-    for path, text in NEW.items():
-        if path.endswith('.php'):
-            try:
-                with io.open(tmp, 'w', encoding='utf-8') as fh:
-                    fh.write(text)
-                p = subprocess.run(['php', '-l', tmp], capture_output=True, text=True)
-                if p.returncode != 0:
-                    print('PHP LINT FAILED for %s:\n%s\n%s' % (path, p.stdout.strip(), p.stderr.strip()))
-                    sys.exit(1)
-                lint = 'on'
-            except FileNotFoundError:
-                lint = 'n/a'
-        with io.open(os.path.join(ROOT, path), 'w', encoding='utf-8') as fh:
-            fh.write(text)
-        print('wrote %s' % path)
-    print('php lint: %s' % lint)
-    print('changed files: %d' % len(NEW))
-    if WARN:
-        print('warnings (optional patches skipped):')
-        for w in WARN:
-            print('  - ' + w)
-
-
-XUI = 'app/Panel/Xui.php'
-info(XUI)
-
-# 1) revoke is available on marzban + marzneshin (hiddify has no revoke endpoint)
-rep_rx(
-    XUI,
-    r"^            case 'revoke':   return \$this->pg !== null;$",
-    lambda m: (
-        "            /* 0.0.2 #row16 \u2014 \u0645\u0631\u0632\u0628\u0627\u0646 \u0648 \u0645\u0631\u0632\u0646\u0634\u06cc\u0646 \u0647\u0645 \u0644\u063a\u0648 \u0644\u06cc\u0646\u06a9 \u0627\u0634\u062a\u0631\u0627\u06a9 \u062f\u0627\u0631\u0646\u062f\u061b \u0647\u06cc\u062f\u06cc\u0641\u0627\u06cc \u0646\u062f\u0627\u0631\u062f */\n"
-        "            case 'revoke':   return $this->pg !== null || ($this->mz !== null && !($this->mz instanceof Hiddify));"
-    ),
-    'instanceof Hiddify)',
-)
-
-write_all()
-
-# ------------------------------------------------------------- checks
-try:
-    php_code = (
-        'require "app/Panel/Xui.php"; require "app/Panel/Xui3.php"; require "app/Panel/Marzban.php"; '
-        'require "app/Panel/Marzneshin.php"; require "app/Panel/PasarGuard.php"; require "app/Panel/Hiddify.php"; '
-        'echo "classes ok", PHP_EOL;'
-    )
-    p = subprocess.run(['php', '-r', php_code], cwd=ROOT, capture_output=True, text=True)
-    print('class check rc=%d out=%s' % (p.returncode, p.stdout.strip()))
-    if p.returncode != 0:
-        print('class check stderr: %s' % p.stderr.strip()[:800])
-except FileNotFoundError:
-    print('class check: n/a (no php)')
-
-SANITY = [
-    (XUI, "case 'revoke':   return $this->pg !== null || ($this->mz !== null && !($this->mz instanceof Hiddify));"),
-    (XUI, 'new Marzneshin($panel)'),
-    (XUI, 'new Hiddify($panel)'),
-]
-for path, needle in SANITY:
+def grep_lines(tag, path, pattern, limit=40):
     try:
-        ok = needle in load(path)
-    except Exception:
-        ok = False
-    print('sanity %s / %s : %s' % (path, needle, 'ok' if ok else 'MISSING'))
+        lines = load(path).split('\n')
+    except Exception as e:
+        print('grep %s: cannot read %s (%s)' % (tag, path, e))
+        return
+    rx = re.compile(pattern)
+    n = 0
+    print('---- grep %s : %s ----' % (tag, pattern))
+    for i, ln in enumerate(lines):
+        if rx.search(ln):
+            n += 1
+            if n <= limit:
+                print('%5d %s' % (i + 1, ln.strip()[:200]))
+    print('---- grep %s : %d hits ----' % (tag, n))
 
-# ------------------------------------------------------------- version + changelog
-TXT = '\u0644\u063a\u0648 \u0644\u06cc\u0646\u06a9 \u0627\u0634\u062a\u0631\u0627\u06a9 \u0628\u0631\u0627\u06cc \u067e\u0646\u0644\u200c\u0647\u0627\u06cc \u0645\u0631\u0632\u0628\u0627\u0646 \u0648 \u0645\u0631\u0632\u0646\u0634\u06cc\u0646 \u0647\u0645 \u0641\u0639\u0627\u0644 \u0634\u062f'
+
+# ------------------------------------------------------------------ recon
+for p in ('database/schema.sql', 'app/Service/Migrate.php', 'admin/pages/products.php',
+          'app/Service/Svc.php', 'app/Service/Links.php', 'app/Service/Devices.php'):
+    info(p)
+
+try:
+    mig = sorted(os.listdir(os.path.join(ROOT, 'database/migrations')))
+    print('migrations (%d): %s' % (len(mig), ', '.join(mig)))
+except Exception as e:
+    print('migrations: cannot list (%s)' % e)
+
+# 1) products table definition
+dump_find('schema_products', 'database/schema.sql', r'CREATE TABLE[^\n]*products', 0, 48, 1)
+
+# 2) how columns get added by the migrator
+dump('migrate_head', 'app/Service/Migrate.php', 1, 60)
+dump_find('migrate_reset_days', 'app/Service/Migrate.php', r'reset_days', 10, 10, 2)
+grep_lines('migrate_helpers', 'app/Service/Migrate.php', r'function |addColumn|hasColumn|ALTER TABLE', 60)
+
+# 3) admin product form: existing numeric limits
+dump_find('prod_reset_days', 'admin/pages/products.php', r'reset_days', 12, 12, 3)
+dump_find('prod_ip_limit', 'admin/pages/products.php', r'ip_limit', 10, 10, 3)
+grep_lines('prod_cols', 'admin/pages/products.php', r"'(ip_limit|device_limit|reset_days|volume|days|inbound_id|panel_id)'", 60)
+
+# 4) service creation path
+dump_find('svc_addclient', 'app/Service/Svc.php', r'->addClient\(', 34, 18, 2)
+grep_lines('svc_limits', 'app/Service/Svc.php', r'device_limit|deviceLimit|ip_limit|limitHwid|reset_days', 60)
+
+# 5) happ links service
+dump('links_all', 'app/Service/Links.php', 1, 90)
+
+print('build: %s (recon only, nothing patched)' % BUILD)
+
+# ------------------------------------------------------------------ version bump only
 vpath = os.path.join(ROOT, 'version.json')
 with io.open(vpath, 'r', encoding='utf-8') as fh:
     vj = json.load(fh)
 old_build = vj.get('build')
 vj['build'] = BUILD
-cl = vj.get('changelog')
-added = False
-if isinstance(cl, list) and (not cl or isinstance(cl[0], str)):
-    if TXT not in cl:
-        cl.insert(0, TXT)
-        added = True
 with io.open(vpath, 'w', encoding='utf-8') as fh:
     json.dump(vj, fh, ensure_ascii=False, indent=2)
     fh.write('\n')
-print('changelog: %s' % ('entry added' if added else 'skipped'))
+print('changelog: skipped (recon build)')
 print('build: %s (was %s)' % (BUILD, old_build))
 print('exit: 0')
