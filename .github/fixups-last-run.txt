@@ -1,331 +1,355 @@
 Python 3.12.3
-Wed Sep 23 15:34:01 UTC 2026
----- find svc_deliver_const : const DELIVER -> 1 hits [1556] ----
----- dump svc_deliver_const@1556 : app/Service/Svc.php (2000 lines) ----
- 1554      * کلید => [عنوان، توضیح، آیکون]
- 1555      */
- 1556     public const DELIVER = [
- 1557         'both'   => ['لینک ساب + کانفیگ', 'هم لینک اشتراک و هم کانفیگ‌های مستقیم تحویل داده می‌شود', '🎁'],
- 1558         'sub'    => ['فقط لینک ساب', 'فقط لینک اشتراک با به‌روزرسانی خودکار', '🔗'],
- 1559         'config' => ['فقط کانفیگ', 'فقط کانفیگ‌های مستقیم بدون لینک ساب', '⚙️'],
- 1560     ];
- 1561 
- 1562     /** پیش‌فرض کلی فروشگاه */
- 1563     public static function deliverDefault(): string
- 1564     {
- 1565         $m = strtolower(trim((string)DB::setting('deliver_mode', 'both')));
- 1566         return isset(self::DELIVER[$m]) ? $m : 'both';
- 1567     }
- 1568 
- 1569     /** حالت تحویل یک محصول؛ خالی = پیروی از پیش‌فرض کلی */
- 1570     public static function deliverModeOf($productId): string
----- end dump svc_deliver_const@1556 ----
----- grep svc_deliver : DELIVER|deliver_mode|deliverMode|function deliver ----
- 1556 public const DELIVER = [
- 1563 public static function deliverDefault(): string
- 1565 $m = strtolower(trim((string)DB::setting('deliver_mode', 'both')));
- 1566 return isset(self::DELIVER[$m]) ? $m : 'both';
- 1570 public static function deliverModeOf($productId): string
- 1576 $m = (string)DB::val('SELECT deliver_mode FROM {p}products WHERE id = :id', [':id' => $pid], '');
- 1579 return isset(self::DELIVER[$m]) ? $m : self::deliverDefault();
- 1583 public static function deliverMode(array $s): string
- 1585 return self::deliverModeOf((int)($s['product_id'] ?? 0));
- 1588 public static function deliverLabel(string $m): string
- 1590 $d = self::DELIVER[$m] ?? self::DELIVER['both'];
----- grep svc_deliver : 11 hits ----
----- find svc_deliver_fn : function deliverMode|function deliver\( -> 2 hits [1570, 1583] ----
----- dump svc_deliver_fn@1570 : app/Service/Svc.php (2000 lines) ----
- 1564     {
- 1565         $m = strtolower(trim((string)DB::setting('deliver_mode', 'both')));
- 1566         return isset(self::DELIVER[$m]) ? $m : 'both';
- 1567     }
- 1568 
- 1569     /** حالت تحویل یک محصول؛ خالی = پیروی از پیش‌فرض کلی */
- 1570     public static function deliverModeOf($productId): string
- 1571     {
- 1572         $pid = (int)$productId;
- 1573         if ($pid <= 0) return self::deliverDefault();
- 1574         $m = '';
- 1575         try {
- 1576             $m = (string)DB::val('SELECT deliver_mode FROM {p}products WHERE id = :id', [':id' => $pid], '');
- 1577         } catch (Throwable $e) { $m = ''; }
- 1578         $m = strtolower(trim($m));
- 1579         return isset(self::DELIVER[$m]) ? $m : self::deliverDefault();
- 1580     }
- 1581 
- 1582     /** حالت تحویل یک سرویس */
- 1583     public static function deliverMode(array $s): string
- 1584     {
- 1585         return self::deliverModeOf((int)($s['product_id'] ?? 0));
- 1586     }
- 1587 
- 1588     public static function deliverLabel(string $m): string
- 1589     {
- 1590         $d = self::DELIVER[$m] ?? self::DELIVER['both'];
- 1591         return $d[2] . ' ' . $d[0];
- 1592     }
- 1593 
- 1594     /** آیا لینک اشتراک باید تحویل شود؟ */
- 1595     public static function wantsSub(string $m): bool
- 1596     {
- 1597         return $m !== 'config';
- 1598     }
- 1599 
- 1600     /** آیا کانفیگ مستقیم باید تحویل شود؟ */
- 1601     public static function wantsCfg(string $m): bool
- 1602     {
- 1603         return $m !== 'sub';
- 1604     }
- 1605 
- 1606     public static function find($id): ?array
- 1607     {
- 1608         return DB::one('SELECT * FROM {p}services WHERE id = :id', [':id' => (int)$id]);
- 1609     }
- 1610 
- 1611     /**
- 1612      * سرویس‌های یک کاربر
- 1613      *
- 1614      * کانفیگ‌هایی که نماینده از «پنل نمایندگی» ساخته است سرویس شخصی او نیستند و
- 1615      * نباید در «سرویس‌های من» داخل ربات دیده شوند؛ آن‌ها فقط در پنل نمایندگی
----- end dump svc_deliver_fn@1570 ----
----- dump svc_deliver_fn@1583 : app/Service/Svc.php (2000 lines) ----
- 1577         } catch (Throwable $e) { $m = ''; }
- 1578         $m = strtolower(trim($m));
- 1579         return isset(self::DELIVER[$m]) ? $m : self::deliverDefault();
- 1580     }
- 1581 
- 1582     /** حالت تحویل یک سرویس */
- 1583     public static function deliverMode(array $s): string
- 1584     {
- 1585         return self::deliverModeOf((int)($s['product_id'] ?? 0));
- 1586     }
- 1587 
- 1588     public static function deliverLabel(string $m): string
- 1589     {
- 1590         $d = self::DELIVER[$m] ?? self::DELIVER['both'];
- 1591         return $d[2] . ' ' . $d[0];
- 1592     }
- 1593 
- 1594     /** آیا لینک اشتراک باید تحویل شود؟ */
- 1595     public static function wantsSub(string $m): bool
- 1596     {
- 1597         return $m !== 'config';
- 1598     }
- 1599 
- 1600     /** آیا کانفیگ مستقیم باید تحویل شود؟ */
- 1601     public static function wantsCfg(string $m): bool
- 1602     {
- 1603         return $m !== 'sub';
- 1604     }
- 1605 
- 1606     public static function find($id): ?array
- 1607     {
- 1608         return DB::one('SELECT * FROM {p}services WHERE id = :id', [':id' => (int)$id]);
- 1609     }
- 1610 
- 1611     /**
- 1612      * سرویس‌های یک کاربر
- 1613      *
- 1614      * کانفیگ‌هایی که نماینده از «پنل نمایندگی» ساخته است سرویس شخصی او نیستند و
- 1615      * نباید در «سرویس‌های من» داخل ربات دیده شوند؛ آن‌ها فقط در پنل نمایندگی
- 1616      * مدیریت می‌شوند. برای پنل مدیریت که باید همه چیز را ببیند
- 1617      * $includeReseller را true بگذارید.
- 1618      */
- 1619     public static function forUser(int $userId, bool $onlyActive = false, bool $includeReseller = false): array
- 1620     {
- 1621         $sql = 'SELECT s.*, p.name AS panel_name FROM {p}services s LEFT JOIN {p}panels p ON p.id = s.panel_id WHERE s.user_id = :u AND s.status <> :d';
- 1622         if ($onlyActive) $sql .= " AND s.status = 'active'";
- 1623         if (!$includeReseller) $sql .= ' AND COALESCE(s.is_reseller, 0) = 0';
- 1624         $sql .= ' ORDER BY s.id DESC';
- 1625         return DB::all($sql, [':u' => $userId, ':d' => 'deleted']);
- 1626     }
- 1627 
- 1628     /** فقط کانفیگ‌های نمایندگی یک کاربر */
----- end dump svc_deliver_fn@1583 ----
----- grep bot_deliver : DELIVER|deliver_mode|deliverMode|Svc::deliver ----
- 2874 $mode = Svc::deliverMode($service);
- 2974 $mode = Svc::deliverMode($s);
----- grep bot_deliver : 2 hits ----
----- grep ma_deliver : DELIVER|deliver_mode|deliverMode|Svc::deliver ----
----- grep ma_deliver : 0 hits ----
----- grep set_deliver : deliver ----
-   98 'stock' => -1, 'sold' => 0, 'active' => 1, 'sort' => 99, 'deliver_mode' => '',
-  646 DB::setSetting('sub_deliver', (($_POST['sub_deliver'] ?? 'local') === 'panel') ? 'panel' : 'local');
- 2664 <label class="pick" for="sub_deliver">لینک اشتراکی که روی <b>همه سرویس ها</b> به مشتری تحویل داده می شود</label>
- 2665 <select name="sub_deliver" id="sub_deliver">
- 2666 <option value="local"<?= DB::setting('sub_deliver', 'local') !== 'panel' ? ' selected' : '' ?>>لینک ساب اختصاصی خود ربات (پیشنهادی)</option>
- 2667 <option value="panel"<?= DB::setting('sub_deliver', 'local') === 'panel' ? ' selected' : '' ?>>لینک ساب مستقیم پنل</option>
----- grep set_deliver : 6 hits ----
----- grep x3_hwid : limitHwid|deviceLimit|setDeviceLimit|hwid ----
-  297 public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, int $ipLimit = 0, string $subId = '', array $inboundIds = [], int $deviceLimit = 0, int
-  326 if ($deviceLimit > 0) $fresh['limitHwid'] = $deviceLimit;
-  356 if ($deviceLimit > 0) $client['limitHwid'] = $deviceLimit;
-  864 /** registered HWID devices of one account: GET /clients/hwids/{email} */
-  869 $r = $this->api('/clients/hwids/' . rawurlencode($email));
-  876 'hwid' => (string)($d['hwid'] ?? ''),
-  886 /** free one HWID slot: DELETE /clients/hwids/{email}/{id} */
-  891 return $this->api('/clients/hwids/' . rawurlencode($email) . '/' . $id, null, 'DELETE');
-  908 public function setDeviceLimit(array $emails, int $limit): array
-  914 'limitHwid' => max(0, $limit),
----- grep x3_hwid : 10 hits ----
----- find x3_addclient : public function addClient -> 1 hits [297] ----
----- dump x3_addclient@297 : app/Panel/Xui3.php (1079 lines) ----
-  295      * «ایمیل تکراری» با attach به اینباندهای جدید وصل می‌شود.
-  296      */
-  297     public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, int $ipLimit = 0, string $subId = '', array $inboundIds = [], int $deviceLimit = 0, int $upKbps = 0, int $downKbps = 0): array
-  298     {
-  299         $ids = Xui::idList($inboundIds);
-  300         if (!$ids) $ids = [$inboundId];
-  301         if ($inboundId > 0 && !in_array($inboundId, $ids, true)) array_unshift($ids, $inboundId);
-  302         $ids = array_values($ids);
-  303 
-  304         $inbound = $this->inbound($inboundId) ?? ['id' => $inboundId, 'protocol' => 'vless', 'remark' => (string)($this->panel['name'] ?? ''), 'port' => 0];
-  305         $proto   = strtolower((string)($inbound['protocol'] ?? 'vless'));
-  306 
-  307         /* اکانت موجود → اتصال به اینباندهای خواسته‌شده + بازنویسی حجم/زمان با خرید جدید */
-  308         $existing = $this->clientRow($email);
-  309         if ($existing) {
-  310             $r = $this->api('/clients/' . rawurlencode($email) . '/attach', ['inboundIds' => $ids], 'POST');
-  311             if (($r['success'] ?? false) !== true) {
-  312                 return ['success' => false, 'msg' => (string)($r['msg'] ?? 'اتصال اکانت به اینباند جدید ناموفق بود')];
-  313             }
-  314             /*
-  315              * اگر اکانتی با همین نام از قبل روی پنل مانده باشد (مثلاً کانفیگ قدیمیِ تمام‌شده)،
-  316              * سرویس تازه نباید سهمیهٔ صفر و تاریخ گذشتهٔ آن را به ارث ببرد؛ پس حجم/زمان/وضعیت
-  317              * با مقادیر خرید جدید بازنویسی و مصرف قبلی صفر می‌شود.
-  318              */
-  319             $fresh = [
-  320                 'email'      => $email,
-  321                 'enable'     => true,
-  322                 'totalGB'    => $volumeGb > 0 ? gb2bytes($volumeGb) : 0,
-  323                 'expiryTime' => $expiryMs,
-  324                 'limitIp'    => $ipLimit,
-  325             ];
-  326             if ($deviceLimit > 0) $fresh['limitHwid'] = $deviceLimit;
-  327             if (empty($this->created[$email])) {
-  328                 $up = $this->updateClient($inboundId, $uuid, $fresh, $ids);
-  329                 if (($up['success'] ?? false) !== true) {
-  330                     app_log('panel', 'xui3 attach: refresh quota failed', ['panel' => (int)($this->panel['id'] ?? 0), 'email' => $email, 'msg' => (string)($up['msg'] ?? '')]);
-  331                 }
-  332                 try { $this->resetTraffic($inboundId, $email); } catch (Throwable $e) { }
-  333                 $this->created[$email] = true;
-  334             }
-  335             unset($this->linksCache[$email], $this->linksServed[$email]);
-  336             $this->userMap[$uuid] = $email;
-  337             return ['success' => true, 'client' => array_merge($existing, $fresh), 'inbound' => $inbound];
-  338         }
-  339 
-  340         $client = [
-  341             'email'      => $email,
-  342             'enable'     => true,
-  343             'totalGB'    => $volumeGb > 0 ? gb2bytes($volumeGb) : 0,
-  344             'expiryTime' => $expiryMs,
-  345             'limitIp'    => $ipLimit,
-  346             'subId'      => $subId !== '' ? $subId : rnd(16),
-  347             'reset'      => max(0, (int)$this->autoReset),
-  348             'comment'    => '',
-  349         ];
-  350         if ($proto === 'trojan' || $proto === 'shadowsocks') {
-  351             $client['password'] = $uuid;
-  352         } else {
----- end dump x3_addclient@297 ----
----- find x3_setdev : function setDeviceLimit -> 1 hits [908] ----
----- dump x3_setdev@908 : app/Panel/Xui3.php (1079 lines) ----
-  905     }
-  906 
-  907     /** set the device (HWID) limit of one or more accounts */
-  908     public function setDeviceLimit(array $emails, int $limit): array
-  909     {
-  910         $emails = array_values(array_filter(array_map('strval', $emails), static fn($e) => trim($e) !== ''));
-  911         if (!$emails) return ['success' => false, 'msg' => 'no emails'];
-  912         return $this->api('/clients/bulkAdjust', [
-  913             'emails'    => $emails,
-  914             'limitHwid' => max(0, $limit),
-  915         ], 'POST');
-  916     }
-  917 
-  918     /** panel-wide counters: total / online / active / deactive / depleted / expiring */
-  919     public function clientsSummary(): array
-  920     {
-  921         $r = $this->api('/clients/list?page=1&pageSize=1');
-  922         if (($r['success'] ?? false) !== true) return [];
-  923         $s = (array)(((array)($r['obj'] ?? []))['summary'] ?? []);
-  924         if (!$s) return [];
-  925         return [
-  926             'total'    => (int)($s['total'] ?? 0),
-  927             'online'   => (int)($s['onlineCount'] ?? 0),
-  928             'active'   => (int)($s['active'] ?? 0),
-  929             'deactive' => (int)($s['deactiveCount'] ?? 0),
-  930             'depleted' => (int)($s['depletedCount'] ?? 0),
-  931             'expiring' => (int)($s['expiringCount'] ?? 0),
-  932         ];
-  933     }
-  934 
-  935     /** delete clients that are no longer attached to any inbound */
-  936     public function delOrphans(): int
----- end dump x3_setdev@908 ----
----- grep xui_dev : deviceLimit|limitHwid ----
-  426 foreach (['totalGB', 'expiryTime', 'limitIp', 'reset', 'deviceLimit'] as $k) {
-  444 public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, int $ipLimit = 0, string $subId = '', array $inboundIds = [], int $deviceLimit = 0, int
-  446 if ($this->mz) return $this->mz->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $subId, $inboundIds, $deviceLimit, $upKbps, $downKbps);
-  447 if ($this->pg) return $this->pg->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $subId, $inboundIds, $deviceLimit, $upKbps, $downKbps);
-  448 if ($this->x3) return $this->x3->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $subId, $inboundIds, $deviceLimit, $upKbps, $downKbps);
-  470 if ($deviceLimit > 0) $client['deviceLimit'] = $deviceLimit;
----- grep xui_dev : 6 hits ----
----- find xui_addclient : public function addClient -> 1 hits [444] ----
----- dump xui_addclient@444 : app/Panel/Xui.php (1157 lines) ----
-  441      * @param float $volumeGb ۰ = نامحدود
-  442      * @param int   $expiryMs زمان انقضا بر حسب میلی‌سانیه (۰ = نامحدود)
-  443      */
-  444     public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, int $ipLimit = 0, string $subId = '', array $inboundIds = [], int $deviceLimit = 0, int $upKbps = 0, int $downKbps = 0): array
-  445     {
-  446         if ($this->mz) return $this->mz->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $subId, $inboundIds, $deviceLimit, $upKbps, $downKbps);
-  447         if ($this->pg) return $this->pg->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $subId, $inboundIds, $deviceLimit, $upKbps, $downKbps);
-  448         if ($this->x3) return $this->x3->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $subId, $inboundIds, $deviceLimit, $upKbps, $downKbps);
-  449         $inbound = $this->inbound($inboundId);
-  450         $proto   = strtolower((string)($inbound['protocol'] ?? 'vless'));
-  451         $client  = [
-  452             'email'      => $email,
-  453             'enable'     => true,
-  454             'totalGB'    => $volumeGb > 0 ? gb2bytes($volumeGb) : 0,
-  455             'expiryTime' => $expiryMs,
-  456             'limitIp'    => $ipLimit,
-  457             'tgId'       => '',
-  458             'subId'      => $subId !== '' ? $subId : rnd(16),
-  459             'reset'      => 0,
-  460         ];
-  461         if ($proto === 'trojan') {
-  462             $client['password'] = $uuid;
-  463         } elseif ($proto === 'shadowsocks') {
-  464             $client['password'] = $uuid;
-  465             $client['method']   = 'chacha20-ietf-poly1305';
-  466         } else {
-  467             $client['id']   = $uuid;
-  468             $client['flow'] = '';
-  469         }
-  470         if ($deviceLimit > 0) $client['deviceLimit'] = $deviceLimit;
-  471         /* محدودیت سرعت بر حسب کیلوبایت بر ثانیه؛ کلیدهای ناشناخته توسط پنل نادیده گرفته می‌شوند */
-  472         foreach (self::speedKeys($upKbps, $downKbps) as $sk => $sv) $client[$sk] = $sv;
-  473         $client = self::normClient($client, $uuid);
-  474         $body = ['id' => $inboundId, 'settings' => jenc(['clients' => [$client]])];
-  475 
-  476         if ($this->isVpnUi()) {
-  477             /* VPN-UI: یک اکانت روی چند اینباند با کلید تکراری inboundIds */
-  478             $ids = self::idList($inboundIds);
-  479             if (!$ids) $ids = [$inboundId];
-  480             $res = $this->call('add', [], self::formBody($body, $ids), 'POST');
-  481         } else {
-  482             $res = $this->call('add', [], $body, 'POST');
-  483         }
-  484 
-  485         if (($res['success'] ?? false) !== true) {
-  486             return ['success' => false, 'msg' => (string)($res['msg'] ?? 'خطا در ساخت کاربر در پنل')];
-  487         }
-  488         return ['success' => true, 'client' => $client, 'inbound' => $inbound];
-  489     }
----- end dump xui_addclient@444 ----
-build: fixed128 (recon only, nothing patched)
+Wed Sep 23 15:37:07 UTC 2026
+---- dump bot_deliver_1 : app/Bot/Bot.php (4977 lines) ----
+ 2845     public static function sendCfgList($chatId, array $service, array $list): void
+ 2846     {
+ 2847         $n = count($list);
+ 2848         if ($n === 0) return;
+ 2849 
+ 2850         $head = ($n > 1 ? "⚙️ <b>کانفیگ‌های مستقیم</b>\n" : "⚙️ <b>کانفیگ مستقیم</b>\n")
+ 2851             . '👤 <code>' . h((string)($service['client_email'] ?? '')) . "</code>\n"
+ 2852             . "<code>─────────────────</code>\n\n";
+ 2853 
+ 2854         $txt = $head;
+ 2855         foreach ($list as $i => $one) {
+ 2856             $part = ($n > 1 ? '▫️ <b>کانفیگ ' . fa_num((string)($i + 1)) . ' از ' . fa_num((string)$n) . "</b>\n" : '')
+ 2857                 . '<code>' . h($one) . "</code>\n\n";
+ 2858             if (mb_strlen($txt . $part) > 3500) { Tg::send($chatId, $txt); $txt = $head; }
+ 2859             $txt .= $part;
+ 2860         }
+ 2861         $txt .= '👆 روی هر کانفیگ بزنید تا کپی شود.';
+ 2862         Tg::send($chatId, $txt);
+ 2863     }
+ 2864 
+ 2865     public static function deliver($chatId, array $service): void
+ 2866     {
+ 2867         /* تازه‌ترین وضعیت ردیف؛ لینک ساب ممکن است همین ح��لا ترمیم شده باشد */
+ 2868         $sid = (int)($service['id'] ?? 0);
+ 2869         if ($sid > 0) {
+ 2870             try { $fresh = Svc::find($sid); if ($fresh) $service = array_merge($service, $fresh); }
+ 2871             catch (Throwable $e) { }
+ 2872         }
+ 2873 
+ 2874         $mode = Svc::deliverMode($service);
+ 2875         $sub  = Svc::subUrl($service);
+ 2876         $list = self::cfgList($service);
+ 2877         $n    = count($list);
+ 2878 
+ 2879         /* طبق تنظیم محصول: ساب، کانفیگ یا هردو — اگر یکی نبود، همان دیگری فرستاده می‌شود */
+ 2880         $wantSub = Svc::wantsSub($mode) && $sub !== '';
+ 2881         $wantCfg = Svc::wantsCfg($mode) && $n > 0;
+ 2882         if (!$wantSub && !$wantCfg) {
+ 2883             $wantSub = ($sub !== '');
+ 2884             $wantCfg = ($n > 0);
+ 2885         }
+ 2886 
+ 2887         $txt  = "🎉 <b>سرویس شما آماده است</b>\n\n";
+ 2888         $txt .= self::specCard($service, false) . "\n";
+ 2889 
+ 2890         if ($wantSub) {
+ 2891             $txt .= "\n<code>────────────────</code>\n";
+ 2892             $txt .= $wantCfg
+ 2893                 ? "🔗 <b>لینک اشتراک (پیشنهادی)</b>\n"
+ 2894                 : "🔗 <b>لینک اشتراک</b>\n";
+ 2895             $txt .= "<i>همهٔ کانفیگ‌ها با یک لینک و به‌روزرسانی خودکار</i>\n";
+ 2896             $txt .= '<code>' . h($sub) . "</code>\n";
+ 2897         }
+ 2898 
+ 2899         if ($wantCfg && !$wantSub) {
+ 2900             $txt .= "\n<code>────────────────</code>\n";
+ 2901             $txt .= "⚙️ <b>کانفیگ‌های مستقیم در پیام بعدی ارسال می‌شود.</b>\n";
+ 2902         }
+ 2903 
+ 2904         if (!$wantSub && !$wantCfg) {
+ 2905             $txt .= "\n⚠️ <b>لینک اتصال ثبت نشده است.</b>\nلطفاً با پشتیبانی تماس بگیرید.\n";
+ 2906         }
+ 2907 
+ 2908         $txt .= "\n<code>────────────────</code>\n";
+ 2909         $txt .= "💡 <b>راهنمای سریع</b>\n";
+ 2910         $txt .= $wantSub
+ 2911             ? "۱) روی لینک بالا بزنید تا کپی شود.\n"
+ 2912             : "۱) روی کا��فیگ بزنید تا کپی شود.\n";
+ 2913         $txt .= "۲) وارد برنامه شوید و گزینهٔ «افزودن از کلیپ‌بورد» را بزنید.\n";
+ 2914         $txt .= "۳) به سرور متصل شوید. 🚀";
+ 2915 
+ 2916         $rows = [];
+ 2917         if ($sid > 0) {
+ 2918             $br = [];
+ 2919             if ($wantSub) $br[] = Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $sid);
+ 2920             if ($wantCfg) $br[] = Tg::btn('⚙️ کانفیگ‌ها', 'svccfg:' . $sid);
+ 2921             if ($br) $rows[] = $br;
+ 2922         }
+ 2923         $rows[] = [Tg::btn('📦 سرویس‌های من', 'menu:services'), Tg::btn('🎓 راهنمای اتصال', 'tut:menu')];
+ 2924         $rows[] = [Tg::btn('🆘 پشتیبانی', 'tk:new')];
+ 2925         Tg::send($chatId, $txt, Tg::ikb($rows));
+ 2926 
+ 2927         /* کانفیگ‌های مستقیم در پیام جدا تا کارت مشخصات بریده نشود */
+ 2928         if ($wantCfg) self::sendCfgList($chatId, $service, $list);
+ 2929     }
+ 2930 
+ 2931     /* ================= سرویس‌های من ================= */
+ 2932 
+ 2933     private static function sectionServices($chatId, $msgId = null): void
+ 2934     {
+ 2935         $list = Svc::forUser((int)self::$u['id']);
+---- end dump bot_deliver_1 ----
+---- dump bot_deliver_2 : app/Bot/Bot.php (4977 lines) ----
+ 2960 
+ 2961     private static function myService(int $id): ?array
+ 2962     {
+ 2963         return DB::one('SELECT * FROM {p}services WHERE id = :id AND user_id = :u AND status <> :d
+ 2964             AND COALESCE(is_reseller, 0) = 0',
+ 2965             [':id' => $id, ':u' => (int)self::$u['id'], ':d' => 'deleted']);
+ 2966     }
+ 2967 
+ 2968     private static function showService($chatId, $msgId, int $id): void
+ 2969     {
+ 2970         $s = self::myService($id);
+ 2971         if (!$s) { Tg::send($chatId, '⚠️ سرویس یافت نشد.'); return; }
+ 2972         $txt = "📦 <b>جزئیات سرویس</b>\n" . '<code>─────────────────</code>' . "\n" . self::specCard($s, false);
+ 2973         /* فقط مسیری که برای این محصول فعال است نشان داده می‌شود */
+ 2974         $mode = Svc::deliverMode($s);
+ 2975         $top  = [];
+ 2976         if (Svc::wantsSub($mode)) $top[] = Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $id);
+ 2977         if (Svc::wantsCfg($mode)) $top[] = Tg::btn('⚙️ کانفیگ‌ها', 'svccfg:' . $id);
+ 2978         if (!$top) $top[] = Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $id);
+ 2979 
+ 2980         $rows = [
+ 2981             $top,
+ 2982             [Tg::btn('📋 مشخصات کامل', 'svcspec:' . $id), Tg::btn('🔄 به‌روزرسانی مصرف', 'svcsync:' . $id)],
+ 2983             [Tg::btn('♻️ تمدید سرویس', 'svcrn:' . $id)],
+ 2984         ];
+ 2985         /* 0.0.2 #happ-btn: لینک اختصاصی Happ — فقط پنل نسل جدید سنایی */
+ 2986         if (class_exists('Links') && Links::supported($s)) {
+ 2987             $rows[] = [Tg::btn('⚡ افزودن به Happ', 'svchapp:' . $id)];
+ 2988         }
+ 2989         /* 0.0.2 #dev-btn: مدیریت دستگاه‌های ثبت‌شده (HWID) — فقط پنل نسل جدید سنایی */
+ 2990         if (class_exists('Devices') && Devices::supported($s)) {
+ 2991             $rows[] = [Tg::btn('📱 دستگاه‌های من', 'svcdev:' . $id)];
+ 2992         }
+ 2993         /* fixed83: حذف سرویس و عودت وجه — کانفیگ قطع‌شده اجازهٔ جداگانه دارد */
+ 2994         $dead = Svc::isDead($s);
+ 2995         if (Svc::userDelEnabled() || ($dead && Svc::deadDelEnabled())) {
+ 2996             $rows[] = [Tg::btn($dead ? '🗑 حذف کانفیگ قطع‌شده و عودت وجه' : '🗑 حذف سرویس و عودت وجه', 'svcdel:' . $id)];
+ 2997         }
+ 2998         $rows[] = [Tg::btn('⬅️ سرویس‌های من', 'menu:services')];
+ 2999         $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
+ 3000     }
+ 3001 
+ 3002     /* ============ 0.0.2: دستگاه‌های ثبت‌شده (HWID) — پنل 3x-ui ============ */
+ 3003 
+ 3004     /* ============ 0.0.2 #happ-links: لینک Happ و لینک‌های خارجی ============ */
+ 3005 
+ 3006     private static function happView($chatId, $msgId, int $id): void
+ 3007     {
+ 3008         $s = self::myService($id);
+ 3009         if (!$s) { Tg::send($chatId, '⚠️ سرویس یافت نشد.'); return; }
+ 3010         if (!class_exists('Links') || !Links::supported($s)) {
+ 3011             Tg::send($chatId, 'ℹ️ این سرویس لینک Happ ندارد.');
+ 3012             return;
+ 3013         }
+ 3014 
+ 3015         $happ = Links::happ($s);
+ 3016         $ext  = Links::external($s);
+ 3017 
+ 3018         $txt = "⚡ <b>افزودن به Happ</b>\n"
+ 3019             . '<code>─────────────────</code>' . "\n";
+ 3020         if ($happ !== '') {
+ 3021             $txt .= "لینک زیر را کپی کنید و در اپلیکیشن Happ بزنید روی «+» ← Import from clipboard:\n\n"
+ 3022                 . '<code>' . h($happ) . '</code>' . "\n";
+ 3023         } else {
+ 3024             $txt .= "لینک Happ برای این سرویس در دسترس نیست.\n";
+ 3025         }
+ 3026         if ($ext) {
+ 3027             $txt .= "\n🔗 <b>لینک‌های دیگر</b>\n";
+ 3028             $n = 0;
+ 3029             foreach ($ext as $e) {
+ 3030                 $link = trim((string)($e['link'] ?? ''));
+---- end dump bot_deliver_2 ----
+---- grep bot_happ : Links::happ|happView|svchapp|#happ-btn ----
+ 1062 case 'svchapp': Tg::answerCb($cbId); self::happView($chatId, $msgId, (int)$arg); return;
+ 2985 /* 0.0.2 #happ-btn: لینک اختصاصی Happ — فقط پنل نسل جدید سنایی */
+ 2987 $rows[] = [Tg::btn('⚡ افزودن به Happ', 'svchapp:' . $id)];
+ 3006 private static function happView($chatId, $msgId, int $id): void
+ 3015 $happ = Links::happ($s);
+ 3039 [Tg::btn('🔄 به‌روزرسانی', 'svchapp:' . $id)],
+---- grep bot_happ : 6 hits ----
+---- find bot_happview : (private|public|protected).*function happView -> 1 hits [3006] ----
+---- dump bot_happview@3006 : app/Bot/Bot.php (4977 lines) ----
+ 3004     /* ============ 0.0.2 #happ-links: لینک Happ و لینک‌های خارجی ============ */
+ 3005 
+ 3006     private static function happView($chatId, $msgId, int $id): void
+ 3007     {
+ 3008         $s = self::myService($id);
+ 3009         if (!$s) { Tg::send($chatId, '⚠️ سرویس یافت نشد.'); return; }
+ 3010         if (!class_exists('Links') || !Links::supported($s)) {
+ 3011             Tg::send($chatId, 'ℹ️ این سرویس لینک Happ ندارد.');
+ 3012             return;
+ 3013         }
+ 3014 
+ 3015         $happ = Links::happ($s);
+ 3016         $ext  = Links::external($s);
+ 3017 
+ 3018         $txt = "⚡ <b>افزودن به Happ</b>\n"
+ 3019             . '<code>─────────────────</code>' . "\n";
+ 3020         if ($happ !== '') {
+ 3021             $txt .= "لینک زیر را کپی کنید و در اپلیکیشن Happ بزنید روی «+» ← Import from clipboard:\n\n"
+ 3022                 . '<code>' . h($happ) . '</code>' . "\n";
+ 3023         } else {
+ 3024             $txt .= "لینک Happ برای این سرویس در دسترس نیست.\n";
+ 3025         }
+ 3026         if ($ext) {
+ 3027             $txt .= "\n🔗 <b>لینک‌های دیگر</b>\n";
+ 3028             $n = 0;
+ 3029             foreach ($ext as $e) {
+ 3030                 $link = trim((string)($e['link'] ?? ''));
+ 3031                 if ($link === '') continue;
+ 3032                 $title = trim((string)($e['title'] ?? ''));
+ 3033                 $txt .= '• ' . ($title !== '' ? h($title) . ': ' : '') . '<code>' . h($link) . '</code>' . "\n";
+ 3034                 if (++$n >= 5) break;
+ 3035             }
+ 3036         }
+ 3037 
+ 3038         $rows = [
+ 3039             [Tg::btn('🔄 به‌روزرسانی', 'svchapp:' . $id)],
+ 3040             [Tg::btn('⬅️ بازگشت', 'svc:' . $id)],
+ 3041         ];
+ 3042         $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
+ 3043     }
+ 3044 
+ 3045     private static function devicesView($chatId, $msgId, int $id): void
+ 3046     {
+ 3047         $s = self::myService($id);
+ 3048         if (!$s) { Tg::send($chatId, '⚠️ سرویس یافت نشد.'); return; }
+ 3049         if (!class_exists('Devices') || !Devices::supported($s)) {
+ 3050             Tg::send($chatId, 'ℹ️ این سرویس از مدیریت دستگاه پشتیبانی نمی‌کند.');
+ 3051             return;
+---- end dump bot_happview@3006 ----
+---- grepr deliver_ui : Svc::DELIVER|deliverLabel|deliver_mode ----
+admin/pages/products.php:44 if (isset($prCols['deliver_mode'])) {
+admin/pages/products.php:45 $dmIn = (string)ptxt('deliver_mode');
+admin/pages/products.php:46 $data['deliver_mode'] = isset(Svc::DELIVER[$dmIn]) ? $dmIn : '';
+admin/pages/products.php:93 $dmIn = (string)ptxt('deliver_mode');
+admin/pages/products.php:94 DB::setSetting('deliver_mode', isset(Svc::DELIVER[$dmIn]) ? $dmIn : 'both');
+admin/pages/products.php:328 $dmHas  = isset($prCols['deliver_mode']);
+admin/pages/products.php:332 $mm = (string)($pp['deliver_mode'] ?? '');
+admin/pages/products.php:349 <div class="dm-now"><?= h(Svc::deliverLabel($dmDef)) ?></div>
+admin/pages/products.php:357 <?php foreach (Svc::DELIVER as $dk => $dv): ?>
+admin/pages/products.php:359 <input type="radio" name="deliver_mode" value="<?= h($dk) ?>" <?= $dmDef === $dk ? 'checked' : '' ?>>
+admin/pages/products.php:474 <?php $rDm = (string)($p['deliver_mode'] ?? ''); if ($rDm !== '' && isset(Svc::DELIVER[$rDm])): ?>
+admin/pages/products.php:475 <span class="badge b-purple"><?= h(Svc::DELIVER[$rDm][2] . ' ' . Svc::DELIVER[$rDm][0]) ?></span>
+admin/pages/products.php:814 <?php $dmCur = (string)($e['deliver_mode'] ?? ''); ?>
+admin/pages/products.php:817 <input type="radio" name="deliver_mode" value="" <?= $dmCur === '' ? 'checked' : '' ?>>
+admin/pages/products.php:820 <span class="d">هرچه بالای صفحه تنظیم کرده‌اید — اکنون: <?= h(Svc::deliverLabel(Svc::deliverDefault())) ?></span>
+admin/pages/products.php:822 <?php foreach (Svc::DELIVER as $dk => $dv): ?>
+admin/pages/products.php:824 <input type="radio" name="deliver_mode" value="<?= h($dk) ?>" <?= $dmCur === $dk ? 'checked' : '' ?>>
+admin/pages/products.php:831 <?php if (!isset($prCols['deliver_mode'])): ?>
+admin/pages/products.php:832 <div class="alert a-warn mt3">⚠️ ستون <code>deliver_mode</code> هنوز ساخته نشده؛ از صفحهٔ به‌روزرسانی ساختار دیتابیس را تکمیل کنید.</div>
+admin/pages/settings.php:98 'stock' => -1, 'sold' => 0, 'active' => 1, 'sort' => 99, 'deliver_mode' => '',
+---- grepr deliver_ui : 20 hits ----
+---- find prod_deliver_select : name=\"deliver_mode\" -> 3 hits [359, 817, 824] ----
+---- dump prod_deliver_select@359 : admin/pages/products.php (1233 lines) ----
+  351 
+  352   <?php if (can('products.edit')): ?>
+  353     <form method="post" class="dm-form">
+  354       <?= csrf_field() ?>
+  355       <input type="hidden" name="act" value="delmode">
+  356       <div class="dm-opts">
+  357         <?php foreach (Svc::DELIVER as $dk => $dv): ?>
+  358           <label class="dm-op <?= $dmDef === $dk ? 'on' : '' ?>">
+  359             <input type="radio" name="deliver_mode" value="<?= h($dk) ?>" <?= $dmDef === $dk ? 'checked' : '' ?>>
+  360             <span class="i"><?= h($dv[2]) ?></span>
+  361             <span class="t"><?= h($dv[0]) ?></span>
+  362             <span class="d"><?= h($dv[1]) ?></span>
+  363             <span class="c"><?= fa_num($dmStat[$dk]) ?> محصول</span>
+  364           </label>
+  365         <?php endforeach; ?>
+  366       </div>
+  367       <div class="dm-foot">
+  368         <span class="muted xs">🔹 <?= fa_num($dmStat['def']) ?> محصول از همین پیش‌فرض پیروی می‌کنند.</span>
+  369         <button class="btn btn-primary btn-sm">💾 ذخیرهٔ پیش‌فرض</button>
+  370       </div>
+  371     </form>
+  372   <?php endif; ?>
+  373 
+  374   <?php if (!$dmHas): ?>
+  375     <div class="alert a-warn mt3">⚠️ برای تنظیم جداگانهٔ هر محصول، یک بار از صفحهٔ به‌روزرسانی گزینهٔ «🧩 بررسی و تکمیل ساختار دیتابیس» را اجرا کنید.</div>
+---- end dump prod_deliver_select@359 ----
+---- dump ma_row : miniapp/api.php (2914 lines) ----
+  305             'ok'      => false,
+  306             'need'    => 'verify',
+  307             'message' => 'برای ادامه باید حساب خود را تایید کنید.',
+  308         ], 200);
+  309     }
+  310 }
+  311 
+  312 function ma_service_row(array $s): array
+  313 {
+  314     /* دامنهٔ اختصاصیِ نماینده روی لینک ساب اعمال می‌شود */
+  315     static $__rsDomUser = null;
+  316     if ($__rsDomUser === null && class_exists('Reseller') && method_exists('Reseller', 'applyDomain')) {
+  317         $__rsDomUser = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => (int)($s['user_id'] ?? 0)]) ?: [];
+  318     }
+  319 
+  320     $vol  = (float)($s['volume_gb'] ?? 0);
+  321     $used = (int)($s['used_bytes'] ?? 0);
+  322     $left = $vol > 0 ? max(0, round($vol - bytes2gb($used), 2)) : 0;
+  323     $pct  = $vol > 0 ? min(100, (int)round(bytes2gb($used) / max(0.01, $vol) * 100)) : 0;
+  324 
+  325     return [
+  326         'id'         => (int)$s['id'],
+  327         'name'       => (string)$s['client_email'],
+  328         'status'     => (string)$s['status'],
+  329         'is_test'    => (int)($s['is_test'] ?? 0) === 1,
+  330         'volume'     => $vol,
+  331         'volume_txt' => $vol > 0 ? fa_num((string)round($vol, 2)) . ' گیگ' : '♾ نامحدود',
+  332         'used_txt'   => fa_num(human_bytes($used)),
+  333         'left_txt'   => $vol > 0 ? fa_num((string)$left) . ' گیگ' : '♾ نامحدود',
+  334         'percent'    => $pct,
+  335         'expire'     => (string)($s['expire_at'] ?? ''),
+  336         'expire_txt' => !empty($s['expire_at']) ? to_jalali((string)$s['expire_at'], true) : '♾ نامحدود',
+  337         'remain_txt' => !empty($s['expire_at']) ? remaining_human((string)$s['expire_at']) : '♾',
+  338         'sub'        => (class_exists('Reseller') && method_exists('Reseller', 'applyDomain') && is_array($__rsDomUser)
+  339                 ? Reseller::applyDomain((string)(class_exists('Svc') ? Svc::subUrl($s) : (string)($s['sub_link'] ?? '')), $__rsDomUser)
+  340                 : (class_exists('Svc') ? Svc::subUrl($s) : (string)($s['sub_link'] ?? ''))),
+  341         'sub_own'    => class_exists('Svc') ? Svc::localSub($s) : '',
+  342         'sub_main'   => (string)($s['sub_link'] ?? ''),
+  343         'sub_code'   => class_exists('Svc') && method_exists('Svc', 'subCode') ? Svc::subCode($s) : '',
+  344         /* دکمه‌های تمدید و حذف — از پنل قابل خاموش کردن است */
+  345         'can_renew'  => class_exists('Svc') && method_exists('Svc', 'userRenewEnabled') && Svc::userRenewEnabled()
+  346             && (string)DB::setting('ma_btn_renew', '1') === '1'
+  347             && (int)($s['is_test'] ?? 0) !== 1 && (int)($s['is_reseller'] ?? 0) !== 1 && (string)($s['status'] ?? '') !== 'deleted',
+  348         'can_del'    => class_exists('Svc') && method_exists('Svc', 'userDelEnabled')
+  349             && (Svc::userDelEnabled()
+  350                 || (method_exists('Svc', 'deadDelEnabled') && Svc::deadDelEnabled() && Svc::isDead($s)))
+  351             && (string)DB::setting('ma_btn_del', '1') === '1'
+  352             && (int)($s['is_reseller'] ?? 0) !== 1 && (string)($s['status'] ?? '') !== 'deleted',
+  353         'is_dead'    => class_exists('Svc') && method_exists('Svc', 'isDead') ? Svc::isDead($s) : false,
+  354         'dead_txt'   => class_exists('Svc') && method_exists('Svc', 'deadLabel') && Svc::isDead($s) ? Svc::deadLabel($s) : '',
+  355         'can_sync'   => (string)DB::setting('ma_btn_sync', '1') === '1',
+  356         'can_tut'    => (string)DB::setting('ma_btn_tut', '1') === '1',
+  357         /* 0.0.2 #ma-dev-flags — دکمه‌های دستگاه و لینک فقط روی پنل‌های پشتیبانی‌شده */
+  358         'can_devs'   => class_exists('Devices') && Devices::supported($s),
+  359         'can_links'  => class_exists('Links') && Links::supported($s),
+  360         /* فقط خطوط کانفیگ معتبر برگردانده می شود، نه متن خام */
+  361         'configs'    => class_exists('Svc') && method_exists('Svc', 'storedConfigs')
+  362             ? Svc::storedConfigs($s)
+  363             : array_values(array_filter(array_map('trim', explode("\n", (string)($s['config_link'] ?? ''))))),
+  364         'days'       => (int)($s['days'] ?? 0),
+  365         'group'      => (string)($s['group_key'] ?? ''),
+---- end dump ma_row ----
+---- grep ma_links : svc_links|Links::happ|can_links|sub_link|'configs' ----
+  339 ? Reseller::applyDomain((string)(class_exists('Svc') ? Svc::subUrl($s) : (string)($s['sub_link'] ?? '')), $__rsDomUser)
+  340 : (class_exists('Svc') ? Svc::subUrl($s) : (string)($s['sub_link'] ?? ''))),
+  342 'sub_main'   => (string)($s['sub_link'] ?? ''),
+  359 'can_links'  => class_exists('Links') && Links::supported($s),
+  361 'configs'    => class_exists('Svc') && method_exists('Svc', 'storedConfigs')
+ 1022 case 'svc_links': {
+ 1033 'happ'      => Links::happ($s),
+ 1969 'configs'    => Reseller::bundleConfigCount($bd),
+---- grep ma_links : 8 hits ----
+build: fixed129 (recon only, nothing patched)
 changelog: skipped (recon build)
-build: fixed128 (was fixed127)
+build: fixed129 (was fixed128)
 exit: 0
 exit: 0
