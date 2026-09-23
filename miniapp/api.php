@@ -354,6 +354,9 @@ function ma_service_row(array $s): array
         'dead_txt'   => class_exists('Svc') && method_exists('Svc', 'deadLabel') && Svc::isDead($s) ? Svc::deadLabel($s) : '',
         'can_sync'   => (string)DB::setting('ma_btn_sync', '1') === '1',
         'can_tut'    => (string)DB::setting('ma_btn_tut', '1') === '1',
+        /* 0.0.2 #ma-dev-flags — دکمه‌های دستگاه و لینک فقط روی پنل‌های پشتیبانی‌شده */
+        'can_devs'   => class_exists('Devices') && Devices::supported($s),
+        'can_links'  => class_exists('Links') && Links::supported($s),
         /* فقط خطوط کانفیگ معتبر برگردانده می شود، نه متن خام */
         'configs'    => class_exists('Svc') && method_exists('Svc', 'storedConfigs')
             ? Svc::storedConfigs($s)
