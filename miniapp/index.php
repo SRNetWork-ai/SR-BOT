@@ -1701,7 +1701,7 @@ body.light .amt3 .v{-webkit-text-fill-color:initial;background:none}
       : (s.status === 'expired' ? 'منقضی'
       : (s.status === 'missing' ? '🚫 حذف‌شده از پنل' : 'غیرفعال'));
     var pct = Math.max(0, Math.min(100, Number(s.percent) || 0));
-    var sub = s.sub || s.sub_link || s.link || '';
+    var sub = s.happ_only ? '' : (s.sub || s.sub_link || s.link || '');
     return '<div class="card sv-card">' +
       '<div data-svc="' + s.id + '">' +
         '<div class="sv-h"><div class="n">' + esc(s.name) + '</div>' +
@@ -1747,8 +1747,10 @@ body.light .amt3 .v{-webkit-text-fill-color:initial;background:none}
   }
 
   function serviceSheet(s, fresh) {
+    /* 0.0.2 #happ-only-ui: محصول «فقط لینک هپ» — ساب و کانفیگ مستقیم نمایش داده نمی‌شود */
+    var happOnly = !!s.happ_only;
     var cfg = '';
-    (s.configs || []).forEach(function (c, i) {
+    (happOnly ? [] : (s.configs || [])).forEach(function (c, i) {
       cfg += '<div class="cfg-h">⚙️ کانفیگ ' + fa(i + 1) + '</div>' + copyBox(c);
     });
 
@@ -1790,18 +1792,21 @@ body.light .amt3 .v{-webkit-text-fill-color:initial;background:none}
         (s.created_txt ? row('📅', 'تاریخ ساخت', '', esc(s.created_txt)) : '') +
       '</div>' +
       (pct >= 0 ? '<div class="sec-t"><span>📉 مصرف حجم</span></div>' + bar3d(pct, kind) : '') +
-      (s.sub
+      (s.sub && !happOnly
         ? '<div class="sec-t"><span>🔗 لینک اشتراک (پیشنهادی)</span></div>' +
           '<div class="hint3d">یک لینک برای همهٔ کانفیگ‌ها با به‌روزرسانی خودکار</div>' +
           copyBox(s.sub)
         : '') +
       (cfg ? '<div class="sec-t"><span>⚙️ کانفیگ‌های مستقیم</span></div>' + cfg : '') +
-      (!s.sub && !cfg ? '<div class="alert e">لینک اتصال ثبت نشده است؛ با پشتیبانی تماس بگیرید.</div>' : '') +
+      (happOnly ? '<div class="sec-t"><span>⚡ لینک اختصاصی Happ</span></div>' +
+        '<div class="hint3d">این سرویس فقط با اپلیکیشن Happ کار می‌کند؛ تنظیمات سرور و محدودیت دستگاه (HWID) روی همین لینک اعمال می‌شود.</div>' +
+        '<button type="button" class="btn b3d" style="width:100%;margin-top:6px" data-links="' + s.id + '">⚡ دریافت لینک Happ</button>' : '') +
+      (!s.sub && !cfg && !happOnly ? '<div class="alert e">لینک اتصال ثبت نشده است؛ با پشتیبانی تماس بگیرید.</div>' : '') +
       '<div class="btn-row" style="margin-top:14px">' +
         (s.can_sync !== false ? '<button type="button" class="btn gh b3d" data-sync="' + s.id + '">🔄 به‌روزرسانی مصرف</button>' : '') +
         (s.can_tut  !== false ? '<button type="button" class="btn gh b3d" data-go="tut">🎓 راهنمای اتصال</button>' : '') +
         (s.can_devs ? '<button type="button" class="btn gh b3d" data-devs="' + s.id + '">📱 دستگاه‌های من</button>' : '') +
-        (s.can_links ? '<button type="button" class="btn gh b3d" data-links="' + s.id + '">🔗 لینک‌ها و Happ</button>' : '') +
+        (s.can_links && !happOnly ? '<button type="button" class="btn gh b3d" data-links="' + s.id + '">🔗 لینک‌ها و Happ</button>' : '') +
       '</div>' +
       (s.can_renew ? '<button type="button" class="btn b3d" style="width:100%;margin-top:4px" data-renew="' + s.id + '">♻️ تمدید سرویس</button>' : '') +
       (s.can_del ? '<button type="button" class="btn gh b3d" style="width:100%;margin-top:8px" data-del="' + s.id + '">🗑 حذف سرویس و عودت وجه</button>' : '');

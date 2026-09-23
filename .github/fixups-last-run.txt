@@ -1,214 +1,39 @@
 Python 3.12.3
-Wed Sep 23 15:46:39 UTC 2026
----- dump svc_renew_upd : app/Service/Svc.php (2019 lines) ----
-  640                 $newVolume = $vol;
-  641         }
-  642 
-  643         $client['totalGB']    = $newVolume > 0 ? gb2bytes($newVolume) : 0;
-  644         $client['expiryTime'] = $newExpire > 0 ? $newExpire * 1000 : 0;
-  645         $client['enable']     = true;
-  646         $uuidKey = Xui::clientKey($client, (string)($service['client_uuid']));
-  647 
-  648         /* محدودیت سرعت محصول در تمدید هم دوباره اعمال می شود */
-  649         $rUp   = max(0, (int)($product['speed_up'] ?? 0));
-  650         $rDown = max(0, (int)($product['speed_down'] ?? 0));
-  651         foreach (Xui::speedKeys($rUp, $rDown) as $sk => $sv) $client[$sk] = $sv;
-  652 
-  653         $upd = $xui->updateClient((int)$service['inbound_id'], $uuidKey, $client);
-  654         if (($upd['success'] ?? false) !== true) {
-  655             return ['ok' => false, 'message' => 'خطا در تمدید: ' . (string)($upd['msg'] ?? 'نامشخص')];
-  656         }
-  657         if ($doReset) {
-  658             $xui->resetTraffic((int)$service['inbound_id'], (string)$service['client_email']);
-  659         }
-  660 
-  661         DB::update('services', [
-  662             'volume_gb'   => $newVolume,
-  663             'days'        => $newDays,
-  664             'expire_at'   => $newExpire > 0 ? date('Y-m-d H:i:s', $newExpire) : null,
-  665             'status'      => 'active',
-  666             'is_test'     => 0,
-  667             'product_id'  => (int)$product['id'],
-  668             'notified'    => null,
-  669             'used_bytes'  => $doReset ? 0 : (int)$service['used_bytes'],
-  670             'renew_count' => (int)$service['renew_count'] + 1,
-  671         ], 'id = :id', [':id' => (int)$service['id']]);
-  672 
----- end dump svc_renew_upd ----
----- dump ma_sheet : miniapp/index.php (4227 lines) ----
- 1690         empty('🔍', 'موردی پیدا نشد', 'فیلتر یا عبارت جستجو را تغییر دهید.') + '</div>';
- 1691       return;
- 1692     }
- 1693     var h = '';
- 1694     rows.forEach(function (s) { h += svcCard(s); });
- 1695     box.innerHTML = h;
- 1696   }
- 1697 
- 1698   function svcCard(s) {
- 1699     var bd = s.status === 'active' ? 'g' : (s.status === 'expired' ? 'o' : 'r');
- 1700     var st = s.status === 'active' ? 'فعال'
- 1701       : (s.status === 'expired' ? 'منقضی'
- 1702       : (s.status === 'missing' ? '🚫 حذف‌شده از پنل' : 'غیرفعال'));
- 1703     var pct = Math.max(0, Math.min(100, Number(s.percent) || 0));
- 1704     var sub = s.sub || s.sub_link || s.link || '';
- 1705     return '<div class="card sv-card">' +
- 1706       '<div data-svc="' + s.id + '">' +
- 1707         '<div class="sv-h"><div class="n">' + esc(s.name) + '</div>' +
- 1708         '<span class="bdg ' + bd + '">' + st + '</span></div>' +
- 1709         '<div class="sv-m">' + (s.is_test ? '🧪 اکانت تست · ' : '') + '⏰ ' + esc(s.remain_txt || '') + '</div>' +
- 1710         '<div class="bar' + (pct > 80 ? ' hi' : '') + '" style="margin-top:9px"><i style="width:' + pct + '%"></i></div>' +
- 1711         '<div class="sv-f"><span>مصرف: ' + esc(s.used_txt || '') + '</span>' +
- 1712         '<span>مانده: ' + esc(s.left_txt || '') + '</span></div>' +
- 1713       '</div>' +
- 1714       '<div class="sv-act">' +
- 1715         '<button type="button" data-svc="' + s.id + '">📄 جزئیات</button>' +
- 1716         (sub ? '<button type="button" data-copy="' + esc(sub) + '">📋 کپی لینک</button>' : '') +
- 1717         '<button type="button" data-renew="' + s.id + '">🔄 تمدید</button>' +
- 1718       '</div>' +
- 1719     '</div>';
- 1720   }
----- end dump ma_sheet ----
----- dump ma_sheet2 : miniapp/index.php (4227 lines) ----
- 1745     if (!tot || tot <= 0) return -1;
- 1746     return Math.min(100, (usd / tot) * 100);
- 1747   }
- 1748 
- 1749   function serviceSheet(s, fresh) {
- 1750     var cfg = '';
- 1751     (s.configs || []).forEach(function (c, i) {
- 1752       cfg += '<div class="cfg-h">⚙️ کانفیگ ' + fa(i + 1) + '</div>' + copyBox(c);
- 1753     });
- 1754 
- 1755     var pct   = svcPct(s);
- 1756     var kind  = pct < 0 ? 'ok' : (pct >= 90 ? 'er' : (pct >= 70 ? 'wr' : 'ok'));
- 1757     var state = (s.active === false || s.enabled === false) ? 'off' : 'on';
- 1758 
- 1759     var head = '<div class="svc3d ' + kind + '" id="svc3d">' +
- 1760       '<div class="glow"></div>' +
- 1761       '<div class="sheen"></div>' +
- 1762       '<div class="in">' +
- 1763         '<div class="hd">' +
- 1764           '<div class="chip3d ' + state + '">' + (state === 'on' ? '● فعال' : '○ غیرفعال') + '</div>' +
- 1765           '<div class="nmw"><span class="nm mono">' + esc(s.name) + '</span></div>' +
- 1766         '</div>' +
- 1767         (pct >= 0
- 1768           ? '<div class="ring3d"><svg viewBox="0 0 120 120">' +
- 1769               '<circle class="trk" cx="60" cy="60" r="50"></circle>' +
- 1770               '<circle class="val" cx="60" cy="60" r="50" ' +
- 1771                 'stroke-dasharray="' + (2 * Math.PI * 50).toFixed(1) + '" ' +
- 1772                 'stroke-dashoffset="' + (2 * Math.PI * 50 * (1 - pct / 100)).toFixed(1) + '"></circle>' +
- 1773             '</svg><div class="ctr"><b>' + fa(Math.round(pct)) + '٪</b><span>مصرف شده</span></div></div>'
- 1774           : '<div class="ring3d inf"><div class="ctr"><b>∞</b><span>بدون محدودیت</span></div></div>') +
- 1775         '<div class="g3d">' +
- 1776           tile3d('📊', 'حجم کل', esc(s.volume_txt), '') +
- 1777           tile3d('📉', 'مصرف شده', esc(s.used_txt), 'wr') +
- 1778           tile3d('📈', 'باقی‌مانده', esc(s.left_txt), 'ok') +
- 1779           tile3d('⏱', 'زمان مانده', esc(s.remain_txt), '') +
- 1780         '</div>' +
- 1781       '</div>' +
- 1782     '</div>';
- 1783 
- 1784     var body = head +
- 1785       '<div class="card tight g3">' +
- 1786         row('⏰', 'تاریخ انقضا', '', esc(s.expire_txt)) +
- 1787         (s.plan_txt    ? row('🏷', 'طرح', '', esc(s.plan_txt))            : '') +
- 1788         (s.panel_txt   ? row('🖥', 'سرور', '', esc(s.panel_txt))           : '') +
- 1789         (s.device      ? row('📱', 'دستگاه مجاز', '', fa(s.device))     : '') +
- 1790         (s.created_txt ? row('📅', 'تاریخ ساخت', '', esc(s.created_txt)) : '') +
- 1791       '</div>' +
- 1792       (pct >= 0 ? '<div class="sec-t"><span>📉 مصرف حجم</span></div>' + bar3d(pct, kind) : '') +
- 1793       (s.sub
- 1794         ? '<div class="sec-t"><span>🔗 لینک اشتراک (پیشنهادی)</span></div>' +
- 1795           '<div class="hint3d">یک لینک برای همهٔ کانفیگ‌ها با به‌روزرسانی خودکار</div>' +
- 1796           copyBox(s.sub)
- 1797         : '') +
- 1798       (cfg ? '<div class="sec-t"><span>⚙️ کانفیگ‌های مستقیم</span></div>' + cfg : '') +
- 1799       (!s.sub && !cfg ? '<div class="alert e">لینک اتصال ثبت نشده است؛ با پشتیبانی تماس بگیرید.</div>' : '') +
- 1800       '<div class="btn-row" style="margin-top:14px">' +
- 1801         (s.can_sync !== false ? '<button type="button" class="btn gh b3d" data-sync="' + s.id + '">🔄 به‌روزرسانی مصرف</button>' : '') +
- 1802         (s.can_tut  !== false ? '<button type="button" class="btn gh b3d" data-go="tut">🎓 راهنمای اتصال</button>' : '') +
- 1803         (s.can_devs ? '<button type="button" class="btn gh b3d" data-devs="' + s.id + '">📱 دستگاه‌های من</button>' : '') +
- 1804         (s.can_links ? '<button type="button" class="btn gh b3d" data-links="' + s.id + '">🔗 لینک‌ها و Happ</button>' : '') +
- 1805       '</div>' +
- 1806       (s.can_renew ? '<button type="button" class="btn b3d" style="width:100%;margin-top:4px" data-renew="' + s.id + '">♻️ تمدید سرویس</button>' : '') +
- 1807       (s.can_del ? '<button type="button" class="btn gh b3d" style="width:100%;margin-top:8px" data-del="' + s.id + '">🗑 حذف سرویس و عودت وجه</button>' : '');
- 1808 
- 1809     sheet((fresh ? '🎉 سرویس آماده است' : '📦 جزئیات سرویس'), body);
- 1810     tilt3d('svc3d');
- 1811   }
- 1812 
- 1813   /** چرخش سه‌بعدی کارت بر اساس موقعیت اشاره‌گر */
- 1814   function tilt3d(id) {
- 1815     var el = $(id);
----- end dump ma_sheet2 ----
----- find ma_links_sheet : function linksSheet -> 1 hits [1913] ----
----- dump ma_links_sheet@1913 : miniapp/index.php (4227 lines) ----
- 1911   }
- 1912 
- 1913   function linksSheet(id) {
- 1914     maLoading('🔗 لینک‌ها و Happ');
- 1915     api('svc_links', { id: id }).then(function (r) {
- 1916       if (!r.ok) { toast(r.message || 'دریافت لینک‌ها ناموفق بود.', 'err'); closeSheet(); return; }
- 1917       if (!r.supported) {
- 1918         sheet('🔗 لینک‌ها و Happ',
- 1919           '<div class="alert e">برای این سرویس لینک تکمیلی در دسترس نیست.</div>');
- 1920         return;
- 1921       }
- 1922       var h = '';
- 1923       if (r.happ) {
- 1924         h += '<div class="sec-t"><span>🚀 ایمپورت یک‌ضربه‌ای در Happ</span></div>' +
- 1925           '<div class="hint3d">این لینک را کپی کنید و در اپلیکیشن Happ باز کنید تا اشتراک خودکار اضافه شود.</div>' +
- 1926           copyBox(String(r.happ));
- 1927       }
- 1928       var items = r.items || [];
- 1929       if (items.length) {
- 1930         h += '<div class="sec-t"><span>🔗 لینک‌های دیگر</span></div>';
- 1931         items.forEach(function (it) {
- 1932           var u = String(it.link || it.url || '');
- 1933           if (!u) return;
- 1934           h += '<div class="cfg-h">' + esc(it.title || it.name || 'لینک') + '</div>' + copyBox(u);
- 1935         });
- 1936       }
- 1937       if (!h) h = '<div class="alert e">لینکی برای این سرویس ثبت نشده است.</div>';
- 1938       sheet('🔗 لینک‌ها و Happ', h);
- 1939     });
- 1940   }
- 1941 
- 1942   /* ================= تمدید و حذف سرویس ================= */
- 1943   function renewSheet(id) {
- 1944     api('svc_renew_plans', { id: id }).then(function (r) {
- 1945       if (!r.ok) { toast(r.message, 'err'); return; }
- 1946       if (!r.plans || !r.plans.length) { toast('طرحی برای تمدید این سرویس موجود نیست.', 'err'); return; }
- 1947       var h = '<div class="card tight" style="margin-bottom:10px">' +
- 1948         row('👛', 'موجودی کیف پول', '', esc(r.balance)) + '</div>';
- 1949       r.plans.forEach(function (p) {
- 1950         h += '<button type="button" class="btn ' + (p.afford ? '' : 'gh') + '" style="width:100%;margin-bottom:6px" data-rnw="' + id + ':' + p.id + '">' +
- 1951           '♻️ ' + esc(p.name) + ' — ' + esc(p.price_txt) + '</button>' +
- 1952           '<div style="font-size:10.5px;color:var(--mut);margin:0 4px 11px">📊 ' + esc(p.volume_txt) + ' • ⏰ ' + esc(p.days_txt) +
- 1953           (p.afford ? '' : ' • ⚠️ موجودی کافی نیست') + '</div>';
- 1954       });
- 1955       h += '<div style="font-size:11px;color:var(--mut)">مبلغ طرح از کیف پول کسر می‌شود و حجم و زمان طبق روش تمدید همان سرور اعمال می‌شود.</div>';
- 1956       sheet('♻️ تمدید سرویس', h);
- 1957     });
- 1958   }
- 1959 
- 1960   function doRenew(id, planId, btn) {
- 1961     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span>'; }
- 1962     api('svc_renew', { id: id, plan_id: planId }).then(function (r) {
- 1963       if (!r.ok) {
- 1964         toast(r.message, 'err');
- 1965         if (btn) { btn.disabled = false; btn.textContent = '♻️ تلاش دوباره'; }
- 1966         return;
- 1967       }
- 1968       toast(r.message, 'ok');
----- end dump ma_links_sheet@1913 ----
-patched app/Service/Svc.php / #hwid-renew
-wrote app/Service/Svc.php
+Wed Sep 23 15:50:25 UTC 2026
+---- grep bot_cb : case 'svcsub'|case 'svccfg'|function subView|function cfgView|function sendSub ----
+ 1053 case 'svcsub':  self::sendSub($chatId, $cbId, (int)$arg); return;
+ 1054 case 'svccfg':  self::sendConfig($chatId, $cbId, (int)$arg); return;
+ 3129 private static function sendSub($chatId, $cbId, int $id): void
+---- grep bot_cb : 3 hits ----
+---- find bot_subview : case 'svcsub' -> 1 hits [1053] ----
+---- dump bot_subview@1053 : app/Bot/Bot.php (4991 lines) ----
+ 1051 
+ 1052             case 'svc':     Tg::answerCb($cbId); self::showService($chatId, $msgId, (int)$arg); return;
+ 1053             case 'svcsub':  self::sendSub($chatId, $cbId, (int)$arg); return;
+ 1054             case 'svccfg':  self::sendConfig($chatId, $cbId, (int)$arg); return;
+ 1055             case 'svcspec': self::sendSpec($chatId, $cbId, (int)$arg); return;
+ 1056             case 'svcrn':   Tg::answerCb($cbId); self::renewOptions($chatId, $msgId, (int)$arg); return;
+ 1057             case 'svcrnok': self::doRenew($chatId, $msgId, $cbId, (int)$arg, (int)$arg2); return;
+ 1058             case 'svcsync': self::syncService($chatId, $msgId, $cbId, (int)$arg); return;
+ 1059             case 'svcdev':     Tg::answerCb($cbId); self::devicesView($chatId, $msgId, (int)$arg); return;
+---- end dump bot_subview@1053 ----
+patched miniapp/index.php / #happ-only-ui
+patched miniapp/index.php / happOnly ? [] :
+patched miniapp/index.php / s.sub && !happOnly
+patched miniapp/index.php / !cfg && !happOnly
+patched miniapp/index.php / s.can_links && !happOnly
+patched miniapp/index.php / s.happ_only ? '' :
+wrote miniapp/index.php
 php lint: on
 changed files: 1
-sanity app/Service/Svc.php / #hwid-renew : ok
-sanity app/Service/Svc.php / setDeviceLimit([(string)$service['client_email']], $devLimP) : ok
+sanity miniapp/index.php / #happ-only-ui : ok
+sanity miniapp/index.php / var happOnly = !!s.happ_only; : ok
+sanity miniapp/index.php / happOnly ? [] : (s.configs || []) : ok
+sanity miniapp/index.php / (s.sub && !happOnly : ok
+sanity miniapp/index.php / !s.sub && !cfg && !happOnly : ok
+sanity miniapp/index.php / (s.can_links && !happOnly ? : ok
+sanity miniapp/index.php / var sub = s.happ_only ? '' : : ok
 changelog: entry added
-build: fixed131 (was fixed130)
+build: fixed132 (was fixed131)
 exit: 0
 exit: 0
