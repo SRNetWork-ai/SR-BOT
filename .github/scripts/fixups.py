@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-# fixed128 - recon #2: deliver modes (bot / miniapp) + hwid mapping in xui3
-import io, os, re, sys, json, subprocess
+# fixed129 - recon #3: where sub/config are rendered for the customer
+import io, os, re, sys, json
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed128').strip() or 'fixed128'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed129').strip() or 'fixed129'
 
 CACHE = {}
 
@@ -44,7 +44,7 @@ def dump_find(tag, path, pattern, before=4, after=20, limit=1):
         dump('%s@%d' % (tag, n), path, n - before, n + after)
 
 
-def grep_lines(tag, path, pattern, limit=40):
+def grep_lines(tag, path, pattern, limit=50):
     try:
         lines = load(path).split('\n')
     except Exception as e:
@@ -57,25 +57,50 @@ def grep_lines(tag, path, pattern, limit=40):
         if rx.search(ln):
             n += 1
             if n <= limit:
-                print('%5d %s' % (i + 1, ln.strip()[:190]))
+                print('%5d %s' % (i + 1, ln.strip()[:180]))
     print('---- grep %s : %d hits ----' % (tag, n))
 
 
-# ---------------------------------------------------------- 1) deliver modes
-dump_find('svc_deliver_const', 'app/Service/Svc.php', r'const DELIVER', 2, 14, 1)
-grep_lines('svc_deliver', 'app/Service/Svc.php', r'DELIVER|deliver_mode|deliverMode|function deliver', 50)
-dump_find('svc_deliver_fn', 'app/Service/Svc.php', r'function deliverMode|function deliver\(', 6, 45, 2)
+def grep_repo(tag, pattern, roots, exts=('.php',), limit=60):
+    rx = re.compile(pattern)
+    n = 0
+    print('---- grepr %s : %s ----' % (tag, pattern))
+    for root in roots:
+        base = os.path.join(ROOT, root)
+        if not os.path.isdir(base):
+            continue
+        for dirpath, dirnames, filenames in os.walk(base):
+            for fn in sorted(filenames):
+                if not fn.endswith(exts):
+                    continue
+                p = os.path.join(dirpath, fn)
+                rel = os.path.relpath(p, ROOT)
+                try:
+                    with io.open(p, 'r', encoding='utf-8') as fh:
+                        txt = fh.read()
+                except Exception:
+                    continue
+                for i, ln in enumerate(txt.split('\n')):
+                    if rx.search(ln):
+                        n += 1
+                        if n <= limit:
+                            print('%s:%d %s' % (rel, i + 1, ln.strip()[:170]))
+    print('---- grepr %s : %d hits ----' % (tag, n))
 
-grep_lines('bot_deliver', 'app/Bot/Bot.php', r'DELIVER|deliver_mode|deliverMode|Svc::deliver', 40)
-grep_lines('ma_deliver', 'miniapp/api.php', r'DELIVER|deliver_mode|deliverMode|Svc::deliver', 40)
-grep_lines('set_deliver', 'admin/pages/settings.php', r'deliver', 30)
 
-# ---------------------------------------------------------- 2) hwid mapping
-grep_lines('x3_hwid', 'app/Panel/Xui3.php', r'limitHwid|deviceLimit|setDeviceLimit|hwid', 40)
-dump_find('x3_addclient', 'app/Panel/Xui3.php', r'public function addClient', 2, 55, 1)
-dump_find('x3_setdev', 'app/Panel/Xui3.php', r'function setDeviceLimit', 3, 28, 1)
-grep_lines('xui_dev', 'app/Panel/Xui.php', r'deviceLimit|limitHwid', 30)
-dump_find('xui_addclient', 'app/Panel/Xui.php', r'public function addClient', 3, 45, 1)
+# 1) bot: the two delivery renderers
+dump('bot_deliver_1', 'app/Bot/Bot.php', 2845, 2935)
+dump('bot_deliver_2', 'app/Bot/Bot.php', 2960, 3030)
+grep_lines('bot_happ', 'app/Bot/Bot.php', r'Links::happ|happView|svchapp|#happ-btn', 30)
+dump_find('bot_happview', 'app/Bot/Bot.php', r'(private|public|protected).*function happView', 2, 45, 1)
+
+# 2) admin selects for deliver mode
+grep_repo('deliver_ui', r'Svc::DELIVER|deliverLabel|deliver_mode', ['admin', 'miniapp'], ('.php',), 60)
+dump_find('prod_deliver_select', 'admin/pages/products.php', r"name=\"deliver_mode\"", 8, 16, 1)
+
+# 3) miniapp service row + links action
+dump('ma_row', 'miniapp/api.php', 305, 365)
+grep_lines('ma_links', 'miniapp/api.php', r"svc_links|Links::happ|can_links|sub_link|'configs'", 40)
 
 print('build: %s (recon only, nothing patched)' % BUILD)
 
