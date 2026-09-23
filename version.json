@@ -3,6 +3,7 @@
   "released": "2026-09-08",
   "min_php": "8.1",
   "changelog": [
+    "پشتیبانی از پنل‌های مرزنشین (Marzneshin) و هیدیفای (Hiddify)",
     "مینی‌اپ: نمایش دکمه‌های دستگاه‌ها و لینک‌ها فقط روی سرویس‌های پشتیبانی‌شده",
     "مینی‌اپ: صفحهٔ دستگاه‌های من (HWID) و صفحهٔ لینک‌ها و Happ در جزئیات سرویس",
     "اجرای اختیاری با داکر: Dockerfile، docker-compose.yml (nginx + PHP-FPM + MariaDB + cron)، راهنمای docs/DOCKER.md و بخش داکر در README",
@@ -209,6 +210,6 @@
   ],
   "channel": "beta",
   "pinned": true,
-  "build": "fixed124",
+  "build": "fixed125",
   "version_locked": true
 }

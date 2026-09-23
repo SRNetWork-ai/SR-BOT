@@ -11,7 +11,7 @@ class Xui
 {
     public array $panel;
     private ?string $cookie = null;
-    /** درایور مرزبان؛ اگر نوع پنل marzban باشد همهٔ درخواست‌ها به آن سپرده می‌شود */
+    /** درایور خانوادهٔ مرزبان (marzban / marzneshin / hiddify)؛ اگر نوع پنل یکی از این‌ها باشد همهٔ درخواست‌ها به آن سپرده می‌شود */
     private ?Marzban $mz = null;
     /** درایور نسل جدید سنایی (3x-ui با توکن API)؛ اگر توکن ثبت شده باشد درخواست‌ها به آن سپرده می‌شود */
     private ?Xui3 $x3 = null;
@@ -25,6 +25,8 @@ class Xui
         'sanaei'     => 'سنایی جدید – مولتی‌اینباند (3x-ui)',
         'sanaei-old' => 'سنایی قدیم – تک‌اینباند',
         'pasarguard' => 'پاسارگارد (PasarGuard)',
+        'marzneshin' => 'مرزنشین (Marzneshin)',
+        'hiddify'    => 'هیدیفای (Hiddify)',
     ];
 
     /** پنل‌های در دست توسعه – فعلاً قابل انتخاب نیستند */
@@ -51,6 +53,12 @@ class Xui
         'pasar_guard'=> 'pasarguard',
         'pasargard'  => 'pasarguard',
         'pg'         => 'pasarguard',
+        'marznashin' => 'marzneshin',
+        'marz-neshin'=> 'marzneshin',
+        'marzneshin-panel' => 'marzneshin',
+        'hidify'     => 'hiddify',
+        'hiddifi'    => 'hiddify',
+        'hiddify-manager'  => 'hiddify',
     ];
 
     /** نوع‌هایی که کانفیگ فقط روی یک اینباند ساخته می‌شود */
@@ -63,6 +71,8 @@ class Xui
         'sanaei'     => 'نسخهٔ جدید سنایی (3x-ui) – مولتی‌اینباند: چند کد اینباند بدهید تا کانفیگ روی همهٔ آن‌ها ساخته شود. اگر پنل شما «API Token» دارد (تنظیمات ← امنیت)، آن را هم وارد کنید تا ربات از API نسل جدید استفاده کند. گیت‌هاب: github.com/MHSanaei/3x-ui',
         'sanaei-old' => 'نسخهٔ قدیم سنایی – تک‌اینباند: آدرس پنل و نام کاربری/رمز را می‌دهید و فقط کد «یک» اینباند؛ همهٔ کانفیگ‌ها روی همان اینباند ساخته می‌شوند.',
         'pasarguard' => 'پاسارگارد (PasarGuard) – بازنویسی مرزبان: ورود با یوزر/پسورد ادمین یا «کلید API» (پنل ← API Keys ← pg_key_…). کاربر باید عضو یک «گروه» باشد؛ شناسهٔ گروه‌ها را در فیلد «کد اینباندها» بنویسید یا خالی بگذارید تا همهٔ گروه‌های فعال استفاده شود. لینک اشتراک را خود پنل می‌دهد. مستندات: docs.pasarguard.org',
+        'marzneshin' => 'مرزنشین (Marzneshin) – نسل جدید مرزبان: ورود با یوزر/پسورد ادمین. کاربر باید عضو یک «سرویس» (Service) باشد؛ شناسهٔ سرویس‌ها را در فیلد «کد اینباندها» بنویسید یا خالی بگذارید تا همهٔ سرویس‌ها استفاده شود. لینک اشتراک را خود پنل می‌دهد. گیت‌هاب: github.com/marzneshin/marzneshin',
+        'hiddify'    => 'هیدیفای (Hiddify Manager) – لاگین یوزر/پسورد ندارد: در فیلد «مسیر وب» مسیر پروکسی (proxy path) پنل را بنویسید و در فیلد رمز/توکن، کلید API ادمین (Hiddify-API-Key) را بگذارید. کاربران با UUID ساخته می‌شوند و لینک اشتراک از همین UUID ساخته می‌شود؛ کد اینباند لازم نیست. مستندات: hiddify.com',
     ];
 
     /** تبدیل نام‌های قدیمی به نوع استاندارد */
@@ -106,6 +116,12 @@ class Xui
         $type = self::normType((string)($panel['type'] ?? ''));
         if ($type === 'marzban') {
             $this->mz = new Marzban($panel);
+        } elseif ($type === 'marzneshin') {
+            /* 0.0.2 #row16 — مرزنشین نسل جدید مرزبان است و همان قرارداد را پیاده می‌کند */
+            $this->mz = new Marzneshin($panel);
+        } elseif ($type === 'hiddify') {
+            /* 0.0.2 #row16 — هیدیفای با کلید API کار می‌کند و لینک اشتراک را خود پنل می‌دهد */
+            $this->mz = new Hiddify($panel);
         } elseif ($type === 'pasarguard') {
             $this->pg = new PasarGuard($panel);
         } elseif ($type === 'sanaei' && Xui3::hasToken($panel)) {
@@ -120,6 +136,12 @@ class Xui
 
     /** دسترسی مستقیم به درایور مرزبان */
     public function marzban(): ?Marzban { return $this->mz; }
+
+    /** 0.0.2 #row16 — آیا این پنل مرزنشین است؟ */
+    public function isMarzneshin(): bool { return $this->mz instanceof Marzneshin; }
+
+    /** 0.0.2 #row16 — آیا این پنل هیدیفای است؟ */
+    public function isHiddify(): bool { return $this->mz instanceof Hiddify; }
 
     /** آیا این پنل از نوع پاسارگارد است؟ */
     public function isPasarGuard(): bool { return $this->pg !== null; }

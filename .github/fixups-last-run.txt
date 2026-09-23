@@ -1,449 +1,79 @@
 Python 3.12.3
-Wed Sep 23 14:58:55 UTC 2026
-app/Panel: Marzban.php, PasarGuard.php, Xui.php, Xui3.php
----- dump xui_head : app/Panel/Xui.php (1134 lines) ----
-    1 <?php
-    2 declare(strict_types=1);
-    3 
-    4 /**
-    5  * کلاینت API پنل‌های سنایی (3x-ui) / VPN-UI
-    6  *
-    7  * ساختار آدرس: scheme://host:port[/web_path]
-    8  *  - web_path (پچ یا مسیر وب) اختیاری است؛ اگر خالی باشد نادیده گرفته می‌شود.
-    9  */
-   10 class Xui
-   11 {
-   12     public array $panel;
-   13     private ?string $cookie = null;
-   14     /** درایور مرزبان؛ اگر نوع پنل marzban باشد همهٔ درخواست‌ها به آن سپرده می‌شود */
-   15     private ?Marzban $mz = null;
-   16     /** درایور نسل جدید سنایی (3x-ui با توکن API)؛ اگر توکن ثبت شده باشد درخواست‌ها به آن سپرده می‌شود */
-   17     private ?Xui3 $x3 = null;
-   18     /** درایور پاسارگارد (PasarGuard)؛ اگر نوع پنل pasarguard باشد همهٔ درخواست‌ها به آن سپرده می‌شود */
-   19     private ?PasarGuard $pg = null;
-   20 
-   21     /** پنل‌هایی که هم‌اکنون پشتیبانی می‌شوند */
-   22     public const TYPES = [
-   23         'vpn-ui'     => 'VPN-UI (Sir-MmD)',
-   24         'marzban'    => 'مرزبان (Marzban)',
-   25         'sanaei'     => 'سنایی جدید – مولتی‌اینباند (3x-ui)',
-   26         'sanaei-old' => 'سنایی قدیم – تک‌اینباند',
-   27         'pasarguard' => 'پاسارگارد (PasarGuard)',
-   28     ];
-   29 
-   30     /** پنل‌های در دست توسعه – فعلاً قابل انتخاب نیستند */
-   31     public const SOON = [
-   32         'heimdall' => 'هایمدال (Heimdall)',
-   33         'rebecca'  => 'ربکا (Rebecca)',
-   34     ];
-   35 
-   36     /** نام‌های قدیمی که به نوع‌های جدید نگاشت می‌شوند */
-   37     public const ALIASES = [
-   38         '3x-ui'      => 'sanaei',
-   39         '3xui'       => 'sanaei',
-   40         'x3-ui'      => 'sanaei',
-   41         'sanaei-new' => 'sanaei',
-   42         'sanaei_new' => 'sanaei',
-   43         'x-ui'       => 'sanaei-old',
-   44         'xui'        => 'sanaei-old',
-   45         'sanaei_old' => 'sanaei-old',
-   46         'sanaeiold'  => 'sanaei-old',
-   47         'vpnui'      => 'vpn-ui',
-   48         'vpn_ui'     => 'vpn-ui',
-   49         'pasargad'   => 'pasarguard',
-   50         'pasar-guard'=> 'pasarguard',
-   51         'pasar_guard'=> 'pasarguard',
-   52         'pasargard'  => 'pasarguard',
-   53         'pg'         => 'pasarguard',
-   54     ];
-   55 
-   56     /** نوع‌هایی که کانفیگ فقط روی یک اینباند ساخته می‌شود */
-   57     public const SINGLE_INBOUND = ['sanaei-old'];
-   58 
-   59     /** توضیح کوتاه هر نوع پنل برای فرم افزودن */
-   60     public const TYPE_NOTES = [
-   61         'vpn-ui'     => 'یک اکانت روی چند اینباند سرو می‌شود و لینک اشتراک خود پنل تحویل داده می‌شود.',
-   62         'marzban'    => 'اینباندها با تگ شناخته می‌شوند؛ خالی گذاشتن کد اینباند = همهٔ اینباندها.',
-   63         'sanaei'     => 'نسخهٔ جدید سنایی (3x-ui) – مولتی‌اینباند: چند کد اینباند بدهید تا کانفیگ روی همهٔ آن‌ها ساخته شود. اگر پنل شما «API Token» دارد (تنظیمات ← امنیت)، آن را هم وارد کنید تا ربات از API نسل جدید استفاده کند. گیت‌هاب: github.com/MHSanaei/3x-ui',
-   64         'sanaei-old' => 'نسخهٔ قدیم سنایی – تک‌اینباند: آدرس پنل و نام کاربری/رمز را می‌دهید و فقط کد «یک» اینباند؛ همهٔ کانفیگ‌ها روی همان اینباند ساخته می‌شوند.',
-   65         'pasarguard' => 'پاسارگارد (PasarGuard) – بازنویسی مرزبان: ورود با یوزر/پسورد ادمین یا «کلید API» (پنل ← API Keys ← pg_key_…). کاربر باید عضو یک «گروه» باشد؛ شناسهٔ گروه‌ها را در فیلد «کد اینباندها» بنویسید یا خالی بگذارید تا همهٔ گروه‌های فعال استفاده شود. لینک اشتراک را خود پنل می‌دهد. مستندات: docs.pasarguard.org',
-   66     ];
-   67 
-   68     /** تبدیل نام‌های قدیمی به نوع استاندارد */
-   69     public static function normType(?string $t): string
-   70     {
-   71         $t = strtolower(trim((string)$t));
-   72         if ($t === '') return 'vpn-ui';
-   73         return self::ALIASES[$t] ?? $t;
-   74     }
-   75 
-   76     /** آیا این نوع پنل هم‌اکنون قابل استفاده است؟ */
-   77     public static function typeAllowed(string $t): bool
-   78     {
-   79         return array_key_exists(self::normType($t), self::TYPES);
-   80     }
-   81 
-   82     /** آیا این نوع پنل فقط روی یک اینباند کانفیگ می‌سازد؟ */
-   83     public static function isSingleType(?string $t): bool
-   84     {
-   85         return in_array(self::normType($t), self::SINGLE_INBOUND, true);
-   86     }
-   87 
-   88     /** توضیح نوع پنل */
-   89     public static function typeNote(?string $t): string
-   90     {
-   91         return self::TYPE_NOTES[self::normType($t)] ?? '';
-   92     }
-   93 
-   94     /** نام نمایشی نوع پنل */
-   95     public static function typeLabel(string $t): string
-   96     {
-   97         $n = self::normType($t);
-   98         if (isset(self::TYPES[$n])) return self::TYPES[$n];
-   99         if (isset(self::SOON[$n]))  return self::SOON[$n] . ' – به‌زودی';
-  100         return $t !== '' ? $t : 'سنایی جدید';
-  101     }
-  102 
-  103     public function __construct(array $panel)
-  104     {
-  105         $this->panel = $panel;
-  106         $type = self::normType((string)($panel['type'] ?? ''));
-  107         if ($type === 'marzban') {
-  108             $this->mz = new Marzban($panel);
-  109         } elseif ($type === 'pasarguard') {
-  110             $this->pg = new PasarGuard($panel);
-  111         } elseif ($type === 'sanaei' && Xui3::hasToken($panel)) {
-  112             /* توکن API ثبت شده ← درایور نسل جدید 3x-ui خودکار فعال می‌شود؛
-  113                بدون توکن، همان مسیر قدیمی لاگین/کوکی استفاده می‌شود (fallback امن) */
-  114             $this->x3 = new Xui3($panel);
-  115         }
-  116     }
-  117 
-  118     /** آیا این پنل از نوع مرزبان است؟ */
-  119     public function isMarzban(): bool { return $this->mz !== null; }
-  120 
-  121     /** دسترسی مستقیم به درایور مرزبان */
-  122     public function marzban(): ?Marzban { return $this->mz; }
-  123 
-  124     /** آیا این پنل از نوع پاسارگارد است؟ */
-  125     public function isPasarGuard(): bool { return $this->pg !== null; }
-  126 
-  127     /** دسترسی مستقیم به درایور پاسارگارد */
-  128     public function pasarguard(): ?PasarGuard { return $this->pg; }
-  129 
-  130     /** آیا این پنل از خانوادهٔ مرزبان است (مرزبان یا پاسارگارد)؟ نام کاربری محدود و اینباند خودکار */
-  131     public function isMarzbanLike(): bool { return $this->mz !== null || $this->pg !== null; }
-  132 
-  133     /** آیا این پنل از درایور نسل جدید (توکن API) استفاده می‌کند؟ */
-  134     public function isXui3(): bool { return $this->x3 !== null; }
-  135 
-  136     /** دسترسی مستقیم به درایور نسل جدید */
-  137     public function xui3(): ?Xui3 { return $this->x3; }
-  138 
-  139     public static function forPanel($panelId): ?self
-  140     {
-  141         $p = DB::one('SELECT * FROM {p}panels WHERE id = :id', [':id' => (int)$panelId]);
-  142         return $p ? new self($p) : null;
-  143     }
-  144 
-  145     public function base(): string
-  146     {
-  147         $scheme = $this->panel['scheme'] ?: 'https';
-  148         $host   = trim((string)$this->panel['host']);
-  149         $port   = (int)$this->panel['port'];
-  150         $url    = $scheme . '://' . $host;
----- end dump xui_head ----
----- grep xui_publics : ^\s*(public|private|protected)\s+(static\s+)?function  -> 69 hits ----
-   69     public static function normType(?string $t): string
-   77     public static function typeAllowed(string $t): bool
-   83     public static function isSingleType(?string $t): bool
-   89     public static function typeNote(?string $t): string
-   95     public static function typeLabel(string $t): string
-  103     public function __construct(array $panel)
-  119     public function isMarzban(): bool { return $this->mz !== null; }
-  122     public function marzban(): ?Marzban { return $this->mz; }
-  125     public function isPasarGuard(): bool { return $this->pg !== null; }
-  128     public function pasarguard(): ?PasarGuard { return $this->pg; }
-  131     public function isMarzbanLike(): bool { return $this->mz !== null || $this->pg !== null; }
-  134     public function isXui3(): bool { return $this->x3 !== null; }
-  137     public function xui3(): ?Xui3 { return $this->x3; }
-  139     public static function forPanel($panelId): ?self
-  145     public function base(): string
-  158     public function nodeHost(): string
-  166     private function curl(string $url, $body = null, string $method = 'GET', bool $formEncoded = true): array
-  204     public function login(bool $force = false): bool
-  241     private function apiPaths(string $key, array $args = []): array
-  258     private function call(string $key, array $args = [], $body = null, string $method = 'GET'): array
-  275     public function inbounds(): array
-  285     public function inboundsSlim(): array
-  303     public function pingFast(): bool
-  309     public function inbound(int $id): ?array
-  321     public function allowedInboundIds(): array
-  345     public static function speedKeys(int $upKbps, int $downKbps): array
-  373     public static function isClientKey($v): bool
-  382     public static function clientKey(array $client, string $fallback = ''): string
-  397     public static function normClient(array $c, string $key = ''): array
-  412     public function setAutoReset(int $days): void
-  422     public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, int $ipLimit = 0, string $subId = '', array $inboundIds = [], int $deviceLimit = 0, int $upKb
-  469     public function updateClient(int $inboundId, string $uuid, array $client, array $inboundIds = []): array
-  483     public function deleteClient(int $inboundId, string $uuid): array
-  491     public function resetTraffic(int $inboundId, string $email): array
-  499     public function clientTraffic(string $email): ?array
-  531     public function liveTraffic(string $email): ?array
-  592     public static function httpGet(string $url, int $timeout = 12): string
-  623     public static function parseSubBody(string $body): array
-  654     public function subFetch(string $subId, string $subUrl = ''): array
-  669     public function rebuildConfigs(string $email, string $uuid, array $extraInbounds = []): array
-  701     public function findClient(int $inboundId, string $email): ?array
-  720     public function isVpnUi(): bool
-  728     public function type(): string { return self::normType((string)($this->panel['type'] ?? '')); }
-  731     public function isSanaei(): bool { return in_array($this->type(), ['sanaei', 'sanaei-old'], true); }
-  734     public function isSanaeiOld(): bool { return $this->type() === 'sanaei-old'; }
-  737     public function singleInbound(): bool { return self::isSingleType($this->type()); }
-  740     public function limitIds(array $ids): array
-  748     public static function idList($raw): array
-  759     public static function formBody(array $pairs, array $inboundIds = []): string
-  771     private function apiRaw(string $path, ?string $post = null): array
-  783     public function assignableInboundIds(): array
-  799     public function accountRow(string $email): ?array
-  814     public function accountInboundIds(string $email): array
-  830     public function deleteByEmail(int $inboundId, string $email): array
-  842     public function subUrlFor(string $email): string
-  850     public function subLink(string $subId): string
-  861     public function buildConfigLink(array $inbound, string $uuid, string $email): string
+Wed Sep 23 15:11:20 UTC 2026
+info app/Panel/Marzneshin.php: 26393 bytes, 615 lines
+tail app/Panel/Marzneshin.php: ]; | } | }
+info app/Panel/Hiddify.php: 24316 bytes, 571 lines
+tail app/Panel/Hiddify.php: ]; | } | }
+---- dump xui_supports : app/Panel/Xui.php (1134 lines) ----
+  960         }
+  961         return '';
+  962     }
+  963 
+  964     /* ---------------------- قابلیت‌های پیشرفته (فاز ۳–۴ سنایی نسل جدید + پاسارگارد) ---------------------- */
+  965 
+  966     /** کدام قابلیت‌های پیشرفته روی این پنل پشتیبانی می‌شود */
   967     public function supports(string $feature): bool
+  968     {
+  969         switch ($feature) {
+  970             case 'status':   return $this->x3 !== null || $this->pg !== null;
+  971             case 'online':   return $this->x3 !== null || $this->pg !== null || $this->mz !== null;
+  972             case 'ips':      return $this->x3 !== null;
+  973             case 'depleted': return $this->x3 !== null;
+  974             case 'revoke':   return $this->pg !== null;
+  975             case 'toggle':   return true;
+  976         }
+  977         return false;
+  978     }
+  979 
+  980     /**
+  981      * وضعیت منابع سرور به شکل یکسان
+  982      * خروجی: cpu (درصد)، mem_used/mem_total (بایت)، uptime (ثانیه)، xray_state، xray_ver، net_up/net_down (بایتبرثانیه)، sent/recv (بایت)، users_online
+  983      */
   984     public function serverStatus(): ?array
- 1019     public function clientsByTgId($tgId): array
- 1031     public function lastOnlineOf(string $email): int
- 1048     public function isOnline(string $email): ?bool
- 1059     public function clientIps(string $email): array
- 1066     public function clearClientIps(string $email): array
- 1073     public function delDepleted(int $inboundId = -1): array
- 1080     public function revokeSub(string $email): array
- 1090     public function nodes(): ?array
- 1100     public static function nodesNote(?array $nodes): string
- 1116     public function healthCheck(): array
----- end grep xui_publics ----
----- grep xui_dispatch : new (Marzban|PasarGuard|Xui3)\(|\$this->(mz|pg|x3|drv)\b -> 105 hits ----
-  108             $this->mz = new Marzban($panel);
-  110             $this->pg = new PasarGuard($panel);
-  114             $this->x3 = new Xui3($panel);
-  119     public function isMarzban(): bool { return $this->mz !== null; }
-  122     public function marzban(): ?Marzban { return $this->mz; }
-  125     public function isPasarGuard(): bool { return $this->pg !== null; }
-  128     public function pasarguard(): ?PasarGuard { return $this->pg; }
-  131     public function isMarzbanLike(): bool { return $this->mz !== null || $this->pg !== null; }
-  134     public function isXui3(): bool { return $this->x3 !== null; }
-  137     public function xui3(): ?Xui3 { return $this->x3; }
-  206         if ($this->mz) return $this->mz->login($force);
-  207         if ($this->pg) return $this->pg->login($force);
-  208         if ($this->x3) return $this->x3->login($force);
-  277         if ($this->mz) return $this->mz->inbounds();
-  278         if ($this->pg) return $this->pg->inbounds();
-  279         if ($this->x3) return $this->x3->inbounds();
-  287         if ($this->x3) return $this->x3->inboundsSlim();
-  305         if ($this->x3) return $this->x3->ping();
-  311         if ($this->mz) return $this->mz->inbound($id);
-  312         if ($this->pg) return $this->pg->inbound($id);
-  313         if ($this->x3) return $this->x3->inbound($id);
-  323         if ($this->mz) return $this->mz->allowedInboundIds();
-  324         if ($this->pg) return $this->pg->allowedInboundIds();
-  325         if ($this->x3) return $this->x3->allowedInboundIds();
-  414         if ($this->x3) $this->x3->autoReset = max(0, $days);
-  424         if ($this->mz) return $this->mz->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $subId, $inboundIds, $deviceLimit, $upKbps, $downKbps);
-  425         if ($this->pg) return $this->pg->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $subId, $inboundIds, $deviceLimit, $upKbps, $downKbps);
-  426         if ($this->x3) return $this->x3->addClient($inboundId, $email, $uuid, $volumeGb, $expiryMs, $ipLimit, $subId, $inboundIds, $deviceLimit, $upKbps, $downKbps);
-  471         if ($this->mz) return $this->mz->updateClient($inboundId, $uuid, $client, $inboundIds);
-  472         if ($this->pg) return $this->pg->updateClient($inboundId, $uuid, $client, $inboundIds);
-  473         if ($this->x3) return $this->x3->updateClient($inboundId, $uuid, $client, $inboundIds);
-  485         if ($this->mz) return $this->mz->deleteClient($inboundId, $uuid);
-  486         if ($this->pg) return $this->pg->deleteClient($inboundId, $uuid);
-  487         if ($this->x3) return $this->x3->deleteClient($inboundId, $uuid);
-  493         if ($this->mz) return $this->mz->resetTraffic($inboundId, $email);
-  494         if ($this->pg) return $this->pg->resetTraffic($inboundId, $email);
-  495         if ($this->x3) return $this->x3->resetTraffic($inboundId, $email);
-  501         if ($this->mz) return $this->mz->clientTraffic($email);
-  502         if ($this->pg) return $this->pg->clientTraffic($email);
-  503         if ($this->x3) return $this->x3->clientTraffic($email);
----- end grep xui_dispatch ----
-info app/Panel/Marzban.php: 27958 bytes, 611 lines
----- dump mz_head : app/Panel/Marzban.php (611 lines) ----
-    1 <?php
-    2 declare(strict_types=1);
-    3 
-    4 /**
-    5  * کلاینت API پنل مرزبان (Marzban) و فورک‌های سازگار
-    6  *
-    7  * روند کار:
-    8  *   ۱) آدرس پنل + یوزرنیم و پسورد ادمین  →  دریافت توکن
-    9  *   ۲) ساخت کاربر روی پنل  →  پنل خودش لینک اشتراک و همهٔ کانفیگ‌ها را برمی‌گرداند
-   10  *   ۳) اینباندها و پروتکل‌ها خودکار از خود پنل خوانده می‌شوند؛ کد اینباند لازم نیست.
-   11  *
-   12  * این کلاس همان متدهای Xui را دارد تا در سراسر ربات جایگزین‌پذیر باشد.
-   13  */
-   14 class Marzban
-   15 {
-   16     public array $panel;
-   17     private ?string $token = null;
-   18     /** آخرین کانفیگ‌های دریافت‌شده از پنل */
-   19     private array $links = [];
-   20     /** آخرین لینک اشتراک دریافت‌شده از پنل */
-   21     private string $subUrl = '';
-   22     /** آخرین نام کاربری خوانده‌شده از پنل */
-   23     private string $lastUser = '';
-   24     /** نگاشت uuid به نام کاربری مرزبان */
-   25     private array $userMap = [];
-   26     private ?array $inboundCache = null;
-   27 
-   28     public function __construct(array $panel) { $this->panel = $panel; }
-   29 
-   30     public static function forPanel($panelId): ?self
-   31     {
-   32         $p = DB::one('SELECT * FROM {p}panels WHERE id = :id', [':id' => (int)$panelId]);
-   33         return $p ? new self($p) : null;
-   34     }
-   35 
-   36     /** آدرس پایه: scheme://host:port[/web_path] */
-   37     public function base(): string
-   38     {
-   39         $scheme = $this->panel['scheme'] ?: 'https';
-   40         $host   = trim((string)$this->panel['host']);
-   41         $port   = (int)$this->panel['port'];
-   42         $url    = $scheme . '://' . $host;
-   43         if ($port && !in_array($port, [80, 443], true)) $url .= ':' . $port;
-   44         $path = trim((string)($this->panel['web_path'] ?? ''), '/');
-   45         if ($path !== '') $url .= '/' . $path;
-   46         return $url;
-   47     }
-   48 
-   49     public function nodeHost(): string
-   50     {
-   51         $n = trim((string)($this->panel['node_host'] ?? ''));
-   52         return $n !== '' ? $n : trim((string)$this->panel['host']);
-   53     }
-   54 
-   55     public function isVpnUi(): bool { return false; }
-   56 
-   57     /** نام کاربری مجاز مرزبان: فقط a-z و 0-9 و آندرلاین (فقط در میانه)، طول ۳ تا ۳۲ (نتیجه همیشه یکسان است) */
-   58     public static function safeName(string $email): string
-   59     {
-   60         $raw  = trim($email);
-   61         $hash = substr(md5($raw !== '' ? $raw : 'marzban'), 0, 8);
-   62 
-   63         /* فقط حروف کوچک، رقم و آندرلاین؛ هر چیز دیگر به آندرلاین تبدیل می‌شود */
-   64         $u = function_exists('en_num') ? en_num($raw) : $raw;
-   65         $u = strtolower($u);
-   66         $u = (string)preg_replace('~[^a-z0-9]+~', '_', $u);
-   67         $u = (string)preg_replace('~_{2,}~', '_', $u);
-   68         $u = trim($u, '_');
-   69 
-   70         /* آندرلاین فقط در میانه مجاز است و طول باید بین 3 تا 32 کاراکتر باشد */
-   71         if ($u === '')       $u = 'u' . $hash;
-   72         if (strlen($u) > 32) $u = rtrim(substr($u, 0, 23), '_') . '_' . $hash;
-   73         if (strlen($u) < 3)  $u = $u . '_' . substr($hash, 0, 3);
-   74 
-   75         $u = trim($u, '_');
-   76         if (strlen($u) < 3)  $u = 'usr' . substr($hash, 0, 5);
-   77         return $u;
-   78     }
-   79 
-   80     /* ------------------------------------------------------------------ */
----- end dump mz_head ----
----- grep mz_publics : ^\s*(public|private|protected)\s+(static\s+)?function  -> 40 hits ----
-   28     public function __construct(array $panel) { $this->panel = $panel; }
-   30     public static function forPanel($panelId): ?self
-   37     public function base(): string
-   49     public function nodeHost(): string
-   55     public function isVpnUi(): bool { return false; }
-   58     public static function safeName(string $email): string
-   82     private function curl(string $url, $body = null, string $method = 'GET', bool $form = false): array
-  112     private static function errOf(array $res): string
-  122     public function login(bool $force = false): bool
-  156     private function api(string $path, $body = null, string $method = 'GET'): array
-  184     public function inboundTags(): array
-  212     public function inbounds(): array
-  231     public function inbound(int $id): ?array
-  247     public function allowedInboundIds(): array { return [1]; }
-  249     public function assignableInboundIds(): array { return [1]; }
-  251     public function accountInboundIds(string $email): array { return [1]; }
-  253     public static function idList($raw): array { return Xui::idList($raw); }
-  255     public static function speedKeys(int $upKbps, int $downKbps): array { return []; }
-  264     public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, int $ipLimit = 0, string $subId = '', array $inboundIds = [], int $deviceLimit = 0, int $upKb
-  332     private function absorb(array $u, string $uuid = ''): void
-  357     private function absUrl(string $u): string
-  366     private function clientOf(array $u, string $uuid = ''): array
-  390     public function buildConfigLink(array $inbound, string $uuid, string $email): string
-  403     public function subLink(string $subId): string
-  414     public function subUrlFor(string $email): string
-  428     public function subFetch(string $subId, string $subUrl = ''): array
-  440     public function rebuildConfigs(string $email, string $uuid, array $extraInbounds = []): array
-  450     public function findClient(int $inboundId, string $email): ?array
-  461     public function accountRow(string $email): ?array
-  471     public function updateClient(int $inboundId, string $uuid, array $client, array $inboundIds = []): array
-  493     public function resetTraffic(int $inboundId, string $email): array
-  499     public function deleteClient(int $inboundId, string $uuid): array
-  506     public function deleteByEmail(int $inboundId, string $email): array
-  515     public function clientTraffic(string $email): ?array
-  531     public function liveTraffic(string $email): ?array
-  539     public function revokeSub(string $email): array
-  547     public function setEnabled(string $email, bool $on): array
-  555     public function lastOnline(string $email): int
-  564     public function nodes(): ?array
-  586     public function healthCheck(): array
----- end grep mz_publics ----
-info app/Panel/PasarGuard.php: 42761 bytes, 844 lines
----- grep pg_publics : ^\s*(public|private|protected)\s+(static\s+)?function  -> 49 hits ----
-   42     public function __construct(array $panel)
-   53     public static function forPanel($panelId): ?self
-   60     public static function hasApiKey(array $panel): bool
-   66     public function base(): string
-   78     public function nodeHost(): string
-   84     public function isVpnUi(): bool { return false; }
-   87     public static function safeName(string $email): string { return Marzban::safeName($email); }
-   90     public static function expTs($v): int
-  109     private function curl(string $url, $body = null, string $method = 'GET', bool $form = false): array
-  145     private static function errOf(array $res): string
-  166     public function login(bool $force = false): bool
-  202     private function api(string $path, $body = null, string $method = 'GET'): array
-  247     public function groups(bool $force = false): array
-  290     private function groupsFromUsers(): array
-  330     public function groupIds(): array
-  382     public function groupError(): string
-  388     public function setGroupOverride(string $raw): void
-  397     public function nodes(): ?array
-  421     public function inbounds(): array
-  438     public function inbound(int $id): ?array
-  454     public function allowedInboundIds(): array { return [1]; }
-  456     public function assignableInboundIds(): array { return [1]; }
-  458     public function accountInboundIds(string $email): array { return [1]; }
-  460     public static function idList($raw): array { return Xui::idList($raw); }
-  462     public static function speedKeys(int $upKbps, int $downKbps): array { return []; }
-  467     private static function proxySettings(string $uuid): array
-  477     public function addClient(int $inboundId, string $email, string $uuid, float $volumeGb, int $expiryMs, int $ipLimit = 0, string $subId = '', array $inboundIds = [], int $deviceLimit = 0, int $upKb
-  544     private function absorb(array $u, string $uuid = ''): void
-  565     private static function proxyIds(array $u): array
-  578     private function absUrl(string $u): string
-  587     private function clientOf(array $u, string $uuid = ''): array
-  612     public function buildConfigLink(array $inbound, string $uuid, string $email): string
-  619     public function subLink(string $subId): string
-  629     public function subUrlFor(string $email): string
-  643     public function subFetch(string $subId, string $subUrl = ''): array
-  654     public function rebuildConfigs(string $email, string $uuid, array $extraInbounds = []): array
-  666     public function findClient(int $inboundId, string $email): ?array
-  677     public function accountRow(string $email): ?array
-  686     public function updateClient(int $inboundId, string $uuid, array $client, array $inboundIds = []): array
-  709     public function setEnabled(string $email, bool $on): array
-  715     public function resetTraffic(int $inboundId, string $email): array
-  722     public function revokeSub(string $email): array
-  729     public function deleteClient(int $inboundId, string $uuid): array
-  736     public function deleteByEmail(int $inboundId, string $email): array
-  745     public function clientTraffic(string $email): ?array
-  764     public function liveTraffic(string $email): ?array
-  770     public function lastOnline(string $email): int
-  779     public function systemStats(bool $force = false): array
-  789     public function healthCheck(): array
----- end grep pg_publics ----
-changelog: skipped (recon build)
-build: fixed124 (was fixed123)
+  985     {
+  986         try {
+  987             if ($this->x3 !== null) return $this->x3->serverStatus();
+  988             if ($this->pg !== null) {
+  989                 $s = $this->pg->systemStats(true);
+  990                 if ($s === []) return null;
+  991                 $memTotal = (int)($s['mem_total'] ?? 0);
+  992                 $memUsed  = (int)($s['mem_used'] ?? 0);
+  993                 return [
+  994                     'cpu'          => (float)($s['cpu_usage'] ?? 0),
+  995                     'mem_used'     => $memUsed,
+  996                     'mem_total'    => $memTotal,
+  997                     'uptime'       => 0,
+  998                     'xray_state'   => '',
+  999                     'xray_ver'     => (string)($s['version'] ?? ''),
+ 1000                     'net_up'       => (int)($s['outgoing_bandwidth_speed'] ?? 0),
+---- end dump xui_supports ----
+patched app/Panel/Xui.php (row16-doc)
+patched app/Panel/Xui.php ('marzneshin' => ')
+patched app/Panel/Xui.php ('marznashin' => 'marzneshin')
+patched app/Panel/Xui.php ('marzneshin' => 'مرزنشین (Marzneshin) –)
+patched app/Panel/Xui.php (new Marzneshin($panel))
+patched app/Panel/Xui.php (public function isMarzneshin())
+patched app/Panel/Hiddify.php (row16-hd-enable)
+wrote app/Panel/Xui.php
+wrote app/Panel/Hiddify.php
+php lint: on
+changed files: 2
+class check rc=0 out=classes ok Marzban Marzban
+php lint app/Panel/Marzneshin.php: ok
+php lint app/Panel/Hiddify.php: ok
+sanity app/Panel/Marzneshin.php / class Marzneshin extends Marzban : ok
+sanity app/Panel/Marzneshin.php / '/api/admins/token' : ok
+sanity app/Panel/Hiddify.php / class Hiddify extends Marzban : ok
+sanity app/Panel/Hiddify.php / Hiddify-API-Key:  : ok
+sanity app/Panel/Xui.php / 'marzneshin' => 'مرزنشین (Marzneshin)', : ok
+sanity app/Panel/Xui.php / 'hiddify'    => 'هیدیفای (Hiddify)', : ok
+sanity app/Panel/Xui.php / 'marznashin' => 'marzneshin', : ok
+sanity app/Panel/Xui.php / new Marzneshin($panel) : ok
+sanity app/Panel/Xui.php / new Hiddify($panel) : ok
+sanity app/Panel/Xui.php / public function isMarzneshin(): bool : ok
+sanity app/Panel/Xui.php / public function isHiddify(): bool : ok
+sanity app/Panel/Xui.php / 0.0.2 #row16 : ok
+changelog: entry added
+build: fixed125 (was fixed124)
 exit: 0
 exit: 0

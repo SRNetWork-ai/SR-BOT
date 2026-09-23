@@ -253,8 +253,9 @@ class Hiddify extends Marzban
     {
         $uuid = trim((string)($u['uuid'] ?? ''));
         $exp  = self::expiryTs($u);
-        $on   = array_key_exists('enable', $u) ? (bool)$u['enable'] : true;
-        if ($on && array_key_exists('is_active', $u)) $on = (bool)$u['is_active'] || (bool)$u['enable'];
+        $on   = array_key_exists('enable', $u)
+            ? (bool)$u['enable']
+            : (array_key_exists('is_active', $u) ? (bool)$u['is_active'] : true);
         return [
             'email'      => (string)($u['name'] ?? ''),
             'id'         => $uuid,
