@@ -3128,6 +3128,13 @@ class Bot
 
     private static function sendSub($chatId, $cbId, int $id): void
     {
+        /* 0.0.2 #happ-only-guard: محصول «فقط لینک هپ» لینک ساب یا کانفیگ مستقیم نمی\u200cدهد */
+        $gS = self::myService($id);
+        if ($gS && Svc::wantsHapp(Svc::deliverMode($gS)) && Svc::happLink($gS) !== '') {
+            Tg::answerCb($cbId);
+            self::happView($chatId, null, $id);
+            return;
+        }
         $s = self::myService($id);
         if (!$s) { Tg::answerCb($cbId, 'سرویس یافت نشد.', true); return; }
         Tg::answerCb($cbId);
@@ -3155,6 +3162,13 @@ class Bot
 
     private static function sendConfig($chatId, $cbId, int $id): void
     {
+        /* 0.0.2 #happ-only-guard2: محصول «فقط لینک هپ» لینک ساب یا کانفیگ مستقیم نمی\u200cدهد */
+        $gS = self::myService($id);
+        if ($gS && Svc::wantsHapp(Svc::deliverMode($gS)) && Svc::happLink($gS) !== '') {
+            Tg::answerCb($cbId);
+            self::happView($chatId, null, $id);
+            return;
+        }
         $s = self::myService($id);
         if (!$s) { Tg::answerCb($cbId, 'سرویس یافت نشد.', true); return; }
         Tg::answerCb($cbId);

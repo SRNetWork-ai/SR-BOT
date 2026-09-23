@@ -1,39 +1,47 @@
 Python 3.12.3
-Wed Sep 23 15:50:25 UTC 2026
----- grep bot_cb : case 'svcsub'|case 'svccfg'|function subView|function cfgView|function sendSub ----
- 1053 case 'svcsub':  self::sendSub($chatId, $cbId, (int)$arg); return;
- 1054 case 'svccfg':  self::sendConfig($chatId, $cbId, (int)$arg); return;
- 3129 private static function sendSub($chatId, $cbId, int $id): void
----- grep bot_cb : 3 hits ----
----- find bot_subview : case 'svcsub' -> 1 hits [1053] ----
----- dump bot_subview@1053 : app/Bot/Bot.php (4991 lines) ----
- 1051 
- 1052             case 'svc':     Tg::answerCb($cbId); self::showService($chatId, $msgId, (int)$arg); return;
- 1053             case 'svcsub':  self::sendSub($chatId, $cbId, (int)$arg); return;
- 1054             case 'svccfg':  self::sendConfig($chatId, $cbId, (int)$arg); return;
- 1055             case 'svcspec': self::sendSpec($chatId, $cbId, (int)$arg); return;
- 1056             case 'svcrn':   Tg::answerCb($cbId); self::renewOptions($chatId, $msgId, (int)$arg); return;
- 1057             case 'svcrnok': self::doRenew($chatId, $msgId, $cbId, (int)$arg, (int)$arg2); return;
- 1058             case 'svcsync': self::syncService($chatId, $msgId, $cbId, (int)$arg); return;
- 1059             case 'svcdev':     Tg::answerCb($cbId); self::devicesView($chatId, $msgId, (int)$arg); return;
----- end dump bot_subview@1053 ----
-patched miniapp/index.php / #happ-only-ui
-patched miniapp/index.php / happOnly ? [] :
-patched miniapp/index.php / s.sub && !happOnly
-patched miniapp/index.php / !cfg && !happOnly
-patched miniapp/index.php / s.can_links && !happOnly
-patched miniapp/index.php / s.happ_only ? '' :
-wrote miniapp/index.php
+Wed Sep 23 15:54:23 UTC 2026
+---- find bot_sendcfg : function sendConfig -> 1 hits [3156] ----
+---- dump bot_sendcfg@3156 : app/Bot/Bot.php (4991 lines) ----
+ 3154     }
+ 3155 
+ 3156     private static function sendConfig($chatId, $cbId, int $id): void
+ 3157     {
+ 3158         $s = self::myService($id);
+ 3159         if (!$s) { Tg::answerCb($cbId, 'سرویس یافت نشد.', true); return; }
+ 3160         Tg::answerCb($cbId);
+ 3161 
+ 3162         $list = self::cfgList($s);
+ 3163         if (!$list) {
+ 3164             Tg::send($chatId, '⚠️ کانفیگ مستقیم در دسترس نیست؛ از لینک اشتراک استفاده کنید.',
+ 3165                 Tg::ikb([[Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $id)]]));
+ 3166             return;
+ 3167         }
+ 3168         self::sendCfgList($chatId, $s, $list);
+ 3169     }
+ 3170 
+---- end dump bot_sendcfg@3156 ----
+patched app/Bot/Bot.php / #happ-only-guard
+patched app/Bot/Bot.php / #happ-only-guard2
+patched miniapp/api.php / #happ-only-api
+patched miniapp/api.php / 'sub'        => $__happOnly
+patched miniapp/api.php / 'sub_own'    => $__happOnly
+patched miniapp/api.php / 'sub_main'   => $__happOnly
+patched miniapp/api.php / 'sub_code'   => $__happOnly
+patched miniapp/api.php / 'configs'    => $__happOnly
+wrote app/Bot/Bot.php
+wrote miniapp/api.php
 php lint: on
-changed files: 1
-sanity miniapp/index.php / #happ-only-ui : ok
-sanity miniapp/index.php / var happOnly = !!s.happ_only; : ok
-sanity miniapp/index.php / happOnly ? [] : (s.configs || []) : ok
-sanity miniapp/index.php / (s.sub && !happOnly : ok
-sanity miniapp/index.php / !s.sub && !cfg && !happOnly : ok
-sanity miniapp/index.php / (s.can_links && !happOnly ? : ok
-sanity miniapp/index.php / var sub = s.happ_only ? '' : : ok
+changed files: 2
+sanity app/Bot/Bot.php / #happ-only-guard : ok
+sanity app/Bot/Bot.php / Svc::wantsHapp(Svc::deliverMode($gS)) : ok
+sanity miniapp/api.php / #happ-only-api : ok
+sanity miniapp/api.php / $__happOnly = class_exists( : ok
+sanity miniapp/api.php / 'sub'        => $__happOnly : ok
+sanity miniapp/api.php / 'sub_own'    => $__happOnly : ok
+sanity miniapp/api.php / 'sub_main'   => $__happOnly : ok
+sanity miniapp/api.php / 'sub_code'   => $__happOnly : ok
+sanity miniapp/api.php / 'configs'    => $__happOnly : ok
 changelog: entry added
-build: fixed132 (was fixed131)
+build: fixed133 (was fixed132)
 exit: 0
 exit: 0
