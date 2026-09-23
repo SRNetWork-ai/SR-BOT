@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
-# fixed138 - the Happ deep link was rejected by the app ("invalid deeplink").
+# fixed139 - the Happ deep link was rejected by the app ("invalid deeplink").
 # Per Happ dev docs the payload after happ://add/ must be the RAW subscription
-# URL (the crypt* variants are the only base64 ones), so the base64url payload
+# URL (only the encrypted crypt variants are base64), so the base64url payload
 # built in fixed137 was wrong. Also: normalize whatever the panel returns and
 # always show the plain panel subscription URL as a manual fallback.
+# (fixed138 aborted: the docblock contained a comment-closing sequence.)
 import io, os, re, sys, json, subprocess
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed138').strip() or 'fixed138'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed139').strip() or 'fixed139'
 
 CACHE = {}
 NEW = set()
@@ -99,16 +100,12 @@ def write_all():
 
 LNK = 'app/Service/Links.php'
 BOT = 'app/Bot/Bot.php'
-X3 = 'app/Panel/Xui3.php'
-
-# ---------------------------------------------------------------- recon
-dump('x3_happ', X3, 795, 872)
 
 # ------------------------------------------------- 1) normalizer helper
 NORM = """    /**
      * فقط دیپ‌لینک معتبر Happ پذیرفته می‌شود.
-     * طبق مستندات Happ، بعد از happ://add/ باید آدرس خام اشتراک بیاید
-     * (فقط نسخهٔ رمزنگاری‌شده happ://crypt*/ به صورت base64 است).
+     * طبق مستندات Happ بعد از happ://add/ باید آدرس خام اشتراک بیاید؛
+     * فقط نسخهٔ رمزنگاری‌شده (happ://crypt4 و مشابه) base64 است.
      * 0.0.2 #happ-norm-fn
      */
     public static function normHapp(string $l): string
@@ -190,7 +187,7 @@ for p, needle in SANITY:
         ok = False
     print('sanity %s / %s : %s' % (p, needle, 'ok' if ok else 'MISSING'))
 
-dump('links_after', LNK, 55, 135)
+dump('links_after', LNK, 55, 140)
 
 # ============================== version bump ==============================
 vpath = os.path.join(ROOT, 'version.json')
