@@ -1,15 +1,572 @@
 Python 3.12.3
-Wed Sep 23 15:14:12 UTC 2026
-info app/Panel/Xui.php: 58120 bytes, 1156 lines
-patched app/Panel/Xui.php (instanceof Hiddify))
-wrote app/Panel/Xui.php
-php lint: on
-changed files: 1
-class check rc=0 out=classes ok
-sanity app/Panel/Xui.php / case 'revoke':   return $this->pg !== null || ($this->mz !== null && !($this->mz instanceof Hiddify)); : ok
-sanity app/Panel/Xui.php / new Marzneshin($panel) : ok
-sanity app/Panel/Xui.php / new Hiddify($panel) : ok
-changelog: entry added
-build: fixed126 (was fixed125)
+Wed Sep 23 15:31:19 UTC 2026
+info database/schema.sql: 19168 bytes, 546 lines
+info app/Service/Migrate.php: 25956 bytes, 538 lines
+info admin/pages/products.php: 62146 bytes, 1233 lines
+info app/Service/Svc.php: 99554 bytes, 2000 lines
+info app/Service/Links.php: 3268 bytes, 87 lines
+info app/Service/Devices.php: 6857 bytes, 183 lines
+migrations (23): 0001_backup_update.sql, 0002_ui_perms_attachments.sql, 0003_miniapp_security_rates.sql, 0004_reseller_txcheck.sql, 0005_reseller_requests.sql, 0006_gateways_texts_buttons.sql, 0007_reseller_pro.sql, 0008_plans_limits.sql, 0009_security_fixes.sql, 0010_reseller_bundles_bot_mute.sql, 0011_shared_sub_group.sql, 0012_reseller_bot.sql, 0013_referral.sql, 0014_refund_speed_ui.sql, 0015_trash_sub_deliver.sql, 0016_settings_longtext.sql, 0017_svc_panel_miss.sql, 0018_rs_bots.sql, 0019_card_auth.sql, 0020_reseller_brand.sql, 0021_stock.sql, 0022_card_photo.sql, 0023_tx_admin_msg.sql
+---- find schema_products : CREATE TABLE[^\n]*products -> 1 hits [84] ----
+---- dump schema_products@84 : database/schema.sql (546 lines) ----
+   84 CREATE TABLE IF NOT EXISTS {p}products (
+   85   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+   86   `panel_id` INT UNSIGNED NOT NULL,
+   87   `inbound_id` INT NULL,
+   88   `name` VARCHAR(190) NOT NULL,
+   89   `category` VARCHAR(64) NULL,
+   90   `description` TEXT NULL,
+   91   `volume_gb` DECIMAL(10,2) NOT NULL DEFAULT 0,
+   92   `days` INT NOT NULL DEFAULT 30,
+   93   `ip_limit` INT NOT NULL DEFAULT 0,
+   94   `device_limit` INT NOT NULL DEFAULT 0,
+   95   reset_days INT NOT NULL DEFAULT 0,
+   96   `speed_up` INT NOT NULL DEFAULT 0,
+   97   `speed_down` INT NOT NULL DEFAULT 0,
+   98   `price` BIGINT NOT NULL DEFAULT 0,
+   99   `old_price` BIGINT NULL,
+  100   `stock` INT NOT NULL DEFAULT -1,
+  101   `sold` INT NOT NULL DEFAULT 0,
+  102   `active` TINYINT(1) NOT NULL DEFAULT 1,
+  103   `sort` INT NOT NULL DEFAULT 0,
+  104   `deliver_mode` VARCHAR(8) NOT NULL DEFAULT '',
+  105   `type` VARCHAR(8) NOT NULL DEFAULT 'fixed',
+  106   `price_gb` BIGINT NOT NULL DEFAULT 0,
+  107   `price_day` BIGINT NOT NULL DEFAULT 0,
+  108   `min_gb` INT NOT NULL DEFAULT 1,
+  109   `max_gb` INT NOT NULL DEFAULT 100,
+  110   `min_days` INT NOT NULL DEFAULT 1,
+  111   `max_days` INT NOT NULL DEFAULT 90,
+  112   `created_at` DATETIME NOT NULL,
+  113   KEY `idx_panel` (`panel_id`)
+  114 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  115 
+  116 CREATE TABLE IF NOT EXISTS {p}services (
+  117   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  118   `user_id` INT UNSIGNED NOT NULL,
+  119   `tg_id` BIGINT NOT NULL,
+  120   `panel_id` INT UNSIGNED NOT NULL,
+  121   `product_id` INT UNSIGNED NULL,
+  122   `inbound_id` INT NOT NULL,
+  123   `client_uuid` VARCHAR(64) NOT NULL,
+  124   `client_email` VARCHAR(190) NOT NULL,
+  125   `sub_id` VARCHAR(64) NULL,
+  126   `sub_link` VARCHAR(512) NULL,
+  127   `config_link` TEXT NULL,
+  128   `volume_gb` DECIMAL(10,2) NOT NULL DEFAULT 0,
+  129   `days` INT NOT NULL DEFAULT 0,
+  130   `expire_at` DATETIME NULL,
+  131   `used_bytes` BIGINT NOT NULL DEFAULT 0,
+  132   `is_test` TINYINT(1) NOT NULL DEFAULT 0,
+---- end dump schema_products@84 ----
+---- dump migrate_head : app/Service/Migrate.php (538 lines) ----
+    1 <?php
+    2 /**
+    3  * Migrate – تکمیل هوشمند ساختار دیتابیس
+    4  *
+    5  * فایل‌های مایگریشن با «ALTER TABLE ... ADD COLUMN» نوشته شده‌اند و اگر دو بار
+    6  * اجرا شوند خطا می‌دهند. این کلاس جای آن‌ها را می‌گیرد: اول با information_schema
+    7  * می‌بیند چه چیزی «نیست» و فقط همان را می‌سازد. پس اجرای چندباره کاملا بی‌خطر است.
+    8  */
+    9 class Migrate
+   10 {
+   11     /** ستون‌های لازم: جدول => [نام ستون => تعریف] */
+   12     public const COLUMNS = [
+   13         'discount_codes' => [
+   14             'max_discount' => 'BIGINT NOT NULL DEFAULT 0',
+   15             'starts_at'    => 'DATETIME NULL',
+   16             'note'         => 'VARCHAR(190) NULL',
+   17         ],
+   18         'gift_codes' => [
+   19             'note' => 'VARCHAR(190) NULL',
+   20         ],
+   21         'users' => [
+   22             'reseller_domain'   => "VARCHAR(120) NULL",
+   23             'reseller_brand'    => "VARCHAR(80) NULL",
+   24             'reseller_note_pub' => "VARCHAR(255) NULL",
+   25             'email_verified'    => 'TINYINT(1) NOT NULL DEFAULT 0',
+   26             'phone_verified'    => 'TINYINT(1) NOT NULL DEFAULT 0',
+   27             'verify_kind'       => 'VARCHAR(12) NULL',
+   28             'verify_target'     => 'VARCHAR(190) NULL',
+   29             'verify_code'       => 'VARCHAR(12) NULL',
+   30             'verify_token'      => 'VARCHAR(64) NULL',
+   31             'verify_at'         => 'DATETIME NULL',
+   32             'verify_tries'      => 'INT NOT NULL DEFAULT 0',
+   33             'verified_at'       => 'DATETIME NULL',
+   34             'miniapp_at'        => 'DATETIME NULL',
+   35             'reseller_level'    => 'TINYINT(1) NOT NULL DEFAULT 0',
+   36             'reseller_credit'   => 'BIGINT NOT NULL DEFAULT 0',
+   37             'reseller_discount' => 'TINYINT(2) NOT NULL DEFAULT 0',
+   38             'reseller_at'       => 'DATETIME NULL',
+   39             'reseller_req'      => 'TINYINT(1) NOT NULL DEFAULT 0',
+   40             'reseller_req_at'   => 'DATETIME NULL',
+   41             'reseller_req_note' => 'VARCHAR(400) NULL',
+   42             'reseller_price_gb'  => 'INT NOT NULL DEFAULT 0',
+   43             'reseller_price_day' => 'INT NOT NULL DEFAULT 0',
+   44             'reseller_max_gb'    => 'INT NOT NULL DEFAULT 0',
+   45             'reseller_max_days'  => 'INT NOT NULL DEFAULT 0',
+   46             'reseller_panels'    => 'VARCHAR(190) NULL',
+   47             'reseller_note'      => 'VARCHAR(400) NULL',
+   48             'reseller_mark'      => 'VARCHAR(24) NULL',
+   49             'auto_renew'         => 'TINYINT(1) NOT NULL DEFAULT 0',
+   50         ],
+   51         'admins' => [
+   52             'perms'    => 'TEXT NULL',
+   53             'tg_id'    => 'BIGINT NULL',
+   54             'active'   => 'TINYINT(1) NOT NULL DEFAULT 1',
+   55             'note'     => 'VARCHAR(255) NULL',
+   56             'last_ip'  => 'VARCHAR(64) NULL',
+   57         ],
+   58         'panels' => [
+   59             'test_volume_mb' => 'INT NOT NULL DEFAULT 0', /* fixed79: حجم تست به مگابایت */
+   60             'test_inbound_ids'    => 'VARCHAR(190) NULL',
+---- end dump migrate_head ----
+---- find migrate_reset_days : reset_days -> 1 hits [72] ----
+---- dump migrate_reset_days@72 : app/Service/Migrate.php (538 lines) ----
+   62             'ssl_verify'          => 'TINYINT(1) NOT NULL DEFAULT 0',
+   63             /* توکن API نسل جدید 3x-ui — مانند password رمزنگاری‌شده ذخیره می‌شود */
+   64             'api_token'           => 'VARCHAR(500) NULL',
+   65         ],
+   66         'products' => [
+   67             'group_ids' => 'VARCHAR(190) NULL', /* fixed79: گروه‌های اختصاصی پاسارگارد */
+   68             /* نحوهٔ تحویل: '' = پیروی از پیش‌فرض کلی · sub · config · both */
+   69             'deliver_mode' => "VARCHAR(8) NOT NULL DEFAULT ''",
+   70             'device_limit' => 'INT NOT NULL DEFAULT 0',
+   71             /* 0.0.2: ریست خودکار دوره‌ای حجم (روز) — ۰ = خاموش */
+   72             'reset_days'   => 'INT NOT NULL DEFAULT 0',
+   73             'speed_up'     => 'INT NOT NULL DEFAULT 0',
+   74             'speed_down'   => 'INT NOT NULL DEFAULT 0',
+   75             /* fixed76: نوع محصول — fixed (حجم/مدت ثابت) یا custom (حجم و زمان دلخواه با قیمت هر گیگ/هر روز) */
+   76             'type'         => "VARCHAR(8) NOT NULL DEFAULT 'fixed'",
+   77             'price_gb'     => 'BIGINT NOT NULL DEFAULT 0',
+   78             'price_day'    => 'BIGINT NOT NULL DEFAULT 0',
+   79             'min_gb'       => 'INT NOT NULL DEFAULT 1',
+   80             'max_gb'       => 'INT NOT NULL DEFAULT 100',
+   81             'min_days'     => 'INT NOT NULL DEFAULT 1',
+   82             'max_days'     => 'INT NOT NULL DEFAULT 90',
+---- end dump migrate_reset_days@72 ----
+---- grep migrate_helpers : function |addColumn|hasColumn|ALTER TABLE ----
+    5 * فایل‌های مایگریشن با «ALTER TABLE ... ADD COLUMN» نوشته شده‌اند و اگر دو بار
+  273 public static function hasTable(string $table): bool
+  281 public static function hasColumn(string $table, string $col): bool
+  290 public static function columnType(string $table, string $col): string
+  301 public static function needsModify(string $table, string $col, array $badTypes): bool
+  303 if (!self::hasColumn($table, $col)) return false;
+  312 public static function hasIndex(string $table, string $idx): bool
+  323 public static function wantedSettings(): array
+  343 private static function existingSettings(): array
+  355 public static function plan(): array
+  366 if (!self::hasColumn($t, $c)) $miss['columns'][] = $t . '.' . $c;
+  393 public static function missingCount(?array $plan = null): int
+  403 public static function run(): array
+  409 $exec = function (string $sql, string $label) use (&$lines, &$done, &$fail): void {
+  430 if (self::hasColumn($t, $c)) continue;
+  431 $exec('ALTER TABLE {p}' . $t . ' ADD COLUMN `' . $c . '` ' . $def, 'ستون ' . $t . '.' . $c);
+  445 $exec('ALTER TABLE {p}' . $t . ' MODIFY `' . $c . '` ' . $spec[0], 'اصلاح نوع ستون ' . $t . '.' . $c);
+  454 $exec('ALTER TABLE {p}' . $t . ' ADD INDEX `' . $i . '` ' . $cols, 'ایندکس ' . $t . '.' . $i);
+  489 public static function legacy(): array
+  510 if (self::hasColumn('panels', 'test_inbound_id') && self::hasColumn('panels', 'test_inbound_ids')) {
+  520 if (self::hasColumn('admins', 'perms')) {
+---- grep migrate_helpers : 21 hits ----
+---- find prod_reset_days : reset_days -> 3 hits [49, 754, 757] ----
+---- dump prod_reset_days@49 : admin/pages/products.php (1233 lines) ----
+   37             'stock'       => pint('stock', -1),
+   38             'active'      => pchk('active'),
+   39             'sort'        => pint('sort'),
+   40         ];
+   41 
+   42         /* نحوهٔ تحویل: خالی = پیروی از پیش‌فرض کلی فروشگاه */
+   43         if (isset($prCols['group_ids'])) $data['group_ids'] = mb_substr(trim(en_num((string)ptxt('group_ids'))), 0, 190); /* fixed79: گروه‌های پاسارگارد این محصول */
+   44         if (isset($prCols['deliver_mode'])) {
+   45             $dmIn = (string)ptxt('deliver_mode');
+   46             $data['deliver_mode'] = isset(Svc::DELIVER[$dmIn]) ? $dmIn : '';
+   47         }
+   48 
+   49         foreach (['device_limit', 'speed_up', 'speed_down', 'reset_days'] as $lk) {
+   50             if (isset($prCols[$lk])) $data[$lk] = max(0, pint($lk));
+   51         }
+   52 
+   53         /* fixed76: نوع محصول — «حجم و زمان دلخواه» با قیمت هر گیگ/هر روز و بازهٔ مجاز */
+   54         if ($prHasCus) {
+   55             $data['type']      = ptxt('type') === 'custom' ? 'custom' : 'fixed';
+   56             $data['price_gb']  = max(0, (int)pflt('price_gb'));
+   57             $data['price_day'] = max(0, (int)pflt('price_day'));
+   58             $data['min_gb']    = max(1, pint('min_gb', 1));
+   59             $data['max_gb']    = max($data['min_gb'], pint('max_gb', 100));
+   60             $data['min_days']  = max(1, pint('min_days', 1));
+   61             $data['max_days']  = max($data['min_days'], pint('max_days', 90));
+---- end dump prod_reset_days@49 ----
+---- dump prod_reset_days@754 : admin/pages/products.php (1233 lines) ----
+  742             <div class="field">
+  743               <label>گروه‌های پاسارگارد این محصول</label>
+  744               <input class="mono ltr" type="text" name="group_ids" value="<?= h((string)$v('group_ids', '')) ?>" placeholder="vip,premium یا 3,5">
+  745               <div class="hint">فقط پنل پاسارگارد؛ خالی = گروه‌های تنظیم‌شده در پنل. نام یا شناسهٔ عددی، با کاما</div>
+  746             </div>
+  747             <?php endif; ?>
+  748             <?php if ($prHasLimits): ?>
+  749               <div class="field">
+  750                 <label>محدودیت دستگاه (Device limit)</label>
+  751                 <input class="mono" type="number" min="0" name="device_limit" value="<?= h((string)$v('device_limit', 0)) ?>">
+  752                 <div class="hint">۰ = بدون محدودیت – مخصوص پنل VPN-UI</div>
+  753               </div>
+  754               <?php if (isset($prCols['reset_days'])): ?>
+  755               <div class="field">
+  756                 <label>ریست دوره‌ای حجم (روز)</label>
+  757                 <input class="mono" type="number" min="0" max="365" name="reset_days" value="<?= h((string)$v('reset_days', 0)) ?>">
+  758                 <div class="hint">۰ = خاموش — مثلاً ۳۰ یعنی هر ۳۰ روز مصرف کاربر خودکار صفر می‌شود (فقط پنل نسل جدید سنایی)</div>
+  759               </div>
+  760               <?php endif; ?>
+  761               <div class="field">
+  762                 <label>سرعت دانلود (KB/s)</label>
+  763                 <input class="mono" type="number" min="0" name="speed_down" value="<?= h((string)$v('speed_down', 0)) ?>">
+  764                 <div class="hint">۰ = بدون محدودیت – مثلاً ۱۲۸۰۰ یعنی حدود ۱۰ مگابیت</div>
+  765               </div>
+  766               <div class="field">
+---- end dump prod_reset_days@754 ----
+---- dump prod_reset_days@757 : admin/pages/products.php (1233 lines) ----
+  745               <div class="hint">فقط پنل پاسارگارد؛ خالی = گروه‌های تنظیم‌شده در پنل. نام یا شناسهٔ عددی، با کاما</div>
+  746             </div>
+  747             <?php endif; ?>
+  748             <?php if ($prHasLimits): ?>
+  749               <div class="field">
+  750                 <label>محدودیت دستگاه (Device limit)</label>
+  751                 <input class="mono" type="number" min="0" name="device_limit" value="<?= h((string)$v('device_limit', 0)) ?>">
+  752                 <div class="hint">۰ = بدون محدودیت – مخصوص پنل VPN-UI</div>
+  753               </div>
+  754               <?php if (isset($prCols['reset_days'])): ?>
+  755               <div class="field">
+  756                 <label>ریست دوره‌ای حجم (روز)</label>
+  757                 <input class="mono" type="number" min="0" max="365" name="reset_days" value="<?= h((string)$v('reset_days', 0)) ?>">
+  758                 <div class="hint">۰ = خاموش — مثلاً ۳۰ یعنی هر ۳۰ روز مصرف کاربر خودکار صفر می‌شود (فقط پنل نسل جدید سنایی)</div>
+  759               </div>
+  760               <?php endif; ?>
+  761               <div class="field">
+  762                 <label>سرعت دانلود (KB/s)</label>
+  763                 <input class="mono" type="number" min="0" name="speed_down" value="<?= h((string)$v('speed_down', 0)) ?>">
+  764                 <div class="hint">۰ = بدون محدودیت – مثلاً ۱۲۸۰۰ یعنی حدود ۱۰ مگابیت</div>
+  765               </div>
+  766               <div class="field">
+  767                 <label>سرعت آپلود (KB/s)</label>
+  768                 <input class="mono" type="number" min="0" name="speed_up" value="<?= h((string)$v('speed_up', 0)) ?>">
+  769                 <div class="hint">۰ = بدون محدودیت</div>
+---- end dump prod_reset_days@757 ----
+---- find prod_ip_limit : ip_limit -> 6 hits [34, 427, 558, 733, 1085, 1122] ----
+---- dump prod_ip_limit@34 : admin/pages/products.php (1233 lines) ----
+   24         need($id ? 'products.edit' : 'products.create', 'products');
+   25 
+   26         $data = [
+   27             'panel_id'    => pint('panel_id'),
+   28             'inbound_id'  => pint('inbound_id'),
+   29             'name'        => ptxt('name'),
+   30             'category'    => ptxt('category', 'عمومی'),
+   31             'description' => ptxt('description'),
+   32             'volume_gb'   => pflt('volume_gb'),
+   33             'days'        => pint('days'),
+   34             'ip_limit'    => pint('ip_limit'),
+   35             'price'       => pflt('price'),
+   36             'old_price'   => pflt('old_price'),
+   37             'stock'       => pint('stock', -1),
+   38             'active'      => pchk('active'),
+   39             'sort'        => pint('sort'),
+   40         ];
+   41 
+   42         /* نحوهٔ تحویل: خالی = پیروی از پیش‌فرض کلی فروشگاه */
+   43         if (isset($prCols['group_ids'])) $data['group_ids'] = mb_substr(trim(en_num((string)ptxt('group_ids'))), 0, 190); /* fixed79: گروه‌های پاسارگارد این محصول */
+   44         if (isset($prCols['deliver_mode'])) {
+---- end dump prod_ip_limit@34 ----
+---- dump prod_ip_limit@427 : admin/pages/products.php (1233 lines) ----
+  417   </div>
+  418 
+  419   <div class="pr-grid" id="prodGrid">
+  420     <?php foreach ($rows as $p):
+  421         $rVol = (float)$p['volume_gb'];
+  422         $rDay = (int)$p['days'];
+  423         $rNow = (float)$p['price'];
+  424         $rWas = (float)$p['old_price'];
+  425         $rOn  = (int)$p['active'];
+  426         $rStk = (int)$p['stock'];
+  427         $rIp  = (int)$p['ip_limit'];
+  428 
+  429         $rOff = 0;
+  430         if ($rWas > $rNow && $rWas > 0) {
+  431             $rOff = (int)round(($rWas - $rNow) / $rWas * 100);
+  432         }
+  433 
+  434         $rVolTxt = 'حجم نامحدود';
+  435         if ($rVol > 0) {
+  436             $rVolTxt = fa_num((string)$rVol) . ' گیگ';
+  437         }
+---- end dump prod_ip_limit@427 ----
+---- dump prod_ip_limit@558 : admin/pages/products.php (1233 lines) ----
+  548           <td data-l="حجم / مدت" class="num tight">
+  549             <?php if ((string)($p['type'] ?? 'fixed') === 'custom'): ?>
+  550             <span class="numbox a">📐 دلخواه</span>
+  551             <span class="numbox"><?= fa_num((int)($p['min_gb'] ?? 1)) ?>–<?= fa_num((int)($p['max_gb'] ?? 100)) ?>گیگ · <?= fa_num((int)($p['min_days'] ?? 1)) ?>–<?= fa_num((int)($p['max_days'] ?? 90)) ?>روز</span>
+  552             <?php else: ?>
+  553             <span class="numbox"><?= (float)$p['volume_gb'] > 0 ? fa_num((string)(float)$p['volume_gb']) . 'گیگ' : 'نامحدود' ?></span>
+  554             <span class="numbox"><?= (int)$p['days'] > 0 ? fa_num((int)$p['days']) . 'روز' : 'بی‌نهایت' ?></span>
+  555             <?php endif; ?>
+  556           </td>
+  557           <td data-l="آیپی / دستگاه" class="num tight">
+  558             <span class="numbox"><?= (int)$p['ip_limit'] > 0 ? fa_num((int)$p['ip_limit']) : '—' ?></span>
+  559             <?php if ($prHasLimits && (int)($p['device_limit'] ?? 0) > 0): ?>
+  560               <span class="numbox a"><?= fa_num((int)$p['device_limit']) ?>د</span>
+  561             <?php endif; ?>
+  562           </td>
+  563           <td data-l="قیمت" class="num tight">
+  564             <span class="numbox big g"><?= ((string)($p['type'] ?? 'fixed') === 'custom' ? 'از ' : '') . money((float)$p['price']) ?></span>
+  565             <?php if ((float)$p['old_price'] > 0): ?>
+  566               <div class="muted" style="font-size:11.5px;text-decoration:line-through"><?= money((float)$p['old_price']) ?></div>
+  567             <?php endif; ?>
+  568           </td>
+---- end dump prod_ip_limit@558 ----
+---- grep prod_cols : '(ip_limit|device_limit|reset_days|volume|days|inbound_id|panel_id)' ----
+   16 $prHasLimits = isset($prCols['device_limit'], $prCols['speed_down'], $prCols['speed_up']);
+   27 'panel_id'    => pint('panel_id'),
+   28 'inbound_id'  => pint('inbound_id'),
+   33 'days'        => pint('days'),
+   34 'ip_limit'    => pint('ip_limit'),
+   49 foreach (['device_limit', 'speed_up', 'speed_down', 'reset_days'] as $lk) {
+   69 $data['days']      = 0;
+   74 if ($data['name'] === '' || !$data['panel_id']) {
+  422 $rDay = (int)$p['days'];
+  427 $rIp  = (int)$p['ip_limit'];
+  471 <?php if ((int)$p['inbound_id']): ?>
+  472 <span class="badge b-gray">📡 #<?= (int)$p['inbound_id'] ?></span>
+  485 <?php if ($prHasLimits && (int)($p['device_limit'] ?? 0) > 0): ?>
+  486 <span class="sp">📱 <?= fa_num((int)$p['device_limit']) ?> دستگاه</span>
+  545 <?php if ((int)$p['inbound_id']): ?><span class="mono">#<?= (int)$p['inbound_id'] ?></span><?php endif; ?>
+  554 <span class="numbox"><?= (int)$p['days'] > 0 ? fa_num((int)$p['days']) . 'روز' : 'بی‌نهایت' ?></span>
+  558 <span class="numbox"><?= (int)$p['ip_limit'] > 0 ? fa_num((int)$p['ip_limit']) : '—' ?></span>
+  559 <?php if ($prHasLimits && (int)($p['device_limit'] ?? 0) > 0): ?>
+  560 <span class="numbox a"><?= fa_num((int)$p['device_limit']) ?>د</span>
+  648 <option value="<?= (int)$pn['id'] ?>" <?= (int)$v('panel_id') === (int)$pn['id'] ? 'selected' : '' ?>>
+  728 <input class="mono" type="number" name="days" value="<?= h((string)$v('days', 30)) ?>">
+  733 <input class="mono" type="number" name="ip_limit" value="<?= h((string)$v('ip_limit', 0)) ?>">
+  738 <input class="mono" type="number" name="inbound_id" value="<?= h((string)$v('inbound_id', 0)) ?>">
+  751 <input class="mono" type="number" min="0" name="device_limit" value="<?= h((string)$v('device_limit', 0)) ?>">
+  754 <?php if (isset($prCols['reset_days'])): ?>
+  757 <input class="mono" type="number" min="0" max="365" name="reset_days" value="<?= h((string)$v('reset_days', 0)) ?>">
+ 1076 var pnl = selText('panel_id');
+ 1082 var d = num('days');
+ 1085 var ip = num('ip_limit');
+ 1088 var inb = num('inbound_id');
+ 1119 var d = num('days');
+ 1122 var ip = num('ip_limit');
+ 1137 { tab: 'base',  t: 'پنل ارائه‌دهنده انتخاب شده است',   ok: function () { return val('panel_id') !== ''; } },
+ 1216 var dd = f('days');
+---- grep prod_cols : 34 hits ----
+---- find svc_addclient : ->addClient\( -> 2 hits [294, 314] ----
+---- dump svc_addclient@294 : app/Service/Svc.php (2000 lines) ----
+  260         if ((method_exists($xui, 'isMarzban') && $xui->isMarzban()) || (method_exists($xui, 'isPasarGuard') && $xui->isPasarGuard())) {
+  261             $email = Marzban::safeName($email);
+  262             if (!self::usernameIsFree($email)) $email = Marzban::safeName(self::uniqueEmail($email));
+  263         }
+  264         $uuid  = uuidv4();
+  265         /* ساب مشترک: اگر فراخوان یک subId مشترک داده باشد همان استفاده می‌شود */
+  266         $subId = trim((string)($opts['sub_id'] ?? ''));
+  267         if ($subId === '') $subId = rnd(16);
+  268 
+  269         $totalSeconds = ($days * 86400) + ($hours * 3600);
+  270         $expireTs = $totalSeconds > 0 ? time() + $totalSeconds : 0;
+  271         $expiryMs = $expireTs > 0 ? $expireTs * 1000 : 0;
+  272 
+  273         /* ردپای دقیق مقادیر ارسالی به پنل (برای ردیابی مشکل حجم/زمان دلخواه) */
+  274         app_log('svc', 'create', [
+  275             'panel' => (int)($panel['id'] ?? 0), 'type' => (string)($panel['type'] ?? ''),
+  276             'email' => $email, 'gb' => $volume, 'days' => $days, 'hours' => $hours,
+  277             'exp' => $expireTs > 0 ? date('Y-m-d H:i:s', $expireTs) : 'never', 'ip' => $ipLim, 'test' => $isTest ? 1 : 0,
+  278         ]);
+  279 
+  280         // ساخت کلاینت روی همه اینباندهای هدف: چند کانفیگ با یک لینک اشتراک
+  281         $links = []; $okIds = []; $lastErr = '';
+  282         $devLim = $devOpt;
+  283         /* 0.0.2 #svc-reset: ریست دوره‌ای حجم — فقط پنل نسل جدید سنایی */
+  284         $rstDays = (int)($opts['reset_days'] ?? 0);
+  285         if ($rstDays <= 0 && is_array($product)) $rstDays = (int)($product['reset_days'] ?? 0);
+  286         if ($rstDays > 0 && method_exists($xui, 'setAutoReset')) {
+  287             try { $xui->setAutoReset($rstDays); } catch (Throwable $e) { app_log('svc', 'setAutoReset: ' . $e->getMessage(), []); }
+  288         }
+  289 
+  290         if ($xui->isVpnUi()) {
+  291             /* VPN-UI: یک اکانت مشترک روی همه اینباندها؛ یک ساب با چند کانفیگ */
+  292             $ids     = Xui::idList($targets);
+  293             $primary = (int)($ids[0] ?? 0);
+  294             $res     = $xui->addClient($primary, $email, $uuid, $volume, $expiryMs, $ipLim, $subId, $ids, $devLim, $upKb, $downKb);
+  295             if (empty($res['success'])) {
+  296                 $lastErr = (string)($res['msg'] ?? 'نامشخص');
+  297             } else {
+  298                 foreach ($ids as $ib) {
+  299                     $ib = (int)$ib;
+  300                     $okIds[] = $ib;
+  301                     try {
+  302                         $inbound = ($ib === $primary && !empty($res['inbound'])) ? (array)$res['inbound'] : ($xui->inbound($ib) ?? []);
+  303                         $link = $inbound ? (string)$xui->buildConfigLink($inbound, $uuid, $email) : '';
+  304                         if (trim($link) !== '') $links[] = trim($link);
+  305                     } catch (Throwable $e) {
+  306                         app_log('svc', 'buildConfigLink: ' . $e->getMessage(), ['inbound' => $ib]);
+  307                     }
+  308                 }
+  309             }
+  310         } else {
+  311             foreach ($targets as $ib) {
+  312                 $ib = (int)$ib;
+---- end dump svc_addclient@294 ----
+---- dump svc_addclient@314 : app/Service/Svc.php (2000 lines) ----
+  280         // ساخت کلاینت روی همه اینباندهای هدف: چند کانفیگ با یک لینک اشتراک
+  281         $links = []; $okIds = []; $lastErr = '';
+  282         $devLim = $devOpt;
+  283         /* 0.0.2 #svc-reset: ریست دوره‌ای حجم — فقط پنل نسل جدید سنایی */
+  284         $rstDays = (int)($opts['reset_days'] ?? 0);
+  285         if ($rstDays <= 0 && is_array($product)) $rstDays = (int)($product['reset_days'] ?? 0);
+  286         if ($rstDays > 0 && method_exists($xui, 'setAutoReset')) {
+  287             try { $xui->setAutoReset($rstDays); } catch (Throwable $e) { app_log('svc', 'setAutoReset: ' . $e->getMessage(), []); }
+  288         }
+  289 
+  290         if ($xui->isVpnUi()) {
+  291             /* VPN-UI: یک اکانت مشترک روی همه اینباندها؛ یک ساب با چند کانفیگ */
+  292             $ids     = Xui::idList($targets);
+  293             $primary = (int)($ids[0] ?? 0);
+  294             $res     = $xui->addClient($primary, $email, $uuid, $volume, $expiryMs, $ipLim, $subId, $ids, $devLim, $upKb, $downKb);
+  295             if (empty($res['success'])) {
+  296                 $lastErr = (string)($res['msg'] ?? 'نامشخص');
+  297             } else {
+  298                 foreach ($ids as $ib) {
+  299                     $ib = (int)$ib;
+  300                     $okIds[] = $ib;
+  301                     try {
+  302                         $inbound = ($ib === $primary && !empty($res['inbound'])) ? (array)$res['inbound'] : ($xui->inbound($ib) ?? []);
+  303                         $link = $inbound ? (string)$xui->buildConfigLink($inbound, $uuid, $email) : '';
+  304                         if (trim($link) !== '') $links[] = trim($link);
+  305                     } catch (Throwable $e) {
+  306                         app_log('svc', 'buildConfigLink: ' . $e->getMessage(), ['inbound' => $ib]);
+  307                     }
+  308                 }
+  309             }
+  310         } else {
+  311             foreach ($targets as $ib) {
+  312                 $ib = (int)$ib;
+  313                 if ($ib <= 0) continue;
+  314                 $res = $xui->addClient($ib, $email, $uuid, $volume, $expiryMs, $ipLim, $subId, [], $devLim, $upKb, $downKb);
+  315                 if (empty($res['success'])) { $lastErr = (string)($res['msg'] ?? 'نامشخص'); continue; }
+  316                 $okIds[] = $ib;
+  317                 try {
+  318                     $inbound = $res['inbound'] ?? $xui->inbound($ib) ?? [];
+  319                     $link = $inbound ? (string)$xui->buildConfigLink($inbound, $uuid, $email) : '';
+  320                     if (trim($link) !== '') $links[] = trim($link);
+  321                 } catch (Throwable $e) {
+  322                     app_log('svc', 'buildConfigLink: ' . $e->getMessage(), ['inbound' => $ib]);
+  323                 }
+  324             }
+  325         }
+  326         if (!$okIds) {
+  327             return ['ok' => false, 'message' => 'خطا در ساخت کانفیگ: ' . ($lastErr !== '' ? $lastErr : 'نامشخص')];
+  328         }
+  329 
+  330         $inboundId = (int)$okIds[0];
+  331         $config    = implode("\n", array_values(array_unique($links)));
+  332         /* لینک اشتراک: در سرویس‌های چندپنلی، ساب اختصاصی خود ربات جایگزین می‌شود */
+---- end dump svc_addclient@314 ----
+---- grep svc_limits : device_limit|deviceLimit|ip_limit|limitHwid|reset_days ----
+  232 $ipLim  = (int)($opts['ip_limit'] ?? 0);
+  237 $devOpt = (int)($opts['device_limit'] ?? 0);
+  238 if ($devOpt <= 0 && is_array($product)) $devOpt = (int)($product['device_limit'] ?? 0);
+  284 $rstDays = (int)($opts['reset_days'] ?? 0);
+  285 if ($rstDays <= 0 && is_array($product)) $rstDays = (int)($product['reset_days'] ?? 0);
+  454 'ip_limit'       => 1,
+  561 'ip_limit'  => (int)$product['ip_limit'], 'inbound_id' => (int)$service['inbound_id'],
+---- grep svc_limits : 7 hits ----
+---- dump links_all : app/Service/Links.php (87 lines) ----
+    1 <?php
+    2 
+    3 /**
+    4  * لینک‌های تکمیلی سرویس روی پنل‌های نسل جدید 3x-ui (docs.sanaei.dev)
+    5  *
+    6  *  - happ():     دیپ‌لینک اختصاصی Happ برای ایمپورت یک‌ضربه‌ای اشتراک
+    7  *  - external(): لینک‌هایی که ادمین روی خود پنل برای آن اکانت تعریف کرده است
+    8  *
+    9  * روی پنل‌هایی که 3x-ui نیستند یا توکن API ندارند، بی‌صدا خاموش می‌ماند تا
+   10  * هیچ بخشی از ربات/مینی‌اپ به خطا نخورد.
+   11  *
+   12  * 0.0.2 #happ-links
+   13  */
+   14 final class Links
+   15 {
+   16     /** کلید تنظیمات برای خاموش‌کردن کل قابلیت */
+   17     public const S_ENABLED = 'happ_link';
+   18 
+   19     /** کش درایور به ازای هر پنل تا در یک درخواست چندبار ساخته نشود */
+   20     private static $drv = [];
+   21 
+   22     public static function enabled(): bool
+   23     {
+   24         if (!class_exists('DB')) return false;
+   25         return (string)DB::setting(self::S_ENABLED, '1') === '1';
+   26     }
+   27 
+   28     /** درایور نسل جدیدِ پنلِ همین سرویس (بدون هیچ تماس شبکه‌ای) */
+   29     private static function driver(array $svc)
+   30     {
+   31         $pid = (int)($svc['panel_id'] ?? 0);
+   32         if ($pid <= 0 || !class_exists('Xui')) return null;
+   33         if (array_key_exists($pid, self::$drv)) return self::$drv[$pid];
+   34 
+   35         $out = null;
+   36         try {
+   37             $x = Xui::forPanel($pid);
+   38             if ($x && method_exists($x, 'isXui3') && $x->isXui3()) {
+   39                 $d = $x->xui3();
+   40                 if (is_object($d)) $out = $d;
+   41             }
+   42         } catch (Throwable $e) {
+   43             $out = null;
+   44         }
+   45         self::$drv[$pid] = $out;
+   46         return $out;
+   47     }
+   48 
+   49     /** آیا برای این سرویس اصلاً لینک تکمیلی در دسترس است؟ */
+   50     public static function supported(array $svc): bool
+   51     {
+   52         if (!self::enabled()) return false;
+   53         if (trim((string)($svc['client_email'] ?? '')) === '') return false;
+   54         return self::driver($svc) !== null;
+   55     }
+   56 
+   57     /** دیپ‌لینک Happ سرویس؛ رشتهٔ خالی یعنی در دسترس نیست */
+   58     public static function happ(array $svc): string
+   59     {
+   60         if (!self::supported($svc)) return '';
+   61         $d = self::driver($svc);
+   62         if (!$d || !method_exists($d, 'happLink')) return '';
+   63         try {
+   64             return trim((string)$d->happLink((string)$svc['client_email']));
+   65         } catch (Throwable $e) {
+   66             if (function_exists('app_log')) {
+   67                 app_log('panel', 'happ link failed', ['svc' => (int)($svc['id'] ?? 0), 'err' => $e->getMessage()]);
+   68             }
+   69             return '';
+   70         }
+   71     }
+   72 
+   73     /** لینک‌های خارجی اکانت به شکل [['title' => ..., 'link' => ...], ...] */
+   74     public static function external(array $svc): array
+   75     {
+   76         if (!self::supported($svc)) return [];
+   77         $d = self::driver($svc);
+   78         if (!$d || !method_exists($d, 'externalLinks')) return [];
+   79         try {
+   80             $rows = $d->externalLinks((string)$svc['client_email']);
+   81             return is_array($rows) ? $rows : [];
+   82         } catch (Throwable $e) {
+   83             return [];
+   84         }
+   85     }
+   86 }
+   87 
+---- end dump links_all ----
+build: fixed127 (recon only, nothing patched)
+changelog: skipped (recon build)
+build: fixed127 (was fixed126)
 exit: 0
 exit: 0
