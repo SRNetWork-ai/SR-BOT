@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-# fixed134 - RECON: why deliver mode leaks configs, why the config list is too long,
-# and how the panel exposes a dedicated Happ subscription link.
-import io, os, re, sys, json, subprocess
+# fixed135 - RECON #2: Bot::deliver body, Svc::liveConfigs, Xui3 link/sub endpoints,
+# local vs panel sub, and Xui isXui3/xui3 helpers.
+import io, os, re, sys, json
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed134').strip() or 'fixed134'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed135').strip() or 'fixed135'
 
 CACHE = {}
 
@@ -54,7 +54,7 @@ def dump_find(tag, path, pattern, before=3, after=25, limit=1):
         dump('%s@%d' % (tag, n), path, n - before, n + after)
 
 
-def grep_lines(tag, path, pattern, limit=40):
+def grep_lines(tag, path, pattern, limit=60):
     try:
         lines = load(path).split('\n')
     except Exception as e:
@@ -71,37 +71,32 @@ def grep_lines(tag, path, pattern, limit=40):
     print('---- grep %s : %d hits ----' % (tag, n))
 
 
-# ============ A) why does "sub only" still send configs? ============
-grep_lines('bot_deliver_calls', 'app/Bot/Bot.php', r'self::deliver\(|sendCfgList\(|self::cfgList\(', 30)
-dump_find('bot_cfglist', 'app/Bot/Bot.php', r'function cfgList', 3, 30, 1)
-dump_find('svc_delivermode', 'app/Service/Svc.php', r'public static function deliverMode\(', 6, 14, 1)
-dump_find('svc_delivermodeof', 'app/Service/Svc.php', r'public static function deliverModeOf\(', 4, 16, 1)
-grep_lines('svc_storedcfg', 'app/Service/Svc.php', r'function storedConfigs|function subUrl|function localSub|function subCode|function cfgLines', 20)
-dump_find('svc_stored', 'app/Service/Svc.php', r'function storedConfigs', 3, 34, 1)
+# ===== A) full deliver() body (why sub-only still ships configs) =====
+dump('bot_deliver', 'app/Bot/Bot.php', 2863, 2960)
 
-# ============ B) why 10 configs while the client has 4 ============
-dump('svc_create_cfg', 'app/Service/Svc.php', 286, 345)
-grep_lines('xui_links', 'app/Panel/Xui.php', r'function clientLinks|function buildLink|function links\(|function configLinks', 20)
+# ===== B) where do 10 configs come from =====
+dump_find('svc_live', 'app/Service/Svc.php', r'function liveConfigs', 3, 46, 1)
+dump('x3_links', 'app/Panel/Xui3.php', 700, 806)
 
-# ============ C) dedicated Happ subscription link ============
-dump_find('x3_happ', 'app/Panel/Xui3.php', r'function happLink', 3, 42, 1)
-grep_lines('x3_happ_all', 'app/Panel/Xui3.php', r'happ|Happ|crypt|externalLinks|subLinks|subJson|/clients/links', 40)
-dump_find('x3_sublinks', 'app/Panel/Xui3.php', r'function subLinks', 3, 34, 1)
-dump_find('x3_extlinks', 'app/Panel/Xui3.php', r'function externalLinks', 3, 34, 1)
-dump_find('svc_suburl', 'app/Service/Svc.php', r'public static function subUrl', 3, 38, 1)
-grep_lines('sub_happ', 'sub.php', r'happ|crypt|Happ', 20)
+# ===== C) local vs panel subscription =====
+dump_find('svc_localsub', 'app/Service/Svc.php', r'function localSub', 3, 42, 1)
+dump_find('svc_panelsub', 'app/Service/Svc.php', r'function panelSub', 3, 34, 1)
+dump_find('svc_submode', 'app/Service/Svc.php', r'function subMode', 3, 12, 1)
 
-info('app/Service/Svc.php')
-info('app/Bot/Bot.php')
-info('miniapp/api.php')
+# ===== D) helper availability =====
+grep_lines('x3_methods', 'app/Panel/Xui3.php', r'public function |public static function ', 70)
+grep_lines('xui_x3', 'app/Panel/Xui.php', r'function isXui3|function xui3|function subLink|function buildConfigLink|function isVpnUi|function forPanel', 25)
+grep_lines('pr_save', 'admin/pages/products.php', r'deliver_mode|device_limit|dmHas|prCols|prHasLimits', 40)
 
-# =============================== version bump only ===============================
+info('app/Panel/Xui3.php')
+info('app/Panel/Xui.php')
+
+# ===== version bump only =====
 vpath = os.path.join(ROOT, 'version.json')
 with io.open(vpath, 'r', encoding='utf-8') as fh:
     vj = json.load(fh)
 old_build = vj.get('build')
 vj['build'] = BUILD
-print('build: %s (recon only, nothing patched)' % BUILD)
 print('changelog: skipped (recon build)')
 with io.open(vpath, 'w', encoding='utf-8') as fh:
     json.dump(vj, fh, ensure_ascii=False, indent=2)
