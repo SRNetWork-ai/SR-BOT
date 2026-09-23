@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
-# fixed139 - the Happ deep link was rejected by the app ("invalid deeplink").
-# Per Happ dev docs the payload after happ://add/ must be the RAW subscription
-# URL (only the encrypted crypt variants are base64), so the base64url payload
-# built in fixed137 was wrong. Also: normalize whatever the panel returns and
-# always show the plain panel subscription URL as a manual fallback.
-# (fixed138 aborted: the docblock contained a comment-closing sequence.)
+# fixed140 - the panel builds the Happ link locally (happ://crypt5/...) and only
+# answers on POST /panel/api/clients/happLink/{id}, returning {encryptedLink:...}.
+# Our driver used GET and never looked at the encryptedLink key, so it always
+# fell through to the generic happ://add/ fallback.
 import io, os, re, sys, json, subprocess
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed139').strip() or 'fixed139'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed140').strip() or 'fixed140'
 
 CACHE = {}
 NEW = set()
@@ -34,6 +32,19 @@ def dump(tag, path, start, end):
     for i in range(max(1, start), min(len(lines), end) + 1):
         print('%5d %s' % (i, lines[i - 1]))
     print('---- end dump %s ----' % tag)
+
+
+def dump_find(tag, path, needle, before=2, after=60):
+    try:
+        lines = load(path).split(chr(10))
+    except Exception as e:
+        print('---- dump %s FAILED (%s) ----' % (tag, e))
+        return
+    for i, ln in enumerate(lines, 1):
+        if needle in ln:
+            dump(tag, path, i - before, i + after)
+            return
+    print('---- dump %s : needle not found ----' % tag)
 
 
 def rep_rx(path, pattern, fn, marker, expect=1, optional=False, flags=re.M):
@@ -98,87 +109,86 @@ def write_all():
             print(' - ' + w)
 
 
+X3 = 'app/Panel/Xui3.php'
 LNK = 'app/Service/Links.php'
-BOT = 'app/Bot/Bot.php'
 
-# ------------------------------------------------- 1) normalizer helper
-NORM = """    /**
-     * فقط دیپ‌لینک معتبر Happ پذیرفته می‌شود.
-     * طبق مستندات Happ بعد از happ://add/ باید آدرس خام اشتراک بیاید؛
-     * فقط نسخهٔ رمزنگاری‌شده (happ://crypt4 و مشابه) base64 است.
-     * 0.0.2 #happ-norm-fn
+HAPP = r"""    /**
+     * دیپ‌لینک رمزنگاری‌شدهٔ Happ برای یک اکانت.
+     * پنل نسل جدید این لینک را خودش محلی می‌سازد (happ://crypt5/...) و
+     * فقط روی POST /panel/api/clients/happLink/{id} پاسخ می‌دهد؛ کلید پاسخ encryptedLink است.
+     * 0.0.2 #happ-post
      */
-    public static function normHapp(string $l): string
+    public function happLink(string $email): string
     {
-        $l = trim($l);
-        if ($l === '') return '';
-        if (stripos($l, 'happ://') === 0) return $l;
-        if (stripos($l, 'http://') === 0 || stripos($l, 'https://') === 0) return 'happ://add/' . $l;
+        $email = trim($email);
+        if ($email === '') return '';
+        $row = $this->clientRow($email);
+        if (!$row) return '';
+
+        $id = 0;
+        foreach (['id', 'clientId', 'recordId'] as $k) {
+            if (isset($row[$k]) && is_numeric($row[$k]) && (int)$row[$k] > 0) {
+                $id = (int)$row[$k];
+                break;
+            }
+        }
+        if ($id <= 0) return '';
+
+        $path = '/clients/happLink/' . $id;
+        $last = '';
+        foreach ([[null, 'POST'], [[], 'POST'], [null, 'GET']] as $try) {
+            $r = $this->api($path, $try[0], $try[1]);
+            if (($r['success'] ?? false) === true) {
+                $l = self::pickHappLink($r['obj'] ?? '');
+                if ($l !== '') return $l;
+                continue;
+            }
+            $last = trim((string)($r['msg'] ?? ''));
+            if (stripos($last, 'happ_source_too_long') !== false) break;
+        }
+        if ($last !== '' && function_exists('app_log')) {
+            app_log('panel', 'happ link unavailable', [
+                'panel' => (int)($this->panel['id'] ?? 0),
+                'email' => $email,
+                'msg'   => mb_substr($last, 0, 160),
+            ]);
+        }
         return '';
     }
 
+    /** استخراج دیپ‌لینک از پاسخ پنل — کلید رسمی encryptedLink است */
+    private static function pickHappLink($o): string
+    {
+        if (is_string($o)) return trim($o);
+        if (is_array($o)) {
+            foreach (['encryptedLink', 'happLink', 'link', 'url', 'happ'] as $k) {
+                if (isset($o[$k]) && is_string($o[$k]) && trim($o[$k]) !== '') return trim($o[$k]);
+            }
+        }
+        return '';
+    }
 """
 
 rep_rx(
-    LNK,
-    r"(?m)^(\s*)public static function panelSub\(array \$svc\): string",
-    lambda m: NORM + m.group(0),
-    '#happ-norm-fn',
-)
-
-# ------------------------------- 2) validate what the panel hands back
-rep_rx(
-    LNK,
-    r"(?m)^(\s*)return \$l !== '' \? \$l : self::happFallback\(\$svc\); /\* 0\.0\.2 #happ-fb2 \*/",
-    lambda m: (m.group(1) + "$l = self::normHapp($l); /* 0.0.2 #happ-norm */\n"
-               + m.group(1) + "return $l !== '' ? $l : self::happFallback($svc);"),
-    '#happ-norm ',
-)
-
-# ------------------------------- 3) the deep link itself: raw url, no base64
-rep_rx(
-    LNK,
-    r"(?m)^(\s*)return 'happ://add/' \. rtrim\(strtr\(base64_encode\(\$u\), '\+/', '-_'\), '='\);",
-    lambda m: (m.group(1) + "/* 0.0.2 #happ-fb4: آدرس اشتراک باید خام باشد؛ base64 را Happ نامعتبر می‌داند */\n"
-               + m.group(1) + "return 'happ://add/' . $u;"),
-    '#happ-fb4',
-)
-
-# ------------------------------- 4) always offer the plain subscription url
-HAPP_PLAIN = """
-{IND}/* 0.0.2 #happ-plain: روش مطمئن دوم — افزودن دستی آدرس اشتراک خودِ پنل */
-{IND}$psub = method_exists('Links', 'panelSub') ? Links::panelSub($s) : '';
-{IND}if ($psub === '' && class_exists('Svc')) {
-{IND}    try {
-{IND}        $psub = (string)Svc::subUrl($s, 'panel');
-{IND}    } catch (Throwable $e) {
-{IND}        $psub = '';
-{IND}    }
-{IND}}
-{IND}if ($psub !== '') {
-{IND}    $txt .= "\nاگر لینک بالا اضافه نشد، این آدرس اشتراک را کپی کنید و در Happ بزنید «+» ← Add subscription:\n"
-{IND}        . '<code>' . h($psub) . '</code>' . "\n";
-{IND}}"""
-
-rep_rx(
-    BOT,
-    (r"\. '<code>' \. h\(\$happ\) \. '</code>' \. \"\\n\";\n"
-     r"(\s*)\} else \{\n\s*\$txt \.= \"[^\"]*\";\n\1\}"),
-    lambda m: m.group(0) + HAPP_PLAIN.replace('{IND}', m.group(1)),
-    '#happ-plain',
+    X3,
+    (r"^    /\*\*[^\n]*GET /clients/happLink[^\n]*\*/\n"
+     r"    public function happLink\(string \$email\): string\n"
+     r"    \{.*?^    \}\n"),
+    lambda m: HAPP,
+    '#happ-post',
+    flags=re.M | re.S,
 )
 
 write_all()
 
 # ================================ SANITY ================================
 SANITY = [
-    (LNK, '#happ-norm-fn'),
+    (X3, '#happ-post'),
+    (X3, "$r = $this->api($path, $try[0], $try[1]);"),
+    (X3, 'private static function pickHappLink($o): string'),
+    (X3, "'encryptedLink', 'happLink', 'link', 'url', 'happ'"),
+    (X3, 'happ_source_too_long'),
     (LNK, 'public static function normHapp(string $l): string'),
-    (LNK, '#happ-norm '),
-    (LNK, '#happ-fb4'),
-    (LNK, "return 'happ://add/' . $u;"),
-    (BOT, '#happ-plain'),
-    (BOT, 'Add subscription:'),
 ]
 for p, needle in SANITY:
     try:
@@ -187,7 +197,7 @@ for p, needle in SANITY:
         ok = False
     print('sanity %s / %s : %s' % (p, needle, 'ok' if ok else 'MISSING'))
 
-dump('links_after', LNK, 55, 140)
+dump_find('happ_after', X3, '#happ-post', 3, 62)
 
 # ============================== version bump ==============================
 vpath = os.path.join(ROOT, 'version.json')
@@ -196,9 +206,8 @@ with io.open(vpath, 'r', encoding='utf-8') as fh:
 old_build = vj.get('build')
 vj['build'] = BUILD
 notes = [
-    'رفع باگ: دیپ‌لینک Happ با قالب درست (happ://add/ + آدرس خام اشتراک) ساخته می‌شود تا در برنامه Invalid نخورد',
-    'لینک برگشتی از پنل اعتبارسنجی و در صورت نیاز به دیپ‌لینک معتبر تبدیل می‌شود',
-    'در صفحهٔ «افزودن به Happ» آدرس خام اشتراک پنل هم برای افزودن دستی نمایش داده می‌شود',
+    'لینک رمزنگاری‌شدهٔ Happ (happ://crypt5) از خودِ پنل گرفته می‌شود: درخواست POST و خواندن کلید encryptedLink',
+    'پیام خطای پنل (مثلاً طولانی‌بودن آدرس اشتراک) در لاگ ثبت می‌شود',
 ]
 cl = vj.get('changelog')
 if isinstance(cl, list):
