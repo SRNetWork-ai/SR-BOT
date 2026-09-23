@@ -2828,6 +2828,14 @@ class Bot
     /** فهرست کانفیگ‌های یک سرویس: ذخیره‌شده یا زنده از پنل */
     public static function cfgList(array $service): array
     {
+        /* 0.0.2 #cfg-live-first: روی پنل نسل جدید، فهرست رسمی پنل ملاک است تا کانفیگ قدیمی یا تکراری نمانَد */
+        try {
+            if (class_exists('Svc') && method_exists('Svc', 'panelConfigs')) {
+                $pl = Svc::panelConfigs($service);
+                if ($pl) return $pl;
+            }
+        } catch (Throwable $e) {
+        }
         $raw = trim((string)($service['config_link'] ?? ''));
         /* سازگاری با ردیف‌های قدیمی که جداکنندهٔ متنی داشتند */
         $raw = str_replace(['\r\n', '\n'], "\n", $raw);
@@ -2879,9 +2887,12 @@ class Bot
         /* طبق تنظیم محصول: ساب، کانفیگ یا هردو — اگر یکی نبود، همان دیگری فرستاده می‌شود */
         /* 0.0.2 #happ-only-bot: محصول «فقط لینک هپ» */
         $happ = Svc::wantsHapp($mode) ? Svc::happLink($service) : '';
+        /* 0.0.2 #hwid-happ-extra: محصول دارای محدودیت هاردویر همیشه لینک اختصاصی Happ هم می‌گیرد */
+        $hwid = class_exists('Svc') && method_exists('Svc', 'hwidOn') ? Svc::hwidOn($service) : false;
+        if ($happ === '' && $hwid) $happ = Svc::happLink($service);
         $wantSub = Svc::wantsSub($mode) && $sub !== '';
         $wantCfg = Svc::wantsCfg($mode) && $n > 0;
-        if ($happ !== '') { $wantSub = false; $wantCfg = false; }
+        if ($happ !== '' && Svc::wantsHapp($mode)) { $wantSub = false; $wantCfg = false; } /* 0.0.2 #hwid-happ-keep */
         if (!$wantSub && !$wantCfg && $happ === '') {
             $wantSub = ($sub !== '');
             $wantCfg = ($n > 0);
@@ -2904,6 +2915,7 @@ class Bot
             $txt .= "⚡ <b>لینک اختصاصی Happ</b>\n";
             $txt .= "<i>تنظیمات سرور (محدودیت دستگاه، مسیریابی و…) روی همین لینک اعمال می‌شود.</i>\n";
             $txt .= '<code>' . h($happ) . "</code>\n";
+            if ($hwid) $txt .= "<i>⚠️ برای شمارش دستگاه‌ها (HWID) حتماً همین لینک را در Happ وارد کنید؛ لینک اشتراک عادی محدودیت دستگاه را اعمال نمی‌کند.</i>\n"; /* 0.0.2 #hwid-note */
         }
 
         if ($wantCfg && !$wantSub) {
@@ -3155,13 +3167,16 @@ class Bot
             . '<code>' . h($sub) . "</code>\n\n"
             . '👆 روی لینک بزنید تا کپی شود، سپس در برنامه «افزودن از کلیپ‌بورد» را بزنید.',
             Tg::ikb([
-                [Tg::btn('⚙️ کانفیگ‌ها', 'svccfg:' . $id)],
+                ...(Svc::wantsCfg(Svc::deliverMode($s)) ? [[Tg::btn('⚙️ کانفیگ‌ها', 'svccfg:' . $id)]] : []), /* 0.0.2 #dm-sub-btn */
                 [Tg::btn('⬅️ بازگشت', 'svc:' . $id)],
             ]));
     }
 
     private static function sendConfig($chatId, $cbId, int $id): void
     {
+        /* 0.0.2 #dm-cfg-guard: محصولی که فقط لینک اشتراک می‌دهد، کانفیگ مستقیم نمی‌دهد */
+        $gC = self::myService($id);
+        if ($gC && !Svc::wantsCfg(Svc::deliverMode($gC))) { self::sendSub($chatId, $cbId, $id); return; }
         /* 0.0.2 #happ-only-guard2: محصول «فقط لینک هپ» لینک ساب یا کانفیگ مستقیم نمی\u200cدهد */
         $gS = self::myService($id);
         if ($gS && Svc::wantsHapp(Svc::deliverMode($gS)) && Svc::happLink($gS) !== '') {

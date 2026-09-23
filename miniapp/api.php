@@ -326,6 +326,10 @@ function ma_service_row(array $s): array
     $__happOnly = class_exists('Svc') && method_exists('Svc', 'wantsHapp')
         && Svc::wantsHapp(Svc::deliverMode($s))
         && class_exists('Links') && Links::supported($s);
+    /* 0.0.2 #dm-strict-api: حالت تحویل محصول روی مینی‌اپ هم اعمال می‌شود */
+    $__dmMode = class_exists('Svc') && method_exists('Svc', 'deliverMode') ? Svc::deliverMode($s) : 'both';
+    $__noSub  = $__happOnly || (class_exists('Svc') && method_exists('Svc', 'wantsSub') && !Svc::wantsSub($__dmMode));
+    $__noCfg  = $__happOnly || (class_exists('Svc') && method_exists('Svc', 'wantsCfg') && !Svc::wantsCfg($__dmMode));
 
     return [
         'id'         => (int)$s['id'],
@@ -340,12 +344,12 @@ function ma_service_row(array $s): array
         'expire'     => (string)($s['expire_at'] ?? ''),
         'expire_txt' => !empty($s['expire_at']) ? to_jalali((string)$s['expire_at'], true) : '♾ نامحدود',
         'remain_txt' => !empty($s['expire_at']) ? remaining_human((string)$s['expire_at']) : '♾',
-        'sub'        => $__happOnly ? '' : ((class_exists('Reseller') && method_exists('Reseller', 'applyDomain') && is_array($__rsDomUser)
+        'sub'        => $__noSub ? '' : ((class_exists('Reseller') && method_exists('Reseller', 'applyDomain') && is_array($__rsDomUser)
                 ? Reseller::applyDomain((string)(class_exists('Svc') ? Svc::subUrl($s) : (string)($s['sub_link'] ?? '')), $__rsDomUser)
                 : (class_exists('Svc') ? Svc::subUrl($s) : (string)($s['sub_link'] ?? '')))),
-        'sub_own'    => $__happOnly ? '' : (class_exists('Svc') ? Svc::localSub($s) : ''),
-        'sub_main'   => $__happOnly ? '' : (string)($s['sub_link'] ?? ''),
-        'sub_code'   => $__happOnly ? '' : (class_exists('Svc') && method_exists('Svc', 'subCode') ? Svc::subCode($s) : ''),
+        'sub_own'    => $__noSub ? '' : (class_exists('Svc') ? Svc::localSub($s) : ''),
+        'sub_main'   => $__noSub ? '' : (string)($s['sub_link'] ?? ''),
+        'sub_code'   => $__noSub ? '' : (class_exists('Svc') && method_exists('Svc', 'subCode') ? Svc::subCode($s) : ''),
         /* دکمه‌های تمدید و حذف — از پنل قابل خاموش کردن است */
         'can_renew'  => class_exists('Svc') && method_exists('Svc', 'userRenewEnabled') && Svc::userRenewEnabled()
             && (string)DB::setting('ma_btn_renew', '1') === '1'
@@ -367,8 +371,12 @@ function ma_service_row(array $s): array
         'happ_only'  => class_exists('Svc') && method_exists('Svc', 'wantsHapp')
             && Svc::wantsHapp(Svc::deliverMode($s))
             && class_exists('Links') && Links::supported($s),
+        /* 0.0.2 #dm-strict-flags */
+        'cfg_off'    => $__noCfg,
+        'sub_off'    => $__noSub,
+        'hwid'       => class_exists('Svc') && method_exists('Svc', 'hwidOn') ? Svc::hwidOn($s) : false,
         /* فقط خطوط کانفیگ معتبر برگردانده می شود، نه متن خام */
-        'configs'    => $__happOnly ? [] : (class_exists('Svc') && method_exists('Svc', 'storedConfigs')
+        'configs'    => $__noCfg ? [] : (class_exists('Svc') && method_exists('Svc', 'storedConfigs')
             ? Svc::storedConfigs($s)
             : array_values(array_filter(array_map('trim', explode("\n", (string)($s['config_link'] ?? '')))))),
         'days'       => (int)($s['days'] ?? 0),

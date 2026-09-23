@@ -749,6 +749,7 @@ if ($dmHas) {
               <div class="field">
                 <label>محدودیت دستگاه / هاردویر (HWID)</label>
                 <input class="mono" type="number" min="0" name="device_limit" value="<?= h((string)$v('device_limit', 0)) ?>">
+                <div class="hint">پنل باید نسل جدید سنایی (توکن API) باشد و در تب Happ گزینهٔ Enforce Hardware ID روشن باشد. با فعال‌بودن این محدودیت، ربات به‌جای ساب داخلی، ساب خودِ پنل و لینک Happ را تحویل می‌دهد. <!-- 0.0.2 #hwid-hint --></div>
                 <div class="hint">۰ = بدون محدودیت — روی پنل نسل جدید سنایی به‌صورت محدودیت هاردویر (limitHwid) روی همان اکانت و لینک هپ اعمال می‌شود؛ روی VPN-UI هم پشتیبانی می‌شود</div>
               </div>
               <?php if (isset($prCols['reset_days'])): ?>

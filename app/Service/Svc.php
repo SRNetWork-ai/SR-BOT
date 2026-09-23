@@ -900,9 +900,24 @@ class Svc
             $xui   = new Xui($panel);
             $subId = trim((string)($s['sub_id'] ?? ''));
             $own   = trim((string)($s['sub_link'] ?? ''));
+            /* 0.0.2 #cfg-x3-first: روی پنل نسل جدید، فهرست رسمی خودِ پنل ملاک است */
+            $x3ok = false;
+            if (method_exists($xui, 'isXui3') && method_exists($xui, 'xui3')) {
+                try {
+                    if ($xui->isXui3()) {
+                        $d3 = $xui->xui3();
+                        if (is_object($d3) && method_exists($d3, 'linksFor')) {
+                            $tmp = (array)$d3->linksFor((string)($s['client_email'] ?? ''));
+                            if ($tmp) { $links = $tmp; $x3ok = true; }
+                        }
+                    }
+                } catch (Throwable $e) {
+                    $x3ok = false;
+                }
+            }
 
             /* ۱) ساب اصلی پنل — مقدار ذخیره شده اگر خودش ساب همین ربات باشد کنار می رود */
-            if (method_exists($xui, 'subFetch')) {
+            if (!$links && method_exists($xui, 'subFetch')) { /* 0.0.2 #cfg-x3-sub */
                 try {
                     if ($own !== '' && !self::isOwnSub($own)) $links = $xui->subFetch($subId, $own);
                     if (!$links && $subId !== '')            $links = $xui->subFetch($subId);
@@ -912,7 +927,7 @@ class Svc
             }
 
             /* فقط کانفیگ های خود همین سرویس بمانند — پنل های اشتراکی بعضی وقت ها ساب کاربر دیگر را می دهند */
-            if ($links) $links = self::ownLinks($s, $links);
+            if ($links && empty($x3ok)) $links = self::ownLinks($s, $links); /* 0.0.2 #cfg-x3-own */
 
             /* ۲) بازسازی از اینباندها */
             if (!$links && method_exists($xui, 'rebuildConfigs')) {
@@ -936,7 +951,7 @@ class Svc
         $links = array_values(array_unique(array_filter($links)));
 
         /* نام گذاری یکدست روی همه کانفیگ ها */
-        return self::renameLinks($links, self::configLabel($s, (string)($panel['name'] ?? '')));
+        return self::renameLinks(self::dedupeLinks($links), self::configLabel($s, (string)($panel['name'] ?? ''))); /* 0.0.2 #cfg-dedupe-live */
     }
 
     /** نام تمیز برای کانفیگ ها: عنوان فروشگاه (+ نام پنل) */
@@ -1096,7 +1111,91 @@ class Svc
             if (!preg_match($re, $l)) continue;
             $out[] = $l;
         }
-        return array_values(array_unique($out));
+        return self::dedupeLinks($out); /* 0.0.2 #cfg-dedupe-stored */
+    }
+
+    /* ================= 0.0.2 #cfg-dedupe-helpers ================= */
+
+    /** شناسهٔ یکتای یک کانفیگ؛ نام نمایشی (بخش بعد از #) نادیده گرفته می‌شود */
+    public static function linkIdent(string $l): string
+    {
+        $l = trim($l);
+        if ($l === '') return '';
+        if (stripos($l, 'vmess://') === 0) {
+            $raw = (string)base64_decode(substr($l, 8));
+            $j   = json_decode($raw, true);
+            if (is_array($j)) {
+                unset($j['ps'], $j['remark'], $j['name']);
+                ksort($j);
+                return 'vmess|' . (string)json_encode($j);
+            }
+        }
+        $p = strpos($l, '#');
+        return strtolower($p === false ? $l : substr($l, 0, $p));
+    }
+
+    /** حذف کانفیگ‌های تکراری (حتی اگر فقط نامشان فرق داشته باشد) */
+    public static function dedupeLinks(array $links): array
+    {
+        $out  = [];
+        $seen = [];
+        foreach ($links as $l) {
+            $l = trim((string)$l);
+            if ($l === '') continue;
+            $k = self::linkIdent($l);
+            if ($k === '' || isset($seen[$k])) continue;
+            $seen[$k] = true;
+            $out[] = $l;
+        }
+        return array_values($out);
+    }
+
+    /**
+     * فهرست رسمی لینک‌های همین اکانت روی پنل نسل جدید سنایی.
+     * خروجی خالی یعنی پنل قدیمی است یا در دسترس نیست (آن وقت از ردیف دیتابیس خوانده می‌شود).
+     */
+    public static function panelConfigs(array $s): array
+    {
+        $email = trim((string)($s['client_email'] ?? ''));
+        if ($email === '' || !class_exists('Xui')) return [];
+        try {
+            $x = Xui::forPanel((int)($s['panel_id'] ?? 0));
+            if (!$x || !method_exists($x, 'isXui3') || !$x->isXui3()) return [];
+            $d = method_exists($x, 'xui3') ? $x->xui3() : null;
+            if (!is_object($d) || !method_exists($d, 'linksFor')) return [];
+            $links = self::dedupeLinks((array)$d->linksFor($email));
+            if (!$links) return [];
+            $pn = (string)DB::val('SELECT name FROM {p}panels WHERE id = :i', [':i' => (int)($s['panel_id'] ?? 0)], '');
+            return self::renameLinks($links, self::configLabel($s, $pn));
+        } catch (Throwable $e) {
+            return [];
+        }
+    }
+
+    /* ================= 0.0.2 #hwid-helpers ================= */
+
+    /** محدودیت دستگاه (HWID) محصولِ این سرویس؛ صفر یعنی بدون محدودیت */
+    public static function deviceLimitOf(array $s): int
+    {
+        $pid = (int)($s['product_id'] ?? 0);
+        if ($pid <= 0) return 0;
+        try {
+            return (int)DB::val('SELECT device_limit FROM {p}products WHERE id = :id', [':id' => $pid], 0);
+        } catch (Throwable $e) {
+            return 0;
+        }
+    }
+
+    /** آیا این سرویس محدودیت هاردویر دارد؟ (فقط روی پنل نسل جدید معنا دارد) */
+    public static function hwidOn(array $s): bool
+    {
+        if (self::deviceLimitOf($s) <= 0) return false;
+        if (!class_exists('Links')) return false;
+        try {
+            return Links::supported($s);
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     /** آیا این آدرس، ساب داخلی خود ربات است؟ (جلو����یری از حلقه) */
@@ -1258,6 +1357,8 @@ class Svc
     public static function subUrl(array $s, ?string $mode = null): string
     {
         $mode  = $mode !== null ? (string)$mode : self::subMode();
+        /* 0.0.2 #hwid-panel-sub: با محدودیت هاردویر باید ساب خودِ پنل تحویل شود، نه ساب داخلی ربات */
+        if ($mode !== 'panel' && self::hwidOn($s) && self::panelSub($s) !== '') $mode = 'panel';
         $local = self::localSub($s);
         $panel = self::panelSub($s);
         if ($mode === 'panel') return $panel !== '' ? $panel : $local;

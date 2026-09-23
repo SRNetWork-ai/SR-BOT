@@ -59,18 +59,56 @@ final class Links
     {
         if (!self::supported($svc)) return '';
         $d = self::driver($svc);
-        if (!$d || !method_exists($d, 'happLink')) return '';
+        if (!$d || !method_exists($d, 'happLink')) return self::happFallback($svc); /* 0.0.2 #happ-fb */
         try {
-            return trim((string)$d->happLink((string)$svc['client_email']));
+            $l = trim((string)$d->happLink((string)$svc['client_email']));
+            return $l !== '' ? $l : self::happFallback($svc); /* 0.0.2 #happ-fb2 */
         } catch (Throwable $e) {
             if (function_exists('app_log')) {
                 app_log('panel', 'happ link failed', ['svc' => (int)($svc['id'] ?? 0), 'err' => $e->getMessage()]);
             }
-            return '';
+            return self::happFallback($svc); /* 0.0.2 #happ-fb3 */
         }
     }
 
     /** لینک‌های خارجی اکانت به شکل [['title' => ..., 'link' => ...], ...] */
+    /**
+     * ساب خودِ پنل برای این سرویس؛ ساب داخلی ربات کنار گذاشته می‌شود.
+     * محدودیت هاردویر (HWID) فقط وقتی شمرده می‌شود که مشتری ساب خودِ پنل یا
+     * لینک Happ را باز کند؛ ساب داخلی ربات از دید پنل دیده نمی‌شود.
+     * 0.0.2 #happ-sub-fb
+     */
+    public static function panelSub(array $svc): string
+    {
+        $u = trim((string)($svc['sub_link'] ?? ''));
+        if ($u === '') return '';
+        if (class_exists('Svc') && method_exists('Svc', 'isOwnSub')) {
+            try {
+                if (Svc::isOwnSub($u)) return '';
+            } catch (Throwable $e) {
+            }
+        }
+        return $u;
+    }
+
+    /** اگر پنل لینک آمادهٔ Happ نداد، از روی ساب خودِ پنل ساخته می‌شود */
+    public static function happFallback(array $svc): string
+    {
+        $d = self::driver($svc);
+        if ($d && method_exists($d, 'externalLinks')) {
+            try {
+                foreach ((array)$d->externalLinks((string)($svc['client_email'] ?? '')) as $row) {
+                    $l = trim((string)(is_array($row) ? ($row['link'] ?? '') : $row));
+                    if ($l !== '' && stripos($l, 'happ://') === 0) return $l;
+                }
+            } catch (Throwable $e) {
+            }
+        }
+        $u = self::panelSub($svc);
+        if ($u === '') return '';
+        return 'happ://add/' . rtrim(strtr(base64_encode($u), '+/', '-_'), '=');
+    }
+
     public static function external(array $svc): array
     {
         if (!self::supported($svc)) return [];

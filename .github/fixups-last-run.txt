@@ -1,490 +1,57 @@
 Python 3.12.3
-Wed Sep 23 16:26:03 UTC 2026
----- dump links_all : app/Service/Links.php (87 lines) ----
-    1 <?php
-    2 
-    3 /**
-    4  * لینک‌های تکمیلی سرویس روی پنل‌های نسل جدید 3x-ui (docs.sanaei.dev)
-    5  *
-    6  *  - happ():     دیپ‌لینک اختصاصی Happ برای ایمپورت یک‌ضربه‌ای اشتراک
-    7  *  - external(): لینک‌هایی که ادمین روی خود پنل برای آن اکانت تعریف کرده است
-    8  *
-    9  * روی پنل‌هایی که 3x-ui نیستند یا توکن API ندارند، بی‌صدا خاموش می‌ماند تا
-   10  * هیچ بخشی از ربات/مینی‌اپ به خطا نخورد.
-   11  *
-   12  * 0.0.2 #happ-links
-   13  */
-   14 final class Links
-   15 {
-   16     /** کلید تنظیمات برای خاموش‌کردن کل قابلیت */
-   17     public const S_ENABLED = 'happ_link';
-   18 
-   19     /** کش درایور به ازای هر پنل تا در یک درخواست چندبار ساخته نشود */
-   20     private static $drv = [];
-   21 
-   22     public static function enabled(): bool
-   23     {
-   24         if (!class_exists('DB')) return false;
-   25         return (string)DB::setting(self::S_ENABLED, '1') === '1';
-   26     }
-   27 
-   28     /** درایور نسل جدیدِ پنلِ همین سرویس (بدون هیچ تماس شبکه‌ای) */
-   29     private static function driver(array $svc)
-   30     {
-   31         $pid = (int)($svc['panel_id'] ?? 0);
-   32         if ($pid <= 0 || !class_exists('Xui')) return null;
-   33         if (array_key_exists($pid, self::$drv)) return self::$drv[$pid];
-   34 
-   35         $out = null;
-   36         try {
-   37             $x = Xui::forPanel($pid);
-   38             if ($x && method_exists($x, 'isXui3') && $x->isXui3()) {
-   39                 $d = $x->xui3();
-   40                 if (is_object($d)) $out = $d;
-   41             }
-   42         } catch (Throwable $e) {
-   43             $out = null;
-   44         }
-   45         self::$drv[$pid] = $out;
-   46         return $out;
-   47     }
-   48 
-   49     /** آیا برای این سرویس اصلاً لینک تکمیلی در دسترس است؟ */
-   50     public static function supported(array $svc): bool
-   51     {
-   52         if (!self::enabled()) return false;
-   53         if (trim((string)($svc['client_email'] ?? '')) === '') return false;
-   54         return self::driver($svc) !== null;
-   55     }
-   56 
-   57     /** دیپ‌لینک Happ سرویس؛ رشتهٔ خالی یعنی در دسترس نیست */
-   58     public static function happ(array $svc): string
-   59     {
-   60         if (!self::supported($svc)) return '';
-   61         $d = self::driver($svc);
-   62         if (!$d || !method_exists($d, 'happLink')) return '';
-   63         try {
-   64             return trim((string)$d->happLink((string)$svc['client_email']));
-   65         } catch (Throwable $e) {
-   66             if (function_exists('app_log')) {
-   67                 app_log('panel', 'happ link failed', ['svc' => (int)($svc['id'] ?? 0), 'err' => $e->getMessage()]);
-   68             }
-   69             return '';
-   70         }
-   71     }
-   72 
-   73     /** لینک‌های خارجی اکانت به شکل [['title' => ..., 'link' => ...], ...] */
-   74     public static function external(array $svc): array
-   75     {
-   76         if (!self::supported($svc)) return [];
-   77         $d = self::driver($svc);
-   78         if (!$d || !method_exists($d, 'externalLinks')) return [];
-   79         try {
-   80             $rows = $d->externalLinks((string)$svc['client_email']);
-   81             return is_array($rows) ? $rows : [];
-   82         } catch (Throwable $e) {
-   83             return [];
-   84         }
-   85     }
-   86 }
-   87 
----- end dump links_all ----
----- dump svc_wants : app/Service/Svc.php (2033 lines) ----
- 1609 
- 1610     /** آیا لینک اشتراک باید تحویل شود؟ */
- 1611     public static function wantsSub(string $m): bool
- 1612     {
- 1613         return $m !== 'config' && $m !== 'happ'; /* 0.0.2 #happ-only-sub */
- 1614     }
- 1615 
- 1616     /** آیا کانفیگ مستقیم باید تحویل شود؟ */
- 1617     public static function wantsCfg(string $m): bool
- 1618     {
- 1619         return $m !== 'sub' && $m !== 'happ'; /* 0.0.2 #happ-only-cfg */
- 1620     }
- 1621 
- 1622     /** آیا فقط دیپ‌لینک اختصاصی Happ تحویل شود؟ */
- 1623     public static function wantsHapp(string $m): bool
- 1624     {
- 1625         return $m === 'happ';
- 1626     }
- 1627 
- 1628     /** دیپ‌لینک Happ سرویس؛ رشتهٔ خالی یعنی در دسترس نیست */
- 1629     public static function happLink(array $s): string
- 1630     {
- 1631         if (!class_exists('Links')) return '';
- 1632         try {
- 1633             return trim((string)Links::happ($s));
- 1634         } catch (Throwable $e) {
- 1635             return '';
- 1636         }
- 1637     }
- 1638 
- 1639     public static function find($id): ?array
- 1640     {
- 1641         return DB::one('SELECT * FROM {p}services WHERE id = :id', [':id' => (int)$id]);
- 1642     }
- 1643 
- 1644     /**
- 1645      * سرویس‌های یک کاربر
- 1646      *
- 1647      * کانفیگ‌هایی که نماینده از «پنل نمایندگی» ساخته است سرویس شخصی او نیستند و
- 1648      * نباید در «سرویس‌های من» داخل ربات دیده شوند؛ آن‌ها فقط در پنل نمایندگی
- 1649      * مدیریت می‌شوند. برای پنل مدیریت که باید همه چیز را ببیند
- 1650      * $includeReseller را true بگذارید.
- 1651      */
- 1652     public static function forUser(int $userId, bool $onlyActive = false, bool $includeReseller = false): array
- 1653     {
- 1654         $sql = 'SELECT s.*, p.name AS panel_name FROM {p}services s LEFT JOIN {p}panels p ON p.id = s.panel_id WHERE s.user_id = :u AND s.status <> :d';
- 1655         if ($onlyActive) $sql .= " AND s.status = 'active'";
- 1656         if (!$includeReseller) $sql .= ' AND COALESCE(s.is_reseller, 0) = 0';
- 1657         $sql .= ' ORDER BY s.id DESC';
- 1658         return DB::all($sql, [':u' => $userId, ':d' => 'deleted']);
- 1659     }
- 1660 
- 1661     /** فقط کانفیگ‌های نمایندگی یک کاربر */
- 1662     public static function resellerForUser(int $userId): array
- 1663     {
- 1664         return DB::all('SELECT s.*, p.name AS panel_name FROM {p}services s
- 1665             LEFT JOIN {p}panels p ON p.id = s.panel_id
- 1666             WHERE s.user_id = :u AND s.status <> :d AND COALESCE(s.is_reseller, 0) = 1
- 1667             ORDER BY s.id DESC', [':u' => $userId, ':d' => 'deleted']);
- 1668     }
- 1669 
- 1670     /** خلاصه وضعیت سرویس برای نمایش */
- 1671     public static function summary(array $s): string
- 1672     {
- 1673         $vol   = self::volLabel((float)$s['volume_gb']) . self::bar((float)$s['volume_gb'], (int)$s['used_bytes']); /* fixed79 */
- 1674         $used  = human_bytes((int)$s['used_bytes']);
- 1675         $leftGb = max(0.0, (float)$s['volume_gb'] - ((int)$s['used_bytes']) / 1073741824); /* fixed79 */
- 1676         $left  = (float)$s['volume_gb'] > 0 ? ($leftGb > 0 ? self::volLabel($leftGb) : fa_num('0') . ' مگابایت') : 'نامحدود';
- 1677         $statusMap = ['active' => '✅ فعال', 'expired' => '⏳ منقضی', 'disabled' => '⛔️ غیرفعال', 'deleted' => '🗑 حذف شده', 'missing' => '🚫 حذف‌شده از پنل'];
- 1678         $lines = [
- 1679             '👤 نام کاربری: <code>' . h($s['client_email']) . '</code>',
- 1680             '📊 حجم کل: ' . $vol,
- 1681             '📉 مصرف‌شده: ' . fa_num($used),
- 1682             '📈 باقی‌مانده: ' . $left,
- 1683             '⏰ انقضا: ' . ($s['expire_at'] ? to_jalali((string)$s['expire_at'], true) . ' (' . remaining_human((string)$s['expire_at']) . ')' : 'نامحدود'),
- 1684             '⚙️ وضعیت: ' . ($statusMap[$s['status']] ?? $s['status']),
- 1685         ];
- 1686         if (!empty($s['is_test'])) $lines[] = '🧪 اکانت تست';
- 1687         return implode("\n", $lines);
- 1688     }
- 1689 
- 1690     /* ==================== حذف/عودت و تمدید سرویس کاربر ==================== */
- 1691 
- 1692     public static function userDelEnabled(): bool { return (string)DB::setting('usr_del_enabled', '0') === '1'; }
- 1693     public static function userDelRefund(): bool  { return (string)DB::setting('usr_del_refund', '1') === '1'; }
- 1694     public static function userRenewEnabled(): bool { return (string)DB::setting('usr_renew_enabled', '1') === '1'; }
- 1695 
- 1696     /** روش محاسبه عودت: fair (کمترین سهم) | split (میانگین) | gb (فقط حجم) */
- 1697     public static function userDelMode(): string
- 1698     {
- 1699         $m = (string)DB::setting('usr_del_mode', 'fair');
- 1700         return in_array($m, ['fair', 'split', 'gb'], true) ? $m : 'fair';
----- end dump svc_wants ----
----- grep svc_cfglink : config_link ----
-  351 'config_link' => $config,
- 1005 $mine  = strtolower(self::linkCred((string)($s['config_link'] ?? '')));
- 1092 $rawCfg = str_replace(['\r\n', '\n'], "\n", (string)($s['config_link'] ?? ''));
----- grep svc_cfglink : 3 hits ----
----- grep bot_cfglink : config_link|Links::|deliverMode ----
- 2831 $raw = trim((string)($service['config_link'] ?? ''));
- 2874 $mode = Svc::deliverMode($service);
- 2985 $mode = Svc::deliverMode($s);
- 2987 $hOnly = Svc::wantsHapp($mode) && class_exists('Links') && Links::supported($s);
- 3000 if (!$hOnly && class_exists('Links') && Links::supported($s)) {
- 3024 if (!class_exists('Links') || !Links::supported($s)) {
- 3029 $happ = Links::happ($s);
- 3030 $ext  = Links::external($s);
- 3133 if ($gS && Svc::wantsHapp(Svc::deliverMode($gS)) && Svc::happLink($gS) !== '') {
- 3167 if ($gS && Svc::wantsHapp(Svc::deliverMode($gS)) && Svc::happLink($gS) !== '') {
----- grep bot_cfglink : 10 hits ----
----- dump bot_showsvc : app/Bot/Bot.php (5005 lines) ----
- 2968         $txt = '📦 <b>سرویس‌های من</b> (' . fa_num(count($list)) . ")\nبرای دیدن جزئیات انتخاب کنید:";
- 2969         $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
- 2970     }
- 2971 
- 2972     private static function myService(int $id): ?array
- 2973     {
- 2974         return DB::one('SELECT * FROM {p}services WHERE id = :id AND user_id = :u AND status <> :d
- 2975             AND COALESCE(is_reseller, 0) = 0',
- 2976             [':id' => $id, ':u' => (int)self::$u['id'], ':d' => 'deleted']);
- 2977     }
- 2978 
- 2979     private static function showService($chatId, $msgId, int $id): void
- 2980     {
- 2981         $s = self::myService($id);
- 2982         if (!$s) { Tg::send($chatId, '⚠️ سرویس یافت نشد.'); return; }
- 2983         $txt = "📦 <b>جزئیات سرویس</b>\n" . '<code>─────────────────</code>' . "\n" . self::specCard($s, false);
- 2984         /* فقط مسیری که برای این محصول فعال است نشان داده می‌شود */
- 2985         $mode = Svc::deliverMode($s);
- 2986         /* 0.0.2 #happ-only-view: محصول «فقط لینک هپ» */
- 2987         $hOnly = Svc::wantsHapp($mode) && class_exists('Links') && Links::supported($s);
- 2988         $top  = [];
- 2989         if ($hOnly) $top[] = Tg::btn('⚡ افزودن به Happ', 'svchapp:' . $id);
- 2990         if (Svc::wantsSub($mode)) $top[] = Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $id);
- 2991         if (Svc::wantsCfg($mode)) $top[] = Tg::btn('⚙️ کانفیگ‌ها', 'svccfg:' . $id);
- 2992         if (!$top) $top[] = Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $id);
- 2993 
- 2994         $rows = [
- 2995             $top,
- 2996             [Tg::btn('📋 مشخصات کامل', 'svcspec:' . $id), Tg::btn('🔄 به‌روزرسانی مصرف', 'svcsync:' . $id)],
- 2997             [Tg::btn('♻️ تمدید سرویس', 'svcrn:' . $id)],
- 2998         ];
- 2999         /* 0.0.2 #happ-btn: لینک اختصاصی Happ — فقط پنل نسل جدید سنایی */
- 3000         if (!$hOnly && class_exists('Links') && Links::supported($s)) {
- 3001             $rows[] = [Tg::btn('⚡ افزودن به Happ', 'svchapp:' . $id)];
- 3002         }
- 3003         /* 0.0.2 #dev-btn: مدیریت دستگاه‌های ثبت‌شده (HWID) — فقط پنل نسل جدید سنایی */
- 3004         if (class_exists('Devices') && Devices::supported($s)) {
- 3005             $rows[] = [Tg::btn('📱 دستگاه‌های من', 'svcdev:' . $id)];
- 3006         }
- 3007         /* fixed83: حذف سرویس و عودت وجه — کانفیگ قطع‌شده اجازهٔ جداگانه دارد */
- 3008         $dead = Svc::isDead($s);
- 3009         if (Svc::userDelEnabled() || ($dead && Svc::deadDelEnabled())) {
- 3010             $rows[] = [Tg::btn($dead ? '🗑 حذف کانفیگ قطع‌شده و عودت وجه' : '🗑 حذف سرویس و عودت وجه', 'svcdel:' . $id)];
- 3011         }
- 3012         $rows[] = [Tg::btn('⬅️ سرویس‌های من', 'menu:services')];
- 3013         $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
- 3014     }
- 3015 
- 3016     /* ============ 0.0.2: دستگاه‌های ثبت‌شده (HWID) — پنل 3x-ui ============ */
- 3017 
- 3018     /* ============ 0.0.2 #happ-links: لینک Happ و لینک‌های خارجی ============ */
- 3019 
- 3020     private static function happView($chatId, $msgId, int $id): void
- 3021     {
- 3022         $s = self::myService($id);
- 3023         if (!$s) { Tg::send($chatId, '⚠️ سرویس یافت نشد.'); return; }
- 3024         if (!class_exists('Links') || !Links::supported($s)) {
- 3025             Tg::send($chatId, 'ℹ️ این سرویس لینک Happ ندارد.');
- 3026             return;
- 3027         }
- 3028 
- 3029         $happ = Links::happ($s);
- 3030         $ext  = Links::external($s);
- 3031 
- 3032         $txt = "⚡ <b>افزودن به Happ</b>\n"
- 3033             . '<code>─────────────────</code>' . "\n";
- 3034         if ($happ !== '') {
- 3035             $txt .= "لینک زیر را کپی کنید و در اپلیکیشن Happ بزنید روی «+» ← Import from clipboard:\n\n"
- 3036                 . '<code>' . h($happ) . '</code>' . "\n";
- 3037         } else {
- 3038             $txt .= "لینک Happ برای این سرویس در دسترس نیست.\n";
- 3039         }
- 3040         if ($ext) {
- 3041             $txt .= "\n🔗 <b>لینک‌های دیگر</b>\n";
- 3042             $n = 0;
- 3043             foreach ($ext as $e) {
- 3044                 $link = trim((string)($e['link'] ?? ''));
- 3045                 if ($link === '') continue;
- 3046                 $title = trim((string)($e['title'] ?? ''));
----- end dump bot_showsvc ----
----- dump bot_sendsub : app/Bot/Bot.php (5005 lines) ----
- 3126         self::devicesView($chatId, $msgId, $id);
- 3127     }
- 3128 
- 3129     private static function sendSub($chatId, $cbId, int $id): void
- 3130     {
- 3131         /* 0.0.2 #happ-only-guard: محصول «فقط لینک هپ» لینک ساب یا کانفیگ مستقیم نمی\u200cدهد */
- 3132         $gS = self::myService($id);
- 3133         if ($gS && Svc::wantsHapp(Svc::deliverMode($gS)) && Svc::happLink($gS) !== '') {
- 3134             Tg::answerCb($cbId);
- 3135             self::happView($chatId, null, $id);
- 3136             return;
- 3137         }
- 3138         $s = self::myService($id);
- 3139         if (!$s) { Tg::answerCb($cbId, 'سرویس یافت نشد.', true); return; }
- 3140         Tg::answerCb($cbId);
- 3141 
- 3142         $sub = Svc::subUrl($s);
- 3143         if ($sub === '') {
- 3144             /* اگر لینک اشتراک ثبت نشده، کانفیگ‌های مستقیم فرستاده می‌شود */
- 3145             $list = self::cfgList($s);
- 3146             if ($list) { self::sendCfgList($chatId, $s, $list); return; }
- 3147             Tg::send($chatId, '⚠️ برای این سرویس لینک اشتراک تنظیم نشده است.');
- 3148             return;
- 3149         }
- 3150 
- 3151         Tg::send($chatId,
- 3152             "🔗 <b>لینک اشتراک شما</b>\n"
- 3153             . '👤 <code>' . h((string)$s['client_email']) . "</code>\n"
- 3154             . "<code>─────────────────</code>\n"
- 3155             . '<code>' . h($sub) . "</code>\n\n"
- 3156             . '👆 روی لینک بزنید تا کپی شود، سپس در برنامه «افزودن از کلیپ‌بورد» را بزنید.',
- 3157             Tg::ikb([
- 3158                 [Tg::btn('⚙️ کانفیگ‌ها', 'svccfg:' . $id)],
- 3159                 [Tg::btn('⬅️ بازگشت', 'svc:' . $id)],
- 3160             ]));
- 3161     }
- 3162 
- 3163     private static function sendConfig($chatId, $cbId, int $id): void
- 3164     {
- 3165         /* 0.0.2 #happ-only-guard2: محصول «فقط لینک هپ» لینک ساب یا کانفیگ مستقیم نمی\u200cدهد */
- 3166         $gS = self::myService($id);
- 3167         if ($gS && Svc::wantsHapp(Svc::deliverMode($gS)) && Svc::happLink($gS) !== '') {
- 3168             Tg::answerCb($cbId);
- 3169             self::happView($chatId, null, $id);
- 3170             return;
- 3171         }
- 3172         $s = self::myService($id);
- 3173         if (!$s) { Tg::answerCb($cbId, 'سرویس یافت نشد.', true); return; }
- 3174         Tg::answerCb($cbId);
- 3175 
- 3176         $list = self::cfgList($s);
- 3177         if (!$list) {
- 3178             Tg::send($chatId, '⚠️ کانفیگ مستقیم در دسترس نیست؛ از لینک اشتراک استفاده کنید.',
- 3179                 Tg::ikb([[Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $id)]]));
- 3180             return;
- 3181         }
- 3182         self::sendCfgList($chatId, $s, $list);
- 3183     }
- 3184 
- 3185     /** ارسال کار�� مشخصات کامل سرویس */
- 3186     private static function sendSpec($chatId, $cbId, int $id): void
- 3187     {
- 3188         $s = self::myService($id);
- 3189         if (!$s) { Tg::answerCb($cbId, 'سرویس یافت نشد.', true); return; }
- 3190         Tg::answerCb($cbId);
- 3191         Tg::send($chatId, self::specCard($s, true), Tg::ikb([
- 3192             [Tg::btn('🔗 دریافت لینک اشتراک', 'svcsub:' . $id)],
- 3193             [Tg::btn('⬅️ بازگشت', 'svc:' . $id)],
- 3194         ]));
- 3195     }
- 3196 
- 3197     private static function syncService($chatId, $msgId, $cbId, int $id): void
- 3198     {
- 3199         $s = self::myService($id);
- 3200         if (!$s) { Tg::answerCb($cbId, 'سرویس یافت نشد.', true); return; }
- 3201         Tg::answerCb($cbId, 'در حال به‌روزرسانی...');
- 3202         Svc::sync($s);
- 3203         self::showService($chatId, $msgId, $id);
- 3204     }
- 3205 
----- end dump bot_sendsub ----
----- dump ma_row : miniapp/api.php (2924 lines) ----
-  300 function ma_secure(string $action, array $u): void
-  301 {
-  302     if (!class_exists('Security')) return;
-  303     if (Security::needs($u, $action)) {
-  304         ma_out([
-  305             'ok'      => false,
-  306             'need'    => 'verify',
-  307             'message' => 'برای ادامه باید حساب خود را تایید کنید.',
-  308         ], 200);
-  309     }
-  310 }
-  311 
-  312 function ma_service_row(array $s): array
-  313 {
-  314     /* دامنهٔ اختصاصیِ نماینده روی لینک ساب اعمال می‌شود */
-  315     static $__rsDomUser = null;
-  316     if ($__rsDomUser === null && class_exists('Reseller') && method_exists('Reseller', 'applyDomain')) {
-  317         $__rsDomUser = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => (int)($s['user_id'] ?? 0)]) ?: [];
-  318     }
-  319 
-  320     $vol  = (float)($s['volume_gb'] ?? 0);
-  321     $used = (int)($s['used_bytes'] ?? 0);
-  322     $left = $vol > 0 ? max(0, round($vol - bytes2gb($used), 2)) : 0;
-  323     $pct  = $vol > 0 ? min(100, (int)round(bytes2gb($used) / max(0.01, $vol) * 100)) : 0;
-  324 
-  325     /* 0.0.2 #happ-only-api: محصول «فقط لینک هپ» — ساب و کانفیگ خالی برگردانده می\u200cشود */
-  326     $__happOnly = class_exists('Svc') && method_exists('Svc', 'wantsHapp')
-  327         && Svc::wantsHapp(Svc::deliverMode($s))
-  328         && class_exists('Links') && Links::supported($s);
-  329 
-  330     return [
-  331         'id'         => (int)$s['id'],
-  332         'name'       => (string)$s['client_email'],
-  333         'status'     => (string)$s['status'],
-  334         'is_test'    => (int)($s['is_test'] ?? 0) === 1,
-  335         'volume'     => $vol,
-  336         'volume_txt' => $vol > 0 ? fa_num((string)round($vol, 2)) . ' گیگ' : '♾ نامحدود',
-  337         'used_txt'   => fa_num(human_bytes($used)),
-  338         'left_txt'   => $vol > 0 ? fa_num((string)$left) . ' گیگ' : '♾ نامحدود',
-  339         'percent'    => $pct,
-  340         'expire'     => (string)($s['expire_at'] ?? ''),
-  341         'expire_txt' => !empty($s['expire_at']) ? to_jalali((string)$s['expire_at'], true) : '♾ نامحدود',
-  342         'remain_txt' => !empty($s['expire_at']) ? remaining_human((string)$s['expire_at']) : '♾',
-  343         'sub'        => $__happOnly ? '' : ((class_exists('Reseller') && method_exists('Reseller', 'applyDomain') && is_array($__rsDomUser)
-  344                 ? Reseller::applyDomain((string)(class_exists('Svc') ? Svc::subUrl($s) : (string)($s['sub_link'] ?? '')), $__rsDomUser)
-  345                 : (class_exists('Svc') ? Svc::subUrl($s) : (string)($s['sub_link'] ?? '')))),
-  346         'sub_own'    => $__happOnly ? '' : (class_exists('Svc') ? Svc::localSub($s) : ''),
-  347         'sub_main'   => $__happOnly ? '' : (string)($s['sub_link'] ?? ''),
-  348         'sub_code'   => $__happOnly ? '' : (class_exists('Svc') && method_exists('Svc', 'subCode') ? Svc::subCode($s) : ''),
-  349         /* دکمه‌های تمدید و حذف — از پنل قابل خاموش کردن است */
-  350         'can_renew'  => class_exists('Svc') && method_exists('Svc', 'userRenewEnabled') && Svc::userRenewEnabled()
-  351             && (string)DB::setting('ma_btn_renew', '1') === '1'
-  352             && (int)($s['is_test'] ?? 0) !== 1 && (int)($s['is_reseller'] ?? 0) !== 1 && (string)($s['status'] ?? '') !== 'deleted',
-  353         'can_del'    => class_exists('Svc') && method_exists('Svc', 'userDelEnabled')
-  354             && (Svc::userDelEnabled()
-  355                 || (method_exists('Svc', 'deadDelEnabled') && Svc::deadDelEnabled() && Svc::isDead($s)))
-  356             && (string)DB::setting('ma_btn_del', '1') === '1'
-  357             && (int)($s['is_reseller'] ?? 0) !== 1 && (string)($s['status'] ?? '') !== 'deleted',
-  358         'is_dead'    => class_exists('Svc') && method_exists('Svc', 'isDead') ? Svc::isDead($s) : false,
-  359         'dead_txt'   => class_exists('Svc') && method_exists('Svc', 'deadLabel') && Svc::isDead($s) ? Svc::deadLabel($s) : '',
-  360         'can_sync'   => (string)DB::setting('ma_btn_sync', '1') === '1',
-  361         'can_tut'    => (string)DB::setting('ma_btn_tut', '1') === '1',
-  362         /* 0.0.2 #ma-dev-flags — دکمه‌های دستگاه و لینک فقط روی پنل‌های پشتیبانی‌شده */
-  363         'can_devs'   => class_exists('Devices') && Devices::supported($s),
-  364         'can_links'  => class_exists('Links') && Links::supported($s),
-  365         /* 0.0.2 #happ-only-ma: محصول «فقط لینک هپ» */
-  366         'deliver'    => class_exists('Svc') && method_exists('Svc', 'deliverMode') ? Svc::deliverMode($s) : '',
-  367         'happ_only'  => class_exists('Svc') && method_exists('Svc', 'wantsHapp')
-  368             && Svc::wantsHapp(Svc::deliverMode($s))
-  369             && class_exists('Links') && Links::supported($s),
-  370         /* فقط خطوط کانفیگ معتبر برگردانده می شود، نه متن خام */
-  371         'configs'    => $__happOnly ? [] : (class_exists('Svc') && method_exists('Svc', 'storedConfigs')
-  372             ? Svc::storedConfigs($s)
----- end dump ma_row ----
----- dump ma_links : miniapp/api.php (2924 lines) ----
- 1014         } catch (Throwable $e) {
- 1015             app_log('miniapp', 'svc_delete: ' . $e->getMessage());
- 1016             ma_fail('حذف انجام نشد.');
- 1017         }
- 1018         if (empty($r['ok'])) ma_fail((string)($r['message'] ?? 'حذف انجام نشد.'));
- 1019 
- 1020         $fresh = DB::one('SELECT * FROM {p}users WHERE id = :i', [':i' => $UID]) ?: [];
- 1021         ma_out([
- 1022             'ok'      => true,
- 1023             'message' => (string)$r['message'],
- 1024             'refund'  => (int)($r['refund'] ?? 0),
- 1025             'balance' => ma_money((int)($fresh['balance'] ?? 0)),
- 1026         ]);
- 1027     }
- 1028 
- 1029     /* fixed83: کانفیگ‌های قطع — فهرست و مبلغ عودتی */
- 1030     /* 0.0.2: مدیریت دستگاه‌های ثبت‌شده (HWID) — فقط پنل نسل جدید سنایی */
- 1031     /* 0.0.2 #happ-links: لینک Happ و لینک‌های خارجی سرویس */
- 1032     case 'svc_links': {
- 1033         $sid = (int)($in['id'] ?? 0);
- 1034         $s   = DB::one('SELECT * FROM {p}services WHERE id = :i AND user_id = :u AND status <> :d',
- 1035             [':i' => $sid, ':u' => $UID, ':d' => 'deleted']);
- 1036         if (!$s) ma_fail('سرویس یافت نشد.');
- 1037         if (!class_exists('Links') || !Links::supported($s)) {
- 1038             ma_out(['ok' => true, 'supported' => false, 'happ' => '', 'items' => []]);
- 1039         }
- 1040         ma_out([
- 1041             'ok'        => true,
- 1042             'supported' => true,
- 1043             'happ'      => Links::happ($s),
- 1044             'items'     => Links::external($s),
- 1045         ]);
- 1046     }
----- end dump ma_links ----
----- grep ma_deliver : Svc::wantsSub|Svc::wantsCfg|Svc::wantsHapp|Svc::deliverMode|Links:: ----
-  327 && Svc::wantsHapp(Svc::deliverMode($s))
-  328 && class_exists('Links') && Links::supported($s);
-  364 'can_links'  => class_exists('Links') && Links::supported($s),
-  366 'deliver'    => class_exists('Svc') && method_exists('Svc', 'deliverMode') ? Svc::deliverMode($s) : '',
-  368 && Svc::wantsHapp(Svc::deliverMode($s))
-  369 && class_exists('Links') && Links::supported($s),
- 1037 if (!class_exists('Links') || !Links::supported($s)) {
- 1043 'happ'      => Links::happ($s),
- 1044 'items'     => Links::external($s),
----- grep ma_deliver : 9 hits ----
-changelog: skipped (recon build)
-build: fixed136 (was fixed135)
+Wed Sep 23 16:34:25 UTC 2026
+patched: app/Service/Svc.php / #cfg-dedupe-stored (1)
+patched: app/Service/Svc.php / #cfg-dedupe-helpers (1)
+patched: app/Service/Svc.php / #cfg-x3-first (1)
+patched: app/Service/Svc.php / #cfg-x3-sub (1)
+patched: app/Service/Svc.php / #cfg-x3-own (1)
+patched: app/Service/Svc.php / #cfg-dedupe-live (1)
+patched: app/Bot/Bot.php / #cfg-live-first (1)
+patched: app/Bot/Bot.php / #dm-sub-btn (1)
+patched: app/Bot/Bot.php / #dm-cfg-guard (1)
+patched: miniapp/api.php / #dm-strict-api (1)
+patched: miniapp/api.php / $__noSub ? '' : (4)
+patched: miniapp/api.php / $__noCfg ? [] : (1)
+patched: miniapp/api.php / #dm-strict-flags (1)
+patched: app/Service/Links.php / #happ-sub-fb (1)
+patched: app/Service/Links.php / #happ-fb  (1)
+patched: app/Service/Links.php / #happ-fb2 (1)
+patched: app/Service/Links.php / #happ-fb3 (1)
+patched: app/Service/Svc.php / #hwid-panel-sub (1)
+patched: app/Bot/Bot.php / #hwid-happ-extra (1)
+patched: app/Bot/Bot.php / #hwid-happ-keep (1)
+patched: app/Bot/Bot.php / #hwid-note (1)
+patched: admin/pages/products.php / #hwid-hint (1)
+wrote admin/pages/products.php
+wrote app/Bot/Bot.php
+wrote app/Service/Links.php
+wrote app/Service/Svc.php
+wrote miniapp/api.php
+php lint: on
+changed files: 5
+sanity app/Service/Svc.php / #cfg-dedupe-stored : ok
+sanity app/Service/Svc.php / public static function dedupeLinks(array $links): array : ok
+sanity app/Service/Svc.php / public static function panelConfigs(array $s): array : ok
+sanity app/Service/Svc.php / public static function hwidOn(array $s): bool : ok
+sanity app/Service/Svc.php / #cfg-x3-first : ok
+sanity app/Service/Svc.php / #cfg-x3-sub : ok
+sanity app/Service/Svc.php / #cfg-x3-own : ok
+sanity app/Service/Svc.php / #cfg-dedupe-live : ok
+sanity app/Service/Svc.php / #hwid-panel-sub : ok
+sanity app/Service/Links.php / #happ-sub-fb : ok
+sanity app/Service/Links.php / 'happ://add/' : ok
+sanity app/Service/Links.php / #happ-fb2 : ok
+sanity app/Service/Links.php / #happ-fb3 : ok
+sanity app/Bot/Bot.php / #cfg-live-first : ok
+sanity app/Bot/Bot.php / #dm-sub-btn : ok
+sanity app/Bot/Bot.php / #dm-cfg-guard : ok
+sanity app/Bot/Bot.php / #hwid-happ-extra : ok
+sanity app/Bot/Bot.php / #hwid-happ-keep : ok
+sanity app/Bot/Bot.php / #hwid-note : ok
+sanity miniapp/api.php / #dm-strict-api : ok
+sanity miniapp/api.php / $__noCfg ? [] : : ok
+sanity miniapp/api.php / 'cfg_off' : ok
+changelog: entry added
+build: fixed137 (was fixed136)
 exit: 0
 exit: 0
