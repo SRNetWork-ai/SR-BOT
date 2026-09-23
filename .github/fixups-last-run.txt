@@ -1,79 +1,15 @@
 Python 3.12.3
-Wed Sep 23 15:11:20 UTC 2026
-info app/Panel/Marzneshin.php: 26393 bytes, 615 lines
-tail app/Panel/Marzneshin.php: ]; | } | }
-info app/Panel/Hiddify.php: 24316 bytes, 571 lines
-tail app/Panel/Hiddify.php: ]; | } | }
----- dump xui_supports : app/Panel/Xui.php (1134 lines) ----
-  960         }
-  961         return '';
-  962     }
-  963 
-  964     /* ---------------------- قابلیت‌های پیشرفته (فاز ۳–۴ سنایی نسل جدید + پاسارگارد) ---------------------- */
-  965 
-  966     /** کدام قابلیت‌های پیشرفته روی این پنل پشتیبانی می‌شود */
-  967     public function supports(string $feature): bool
-  968     {
-  969         switch ($feature) {
-  970             case 'status':   return $this->x3 !== null || $this->pg !== null;
-  971             case 'online':   return $this->x3 !== null || $this->pg !== null || $this->mz !== null;
-  972             case 'ips':      return $this->x3 !== null;
-  973             case 'depleted': return $this->x3 !== null;
-  974             case 'revoke':   return $this->pg !== null;
-  975             case 'toggle':   return true;
-  976         }
-  977         return false;
-  978     }
-  979 
-  980     /**
-  981      * وضعیت منابع سرور به شکل یکسان
-  982      * خروجی: cpu (درصد)، mem_used/mem_total (بایت)، uptime (ثانیه)، xray_state، xray_ver، net_up/net_down (بایتبرثانیه)، sent/recv (بایت)، users_online
-  983      */
-  984     public function serverStatus(): ?array
-  985     {
-  986         try {
-  987             if ($this->x3 !== null) return $this->x3->serverStatus();
-  988             if ($this->pg !== null) {
-  989                 $s = $this->pg->systemStats(true);
-  990                 if ($s === []) return null;
-  991                 $memTotal = (int)($s['mem_total'] ?? 0);
-  992                 $memUsed  = (int)($s['mem_used'] ?? 0);
-  993                 return [
-  994                     'cpu'          => (float)($s['cpu_usage'] ?? 0),
-  995                     'mem_used'     => $memUsed,
-  996                     'mem_total'    => $memTotal,
-  997                     'uptime'       => 0,
-  998                     'xray_state'   => '',
-  999                     'xray_ver'     => (string)($s['version'] ?? ''),
- 1000                     'net_up'       => (int)($s['outgoing_bandwidth_speed'] ?? 0),
----- end dump xui_supports ----
-patched app/Panel/Xui.php (row16-doc)
-patched app/Panel/Xui.php ('marzneshin' => ')
-patched app/Panel/Xui.php ('marznashin' => 'marzneshin')
-patched app/Panel/Xui.php ('marzneshin' => 'مرزنشین (Marzneshin) –)
-patched app/Panel/Xui.php (new Marzneshin($panel))
-patched app/Panel/Xui.php (public function isMarzneshin())
-patched app/Panel/Hiddify.php (row16-hd-enable)
+Wed Sep 23 15:14:12 UTC 2026
+info app/Panel/Xui.php: 58120 bytes, 1156 lines
+patched app/Panel/Xui.php (instanceof Hiddify))
 wrote app/Panel/Xui.php
-wrote app/Panel/Hiddify.php
 php lint: on
-changed files: 2
-class check rc=0 out=classes ok Marzban Marzban
-php lint app/Panel/Marzneshin.php: ok
-php lint app/Panel/Hiddify.php: ok
-sanity app/Panel/Marzneshin.php / class Marzneshin extends Marzban : ok
-sanity app/Panel/Marzneshin.php / '/api/admins/token' : ok
-sanity app/Panel/Hiddify.php / class Hiddify extends Marzban : ok
-sanity app/Panel/Hiddify.php / Hiddify-API-Key:  : ok
-sanity app/Panel/Xui.php / 'marzneshin' => 'مرزنشین (Marzneshin)', : ok
-sanity app/Panel/Xui.php / 'hiddify'    => 'هیدیفای (Hiddify)', : ok
-sanity app/Panel/Xui.php / 'marznashin' => 'marzneshin', : ok
+changed files: 1
+class check rc=0 out=classes ok
+sanity app/Panel/Xui.php / case 'revoke':   return $this->pg !== null || ($this->mz !== null && !($this->mz instanceof Hiddify)); : ok
 sanity app/Panel/Xui.php / new Marzneshin($panel) : ok
 sanity app/Panel/Xui.php / new Hiddify($panel) : ok
-sanity app/Panel/Xui.php / public function isMarzneshin(): bool : ok
-sanity app/Panel/Xui.php / public function isHiddify(): bool : ok
-sanity app/Panel/Xui.php / 0.0.2 #row16 : ok
 changelog: entry added
-build: fixed125 (was fixed124)
+build: fixed126 (was fixed125)
 exit: 0
 exit: 0

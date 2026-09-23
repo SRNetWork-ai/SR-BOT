@@ -993,7 +993,8 @@ class Xui
             case 'online':   return $this->x3 !== null || $this->pg !== null || $this->mz !== null;
             case 'ips':      return $this->x3 !== null;
             case 'depleted': return $this->x3 !== null;
-            case 'revoke':   return $this->pg !== null;
+            /* 0.0.2 #row16 — مرزبان و مرزنشین هم لغو لینک اشتراک دارند؛ هیدیفای ندارد */
+            case 'revoke':   return $this->pg !== null || ($this->mz !== null && !($this->mz instanceof Hiddify));
             case 'toggle':   return true;
         }
         return false;
