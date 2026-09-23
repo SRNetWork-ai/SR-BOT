@@ -1,14 +1,11 @@
 # -*- coding: utf-8 -*-
-# fixed127 - recon only: products schema, admin form, service creation, happ links
+# fixed128 - recon #2: deliver modes (bot / miniapp) + hwid mapping in xui3
 import io, os, re, sys, json, subprocess
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed127').strip() or 'fixed127'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed128').strip() or 'fixed128'
 
 CACHE = {}
-NEW = {}
-ERRORS = []
-WARN = []
 
 
 def load(path):
@@ -17,15 +14,6 @@ def load(path):
     with io.open(os.path.join(ROOT, path), 'r', encoding='utf-8') as fh:
         CACHE[path] = fh.read()
     return CACHE[path]
-
-
-def info(path):
-    try:
-        s = load(path)
-    except Exception as e:
-        print('info %s: cannot read (%s)' % (path, e))
-        return
-    print('info %s: %d bytes, %d lines' % (path, len(s.encode('utf-8')), len(s.split('\n'))))
 
 
 def dump(tag, path, start, end):
@@ -43,7 +31,7 @@ def dump(tag, path, start, end):
     print('---- end dump %s ----' % tag)
 
 
-def dump_find(tag, path, pattern, before=6, after=20, limit=2):
+def dump_find(tag, path, pattern, before=4, after=20, limit=1):
     try:
         lines = load(path).split('\n')
     except Exception as e:
@@ -69,44 +57,28 @@ def grep_lines(tag, path, pattern, limit=40):
         if rx.search(ln):
             n += 1
             if n <= limit:
-                print('%5d %s' % (i + 1, ln.strip()[:200]))
+                print('%5d %s' % (i + 1, ln.strip()[:190]))
     print('---- grep %s : %d hits ----' % (tag, n))
 
 
-# ------------------------------------------------------------------ recon
-for p in ('database/schema.sql', 'app/Service/Migrate.php', 'admin/pages/products.php',
-          'app/Service/Svc.php', 'app/Service/Links.php', 'app/Service/Devices.php'):
-    info(p)
+# ---------------------------------------------------------- 1) deliver modes
+dump_find('svc_deliver_const', 'app/Service/Svc.php', r'const DELIVER', 2, 14, 1)
+grep_lines('svc_deliver', 'app/Service/Svc.php', r'DELIVER|deliver_mode|deliverMode|function deliver', 50)
+dump_find('svc_deliver_fn', 'app/Service/Svc.php', r'function deliverMode|function deliver\(', 6, 45, 2)
 
-try:
-    mig = sorted(os.listdir(os.path.join(ROOT, 'database/migrations')))
-    print('migrations (%d): %s' % (len(mig), ', '.join(mig)))
-except Exception as e:
-    print('migrations: cannot list (%s)' % e)
+grep_lines('bot_deliver', 'app/Bot/Bot.php', r'DELIVER|deliver_mode|deliverMode|Svc::deliver', 40)
+grep_lines('ma_deliver', 'miniapp/api.php', r'DELIVER|deliver_mode|deliverMode|Svc::deliver', 40)
+grep_lines('set_deliver', 'admin/pages/settings.php', r'deliver', 30)
 
-# 1) products table definition
-dump_find('schema_products', 'database/schema.sql', r'CREATE TABLE[^\n]*products', 0, 48, 1)
-
-# 2) how columns get added by the migrator
-dump('migrate_head', 'app/Service/Migrate.php', 1, 60)
-dump_find('migrate_reset_days', 'app/Service/Migrate.php', r'reset_days', 10, 10, 2)
-grep_lines('migrate_helpers', 'app/Service/Migrate.php', r'function |addColumn|hasColumn|ALTER TABLE', 60)
-
-# 3) admin product form: existing numeric limits
-dump_find('prod_reset_days', 'admin/pages/products.php', r'reset_days', 12, 12, 3)
-dump_find('prod_ip_limit', 'admin/pages/products.php', r'ip_limit', 10, 10, 3)
-grep_lines('prod_cols', 'admin/pages/products.php', r"'(ip_limit|device_limit|reset_days|volume|days|inbound_id|panel_id)'", 60)
-
-# 4) service creation path
-dump_find('svc_addclient', 'app/Service/Svc.php', r'->addClient\(', 34, 18, 2)
-grep_lines('svc_limits', 'app/Service/Svc.php', r'device_limit|deviceLimit|ip_limit|limitHwid|reset_days', 60)
-
-# 5) happ links service
-dump('links_all', 'app/Service/Links.php', 1, 90)
+# ---------------------------------------------------------- 2) hwid mapping
+grep_lines('x3_hwid', 'app/Panel/Xui3.php', r'limitHwid|deviceLimit|setDeviceLimit|hwid', 40)
+dump_find('x3_addclient', 'app/Panel/Xui3.php', r'public function addClient', 2, 55, 1)
+dump_find('x3_setdev', 'app/Panel/Xui3.php', r'function setDeviceLimit', 3, 28, 1)
+grep_lines('xui_dev', 'app/Panel/Xui.php', r'deviceLimit|limitHwid', 30)
+dump_find('xui_addclient', 'app/Panel/Xui.php', r'public function addClient', 3, 45, 1)
 
 print('build: %s (recon only, nothing patched)' % BUILD)
 
-# ------------------------------------------------------------------ version bump only
 vpath = os.path.join(ROOT, 'version.json')
 with io.open(vpath, 'r', encoding='utf-8') as fh:
     vj = json.load(fh)
