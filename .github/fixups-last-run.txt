@@ -1,47 +1,378 @@
 Python 3.12.3
-Wed Sep 23 15:54:23 UTC 2026
----- find bot_sendcfg : function sendConfig -> 1 hits [3156] ----
----- dump bot_sendcfg@3156 : app/Bot/Bot.php (4991 lines) ----
- 3154     }
- 3155 
- 3156     private static function sendConfig($chatId, $cbId, int $id): void
- 3157     {
- 3158         $s = self::myService($id);
- 3159         if (!$s) { Tg::answerCb($cbId, 'سرویس یافت نشد.', true); return; }
- 3160         Tg::answerCb($cbId);
- 3161 
- 3162         $list = self::cfgList($s);
- 3163         if (!$list) {
- 3164             Tg::send($chatId, '⚠️ کانفیگ مستقیم در دسترس نیست؛ از لینک اشتراک استفاده کنید.',
- 3165                 Tg::ikb([[Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $id)]]));
- 3166             return;
- 3167         }
- 3168         self::sendCfgList($chatId, $s, $list);
- 3169     }
- 3170 
----- end dump bot_sendcfg@3156 ----
-patched app/Bot/Bot.php / #happ-only-guard
-patched app/Bot/Bot.php / #happ-only-guard2
-patched miniapp/api.php / #happ-only-api
-patched miniapp/api.php / 'sub'        => $__happOnly
-patched miniapp/api.php / 'sub_own'    => $__happOnly
-patched miniapp/api.php / 'sub_main'   => $__happOnly
-patched miniapp/api.php / 'sub_code'   => $__happOnly
-patched miniapp/api.php / 'configs'    => $__happOnly
-wrote app/Bot/Bot.php
-wrote miniapp/api.php
-php lint: on
-changed files: 2
-sanity app/Bot/Bot.php / #happ-only-guard : ok
-sanity app/Bot/Bot.php / Svc::wantsHapp(Svc::deliverMode($gS)) : ok
-sanity miniapp/api.php / #happ-only-api : ok
-sanity miniapp/api.php / $__happOnly = class_exists( : ok
-sanity miniapp/api.php / 'sub'        => $__happOnly : ok
-sanity miniapp/api.php / 'sub_own'    => $__happOnly : ok
-sanity miniapp/api.php / 'sub_main'   => $__happOnly : ok
-sanity miniapp/api.php / 'sub_code'   => $__happOnly : ok
-sanity miniapp/api.php / 'configs'    => $__happOnly : ok
-changelog: entry added
-build: fixed133 (was fixed132)
+Wed Sep 23 16:19:43 UTC 2026
+---- grep bot_deliver_calls : self::deliver\(|sendCfgList\(|self::cfgList\( ----
+ 2720 self::deliver($chatId, $service);
+ 2825 self::deliver($chatId, $service);
+ 2845 public static function sendCfgList($chatId, array $service, array $list): void
+ 2876 $list = self::cfgList($service);
+ 2939 if ($wantCfg) self::sendCfgList($chatId, $service, $list);
+ 3145 $list = self::cfgList($s);
+ 3146 if ($list) { self::sendCfgList($chatId, $s, $list); return; }
+ 3176 $list = self::cfgList($s);
+ 3182 self::sendCfgList($chatId, $s, $list);
+ 3373 if (!empty($r['recreated'])) self::deliver($chatId, $svc);
+ 3421 self::deliver($chatId, $s);
+---- grep bot_deliver_calls : 11 hits ----
+---- find bot_cfglist : function cfgList -> 1 hits [2829] ----
+---- dump bot_cfglist@2829 : app/Bot/Bot.php (5005 lines) ----
+ 2826     }
+ 2827 
+ 2828     /** فهرست کانفیگ‌های یک سرویس: ذخیره‌شده یا زنده از پنل */
+ 2829     public static function cfgList(array $service): array
+ 2830     {
+ 2831         $raw = trim((string)($service['config_link'] ?? ''));
+ 2832         /* سازگاری با ردیف‌های قدیمی که جداکنندهٔ متنی داشتند */
+ 2833         $raw = str_replace(['\r\n', '\n'], "\n", $raw);
+ 2834 
+ 2835         $list = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $raw) ?: [])));
+ 2836         if (!$list) {
+ 2837             /* اگر چیزی ذخیره نشده باشد مستقیم از پنل خوانده می‌شود */
+ 2838             try { $list = Svc::liveConfigs($service); }
+ 2839             catch (Throwable $e) { $list = []; }
+ 2840         }
+ 2841         return array_values(array_filter(array_map('trim', $list)));
+ 2842     }
+ 2843 
+ 2844     /** ارسال کانفیگ‌ها در پیام‌های جدا تا محدودیت طول تلگرام رعایت شود */
+ 2845     public static function sendCfgList($chatId, array $service, array $list): void
+ 2846     {
+ 2847         $n = count($list);
+ 2848         if ($n === 0) return;
+ 2849 
+ 2850         $head = ($n > 1 ? "⚙️ <b>کانفیگ‌های مستقیم</b>\n" : "⚙️ <b>کانفیگ مستقیم</b>\n")
+ 2851             . '👤 <code>' . h((string)($service['client_email'] ?? '')) . "</code>\n"
+ 2852             . "<code>─────────────────</code>\n\n";
+ 2853 
+ 2854         $txt = $head;
+ 2855         foreach ($list as $i => $one) {
+ 2856             $part = ($n > 1 ? '▫️ <b>کانفیگ ' . fa_num((string)($i + 1)) . ' از ' . fa_num((string)$n) . "</b>\n" : '')
+ 2857                 . '<code>' . h($one) . "</code>\n\n";
+ 2858             if (mb_strlen($txt . $part) > 3500) { Tg::send($chatId, $txt); $txt = $head; }
+ 2859             $txt .= $part;
+---- end dump bot_cfglist@2829 ----
+---- find svc_delivermode : public static function deliverMode\( -> 1 hits [1599] ----
+---- dump svc_delivermode@1599 : app/Service/Svc.php (2033 lines) ----
+ 1593         } catch (Throwable $e) { $m = ''; }
+ 1594         $m = strtolower(trim($m));
+ 1595         return isset(self::DELIVER[$m]) ? $m : self::deliverDefault();
+ 1596     }
+ 1597 
+ 1598     /** حالت تحویل یک سرویس */
+ 1599     public static function deliverMode(array $s): string
+ 1600     {
+ 1601         return self::deliverModeOf((int)($s['product_id'] ?? 0));
+ 1602     }
+ 1603 
+ 1604     public static function deliverLabel(string $m): string
+ 1605     {
+ 1606         $d = self::DELIVER[$m] ?? self::DELIVER['both'];
+ 1607         return $d[2] . ' ' . $d[0];
+ 1608     }
+ 1609 
+ 1610     /** آیا لینک اشتراک باید تحویل شود؟ */
+ 1611     public static function wantsSub(string $m): bool
+ 1612     {
+ 1613         return $m !== 'config' && $m !== 'happ'; /* 0.0.2 #happ-only-sub */
+---- end dump svc_delivermode@1599 ----
+---- find svc_delivermodeof : public static function deliverModeOf\( -> 1 hits [1586] ----
+---- dump svc_delivermodeof@1586 : app/Service/Svc.php (2033 lines) ----
+ 1582         return isset(self::DELIVER[$m]) ? $m : 'both';
+ 1583     }
+ 1584 
+ 1585     /** حالت تحویل یک محصول؛ خالی = پیروی از پیش‌فرض کلی */
+ 1586     public static function deliverModeOf($productId): string
+ 1587     {
+ 1588         $pid = (int)$productId;
+ 1589         if ($pid <= 0) return self::deliverDefault();
+ 1590         $m = '';
+ 1591         try {
+ 1592             $m = (string)DB::val('SELECT deliver_mode FROM {p}products WHERE id = :id', [':id' => $pid], '');
+ 1593         } catch (Throwable $e) { $m = ''; }
+ 1594         $m = strtolower(trim($m));
+ 1595         return isset(self::DELIVER[$m]) ? $m : self::deliverDefault();
+ 1596     }
+ 1597 
+ 1598     /** حالت تحویل یک سرویس */
+ 1599     public static function deliverMode(array $s): string
+ 1600     {
+ 1601         return self::deliverModeOf((int)($s['product_id'] ?? 0));
+ 1602     }
+---- end dump svc_delivermodeof@1586 ----
+---- grep svc_storedcfg : function storedConfigs|function subUrl|function localSub|function subCode|function cfgLines ----
+ 1085 public static function storedConfigs(array $s): array
+ 1135 public static function localSub(array $s): string
+ 1241 public static function subCode(array $s): string
+ 1258 public static function subUrl(array $s, ?string $mode = null): string
+---- grep svc_storedcfg : 4 hits ----
+---- find svc_stored : function storedConfigs -> 1 hits [1085] ----
+---- dump svc_stored@1085 : app/Service/Svc.php (2033 lines) ----
+ 1082     }
+ 1083 
+ 1084     /** کانفیگ های ذخیره شده در پایگاه داده (فقط خطوط معتبر) */
+ 1085     public static function storedConfigs(array $s): array
+ 1086     {
+ 1087         $re  = class_exists('Xui') && defined('Xui::LINK_RE')
+ 1088             ? Xui::LINK_RE
+ 1089             : '~^(vless|vmess|trojan|ss|hy2|hysteria2?|tuic)://\S+~i';
+ 1090         $out = [];
+ 1091         /* ردیف‌های ��دیمی که جداکنندهٔ متنی دارند هم درست خوانده می‌شون�� */
+ 1092         $rawCfg = str_replace(['\r\n', '\n'], "\n", (string)($s['config_link'] ?? ''));
+ 1093         foreach (preg_split('/\r\n|\r|\n/', $rawCfg) ?: [] as $l) {
+ 1094             $l = trim($l);
+ 1095             if ($l === '' || $l[0] === '#') continue;
+ 1096             if (!preg_match($re, $l)) continue;
+ 1097             $out[] = $l;
+ 1098         }
+ 1099         return array_values(array_unique($out));
+ 1100     }
+ 1101 
+ 1102     /** آیا این آدرس، ساب داخلی خود ربات است؟ (جلو����یری از حلقه) */
+ 1103     public static function isOwnSub(string $url): bool
+ 1104     {
+ 1105         $url = trim($url);
+ 1106         if ($url === '') return false;
+ 1107         if (stripos($url, '/sub.php') !== false) return true;
+ 1108 
+ 1109         $base = rtrim((string)app_url(), '/');
+ 1110         if ($base !== '' && stripos($url, $base) === 0) return true;
+ 1111         $sdb = self::subBase();
+ 1112         if ($sdb !== '' && stripos($url, $sdb) === 0) return true;
+ 1113 
+ 1114         /*
+ 1115          * فقط آدرس‌هایی که روی دامنهٔ خود ربات هستند ساب داخلی حساب می‌شوند.
+ 1116          * پیشتر هر آدرسی با مسیر /sub/CODE داخلی حساب می‌شد و لینک ساب
+ 1117          * خود پنل (مرزبان/اکس‌یو‌آی) هم اشتباهی نادیده گرفته می‌شد.
+ 1118          */
+ 1119         if ($base === '') return false;
+---- end dump svc_stored@1085 ----
+---- dump svc_create_cfg : app/Service/Svc.php (2033 lines) ----
+  286         if ($rstDays > 0 && method_exists($xui, 'setAutoReset')) {
+  287             try { $xui->setAutoReset($rstDays); } catch (Throwable $e) { app_log('svc', 'setAutoReset: ' . $e->getMessage(), []); }
+  288         }
+  289 
+  290         if ($xui->isVpnUi()) {
+  291             /* VPN-UI: یک اکانت مشترک روی همه اینباندها؛ یک ساب با چند کانفیگ */
+  292             $ids     = Xui::idList($targets);
+  293             $primary = (int)($ids[0] ?? 0);
+  294             $res     = $xui->addClient($primary, $email, $uuid, $volume, $expiryMs, $ipLim, $subId, $ids, $devLim, $upKb, $downKb);
+  295             if (empty($res['success'])) {
+  296                 $lastErr = (string)($res['msg'] ?? 'نامشخص');
+  297             } else {
+  298                 foreach ($ids as $ib) {
+  299                     $ib = (int)$ib;
+  300                     $okIds[] = $ib;
+  301                     try {
+  302                         $inbound = ($ib === $primary && !empty($res['inbound'])) ? (array)$res['inbound'] : ($xui->inbound($ib) ?? []);
+  303                         $link = $inbound ? (string)$xui->buildConfigLink($inbound, $uuid, $email) : '';
+  304                         if (trim($link) !== '') $links[] = trim($link);
+  305                     } catch (Throwable $e) {
+  306                         app_log('svc', 'buildConfigLink: ' . $e->getMessage(), ['inbound' => $ib]);
+  307                     }
+  308                 }
+  309             }
+  310         } else {
+  311             foreach ($targets as $ib) {
+  312                 $ib = (int)$ib;
+  313                 if ($ib <= 0) continue;
+  314                 $res = $xui->addClient($ib, $email, $uuid, $volume, $expiryMs, $ipLim, $subId, [], $devLim, $upKb, $downKb);
+  315                 if (empty($res['success'])) { $lastErr = (string)($res['msg'] ?? 'نامشخص'); continue; }
+  316                 $okIds[] = $ib;
+  317                 try {
+  318                     $inbound = $res['inbound'] ?? $xui->inbound($ib) ?? [];
+  319                     $link = $inbound ? (string)$xui->buildConfigLink($inbound, $uuid, $email) : '';
+  320                     if (trim($link) !== '') $links[] = trim($link);
+  321                 } catch (Throwable $e) {
+  322                     app_log('svc', 'buildConfigLink: ' . $e->getMessage(), ['inbound' => $ib]);
+  323                 }
+  324             }
+  325         }
+  326         if (!$okIds) {
+  327             return ['ok' => false, 'message' => 'خطا در ساخت کانفیگ: ' . ($lastErr !== '' ? $lastErr : 'نامشخص')];
+  328         }
+  329 
+  330         $inboundId = (int)$okIds[0];
+  331         $config    = implode("\n", array_values(array_unique($links)));
+  332         /* لینک اشتراک: در سرویس‌های چندپنلی، ساب اختصاصی خود ربات جایگزین می‌شود */
+  333         $sub = trim((string)($opts['sub_link'] ?? ''));
+  334         if ($sub === '') $sub = $xui->subLink($subId);
+  335         /* مرزبان: آدرس ساب توکن‌دار را فقط خود پنل می‌دهد */
+  336         if ($sub === '' && method_exists($xui, 'subUrlFor')) {
+  337             try { $sub = trim((string)$xui->subUrlFor($email)); }
+  338             catch (Throwable $e) { $sub = ''; }
+  339         }
+  340 
+  341         $row = [
+  342             'user_id'     => (int)$user['id'],
+  343             'tg_id'       => (int)$user['tg_id'],
+  344             'panel_id'    => (int)$panel['id'],
+  345             'product_id'  => $product['id'] ?? null,
+---- end dump svc_create_cfg ----
+---- grep xui_links : function clientLinks|function buildLink|function links\(|function configLinks ----
+---- grep xui_links : 0 hits ----
+---- find x3_happ : function happLink -> 1 hits [810] ----
+---- dump x3_happ@810 : app/Panel/Xui3.php (1079 lines) ----
+  807     /* ========== 0.0.2 #happ-links : Happ deep link + external links ========== */
+  808 
+  809     /** دیپ‌لینک اختصاصی Happ برای یک اکانت: GET /clients/happLink/{id} */
+  810     public function happLink(string $email): string
+  811     {
+  812         $email = trim($email);
+  813         if ($email === '') return '';
+  814         $row = $this->clientRow($email);
+  815         $id  = (int)($row['id'] ?? 0);
+  816         if ($id <= 0) return '';
+  817         $r = $this->api('/clients/happLink/' . $id);
+  818         if (($r['success'] ?? false) !== true) return '';
+  819         $o = $r['obj'] ?? '';
+  820         if (is_string($o)) return trim($o);
+  821         if (is_array($o)) {
+  822             foreach (['happLink', 'link', 'url', 'happ'] as $k) {
+  823                 if (isset($o[$k]) && is_string($o[$k]) && trim($o[$k]) !== '') return trim($o[$k]);
+  824             }
+  825         }
+  826         return '';
+  827     }
+  828 
+  829     /** لینک‌های خارجیِ ثبت‌شده روی پنل برای اکانت: GET /clients/{email}/externalLinks */
+  830     public function externalLinks(string $email): array
+  831     {
+  832         $email = trim($email);
+  833         if ($email === '') return [];
+  834         $r = $this->api('/clients/' . rawurlencode($email) . '/externalLinks');
+  835         if (($r['success'] ?? false) !== true) return [];
+  836         $out = [];
+  837         foreach ((array)($r['obj'] ?? []) as $row) {
+  838             if (is_string($row)) {
+  839                 $l = trim($row);
+  840                 if ($l !== '') $out[] = ['title' => '', 'link' => $l];
+  841                 continue;
+  842             }
+  843             if (!is_array($row)) continue;
+  844             $l = '';
+  845             foreach (['link', 'url', 'href'] as $k) {
+  846                 if (isset($row[$k]) && is_string($row[$k]) && trim($row[$k]) !== '') {
+  847                     $l = trim($row[$k]);
+  848                     break;
+  849                 }
+  850             }
+  851             if ($l === '') continue;
+  852             $t = '';
+---- end dump x3_happ@810 ----
+---- grep x3_happ_all : happ|Happ|crypt|externalLinks|subLinks|subJson|/clients/links ----
+   15 *  - لینک کانفیگ‌ها را خودِ پنل می‌سازد: /panel/api/clients/links/{email}
+   85 $this->tokenPlain = app_decrypt(trim((string)($this->panel['api_token'] ?? '')));
+  279 'inboundIds', 'externalConfigIds', 'externalLinks', 'memberships',
+  723 $r   = $this->api('/clients/links/' . rawurlencode($email));
+  780 $r = $this->api('/clients/subLinks/' . rawurlencode($subId));
+  807 /* ========== 0.0.2 #happ-links : Happ deep link + external links ========== */
+  809 /** دیپ‌لینک اختصاصی Happ برای یک اکانت: GET /clients/happLink/{id} */
+  810 public function happLink(string $email): string
+  817 $r = $this->api('/clients/happLink/' . $id);
+  822 foreach (['happLink', 'link', 'url', 'happ'] as $k) {
+  829 /** لینک‌های خارجیِ ثبت‌شده روی پنل برای اکانت: GET /clients/{email}/externalLinks */
+  830 public function externalLinks(string $email): array
+  834 $r = $this->api('/clients/' . rawurlencode($email) . '/externalLinks');
+---- grep x3_happ_all : 13 hits ----
+---- find x3_sublinks : function subLinks -> 0 hits [] ----
+---- find x3_extlinks : function externalLinks -> 1 hits [830] ----
+---- dump x3_extlinks@830 : app/Panel/Xui3.php (1079 lines) ----
+  827     }
+  828 
+  829     /** لینک‌های خارجیِ ثبت‌شده روی پنل برای اکانت: GET /clients/{email}/externalLinks */
+  830     public function externalLinks(string $email): array
+  831     {
+  832         $email = trim($email);
+  833         if ($email === '') return [];
+  834         $r = $this->api('/clients/' . rawurlencode($email) . '/externalLinks');
+  835         if (($r['success'] ?? false) !== true) return [];
+  836         $out = [];
+  837         foreach ((array)($r['obj'] ?? []) as $row) {
+  838             if (is_string($row)) {
+  839                 $l = trim($row);
+  840                 if ($l !== '') $out[] = ['title' => '', 'link' => $l];
+  841                 continue;
+  842             }
+  843             if (!is_array($row)) continue;
+  844             $l = '';
+  845             foreach (['link', 'url', 'href'] as $k) {
+  846                 if (isset($row[$k]) && is_string($row[$k]) && trim($row[$k]) !== '') {
+  847                     $l = trim($row[$k]);
+  848                     break;
+  849                 }
+  850             }
+  851             if ($l === '') continue;
+  852             $t = '';
+  853             foreach (['remark', 'title', 'name'] as $k) {
+  854                 if (isset($row[$k]) && is_string($row[$k]) && trim($row[$k]) !== '') {
+  855                     $t = trim($row[$k]);
+  856                     break;
+  857                 }
+  858             }
+  859             $out[] = ['title' => $t, 'link' => $l];
+  860         }
+  861         return $out;
+  862     }
+  863 
+  864     /** registered HWID devices of one account: GET /clients/hwids/{email} */
+---- end dump x3_extlinks@830 ----
+---- find svc_suburl : public static function subUrl -> 1 hits [1258] ----
+---- dump svc_suburl@1258 : app/Service/Svc.php (2033 lines) ----
+ 1255      * لینک اشتراک قابل ارائه به مشتری؛ روی همه سرویس ها کار می کند
+ 1256      * (نه فقط سرویس های گروهی نمایندگی)
+ 1257      */
+ 1258     public static function subUrl(array $s, ?string $mode = null): string
+ 1259     {
+ 1260         $mode  = $mode !== null ? (string)$mode : self::subMode();
+ 1261         $local = self::localSub($s);
+ 1262         $panel = self::panelSub($s);
+ 1263         if ($mode === 'panel') return $panel !== '' ? $panel : $local;
+ 1264         return $local !== '' ? $local : $panel;
+ 1265     }
+ 1266 
+ 1267     /* ==================== سطل زباله ==================== */
+ 1268 
+ 1269     /** تعداد روز نگهداری کانفیگ های حذف شده */
+ 1270     public static function trashDays(): int
+ 1271     {
+ 1272         return (int)max(1, min(90, (int)DB::setting('trash_days', '7')));
+ 1273     }
+ 1274 
+ 1275     /** فهرست کانفیگ های سطل زباله (0 = همه کاربران) */
+ 1276     public static function trash(int $userId = 0, int $limit = 60, bool $resellerOnly = false): array
+ 1277     {
+ 1278         $w = "status = 'deleted'";
+ 1279         $prm = [];
+ 1280         if ($userId > 0) { $w .= ' AND user_id = :u'; $prm[':u'] = $userId; }
+ 1281         if ($resellerOnly) $w .= ' AND is_reseller = 1';
+ 1282         $lim = (int)max(1, min(300, $limit));
+ 1283         try {
+ 1284             return DB::all('SELECT * FROM {p}services WHERE ' . $w
+ 1285                 . ' ORDER BY COALESCE(deleted_at, created_at) DESC LIMIT ' . $lim, $prm);
+ 1286         } catch (Throwable $e) {
+ 1287             return DB::all('SELECT * FROM {p}services WHERE ' . $w
+ 1288                 . ' ORDER BY created_at DESC LIMIT ' . $lim, $prm);
+ 1289         }
+ 1290     }
+ 1291 
+ 1292     /** شمارش سطل زباله */
+ 1293     public static function trashCount(int $userId = 0): int
+ 1294     {
+ 1295         $w = "status = 'deleted'";
+ 1296         $prm = [];
+---- end dump svc_suburl@1258 ----
+---- grep sub_happ : happ|crypt|Happ ----
+  231 ['n' => 'Happ', 'o' => 'اندروید، آیفون، ویندوز و مک', 'i' => '💜', 'u' => 'https://happ.su/', 'p' => [
+  232 ['n' => '🤖 اندروید',       'u' => 'https://play.google.com/store/apps/details?id=com.happproxy'],
+  233 ['n' => '🍏 آیفون و آیپد',  'u' => 'https://apps.apple.com/app/happ-proxy-utility/id6504287215'],
+  234 ['n' => '🖥 ویندوز',         'u' => 'https://happ.su/main/downloads'],
+  235 ['n' => '🍎 مک',              'u' => 'https://happ.su/main/downloads'],
+  236 ['n' => '📺 اندروید تی‌وی', 'u' => 'https://happ.su/main/downloads'],
+---- grep sub_happ : 6 hits ----
+info app/Service/Svc.php: 100881 bytes, 2033 lines
+info app/Bot/Bot.php: 260424 bytes, 5005 lines
+info miniapp/api.php: 142840 bytes, 2924 lines
+build: fixed134 (recon only, nothing patched)
+changelog: skipped (recon build)
+build: fixed134 (was fixed133)
 exit: 0
 exit: 0
