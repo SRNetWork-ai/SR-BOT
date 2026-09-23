@@ -3049,6 +3049,22 @@ class Bot
         } else {
             $txt .= "لینک Happ برای این سرویس در دسترس نیست.\n";
         }
+        /* 0.0.2 #happ-plain: روش مطمئن دوم — افزودن دستی آدرس اشتراک خودِ پنل */
+        $psub = method_exists('Links', 'panelSub') ? Links::panelSub($s) : '';
+        if ($psub === '' && class_exists('Svc')) {
+            try {
+                $psub = (string)Svc::subUrl($s, 'panel');
+            } catch (Throwable $e) {
+                $psub = '';
+            }
+        }
+        if ($psub !== '') {
+            $txt .= "
+اگر لینک بالا اضافه نشد، این آدرس اشتراک را کپی کنید و در Happ بزنید «+» ← Add subscription:
+"
+                . '<code>' . h($psub) . '</code>' . "
+";
+        }
         if ($ext) {
             $txt .= "\n🔗 <b>لینک‌های دیگر</b>\n";
             $n = 0;

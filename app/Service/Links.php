@@ -62,7 +62,8 @@ final class Links
         if (!$d || !method_exists($d, 'happLink')) return self::happFallback($svc); /* 0.0.2 #happ-fb */
         try {
             $l = trim((string)$d->happLink((string)$svc['client_email']));
-            return $l !== '' ? $l : self::happFallback($svc); /* 0.0.2 #happ-fb2 */
+            $l = self::normHapp($l); /* 0.0.2 #happ-norm */
+            return $l !== '' ? $l : self::happFallback($svc);
         } catch (Throwable $e) {
             if (function_exists('app_log')) {
                 app_log('panel', 'happ link failed', ['svc' => (int)($svc['id'] ?? 0), 'err' => $e->getMessage()]);
@@ -78,6 +79,21 @@ final class Links
      * لینک Happ را باز کند؛ ساب داخلی ربات از دید پنل دیده نمی‌شود.
      * 0.0.2 #happ-sub-fb
      */
+    /**
+     * فقط دیپ‌لینک معتبر Happ پذیرفته می‌شود.
+     * طبق مستندات Happ بعد از happ://add/ باید آدرس خام اشتراک بیاید؛
+     * فقط نسخهٔ رمزنگاری‌شده (happ://crypt4 و مشابه) base64 است.
+     * 0.0.2 #happ-norm-fn
+     */
+    public static function normHapp(string $l): string
+    {
+        $l = trim($l);
+        if ($l === '') return '';
+        if (stripos($l, 'happ://') === 0) return $l;
+        if (stripos($l, 'http://') === 0 || stripos($l, 'https://') === 0) return 'happ://add/' . $l;
+        return '';
+    }
+
     public static function panelSub(array $svc): string
     {
         $u = trim((string)($svc['sub_link'] ?? ''));
@@ -106,7 +122,8 @@ final class Links
         }
         $u = self::panelSub($svc);
         if ($u === '') return '';
-        return 'happ://add/' . rtrim(strtr(base64_encode($u), '+/', '-_'), '=');
+        /* 0.0.2 #happ-fb4: آدرس اشتراک باید خام باشد؛ base64 را Happ نامعتبر می‌داند */
+        return 'happ://add/' . $u;
     }
 
     public static function external(array $svc): array

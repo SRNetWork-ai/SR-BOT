@@ -1,85 +1,5 @@
 Python 3.12.3
-Wed Sep 23 16:59:26 UTC 2026
----- dump x3_happ : app/Panel/Xui3.php (1079 lines) ----
-  795         return Xui::parseSubBody(Xui::httpGet(rtrim($url, '/') . '?b64=1'));
-  796     }
-  797 
-  798     /* ---------------------- سلامت و تشخیص نسخه ---------------------- */
-  799 
-  800     /**
-  801      * تست اتصال + تشخیص نسخه:
-  802      * موفق‌بودن /inbounds/options یعنی پنل نسل جدید است؛ 404 یعنی پنل قدیمی است
-  803      * و باید فیلد توکن خالی شود تا ربات از درایور قدیمی (یوزر/پسورد) استفاده کند.
-  804      */
-  805     /* ========== 0.0.2: newer 3x-ui API endpoints (docs.sanaei.dev) ========== */
-  806 
-  807     /* ========== 0.0.2 #happ-links : Happ deep link + external links ========== */
-  808 
-  809     /** دیپ‌لینک اختصاصی Happ برای یک اکانت: GET /clients/happLink/{id} */
-  810     public function happLink(string $email): string
-  811     {
-  812         $email = trim($email);
-  813         if ($email === '') return '';
-  814         $row = $this->clientRow($email);
-  815         $id  = (int)($row['id'] ?? 0);
-  816         if ($id <= 0) return '';
-  817         $r = $this->api('/clients/happLink/' . $id);
-  818         if (($r['success'] ?? false) !== true) return '';
-  819         $o = $r['obj'] ?? '';
-  820         if (is_string($o)) return trim($o);
-  821         if (is_array($o)) {
-  822             foreach (['happLink', 'link', 'url', 'happ'] as $k) {
-  823                 if (isset($o[$k]) && is_string($o[$k]) && trim($o[$k]) !== '') return trim($o[$k]);
-  824             }
-  825         }
-  826         return '';
-  827     }
-  828 
-  829     /** لینک‌های خارجیِ ثبت‌شده روی پنل برای اکانت: GET /clients/{email}/externalLinks */
-  830     public function externalLinks(string $email): array
-  831     {
-  832         $email = trim($email);
-  833         if ($email === '') return [];
-  834         $r = $this->api('/clients/' . rawurlencode($email) . '/externalLinks');
-  835         if (($r['success'] ?? false) !== true) return [];
-  836         $out = [];
-  837         foreach ((array)($r['obj'] ?? []) as $row) {
-  838             if (is_string($row)) {
-  839                 $l = trim($row);
-  840                 if ($l !== '') $out[] = ['title' => '', 'link' => $l];
-  841                 continue;
-  842             }
-  843             if (!is_array($row)) continue;
-  844             $l = '';
-  845             foreach (['link', 'url', 'href'] as $k) {
-  846                 if (isset($row[$k]) && is_string($row[$k]) && trim($row[$k]) !== '') {
-  847                     $l = trim($row[$k]);
-  848                     break;
-  849                 }
-  850             }
-  851             if ($l === '') continue;
-  852             $t = '';
-  853             foreach (['remark', 'title', 'name'] as $k) {
-  854                 if (isset($row[$k]) && is_string($row[$k]) && trim($row[$k]) !== '') {
-  855                     $t = trim($row[$k]);
-  856                     break;
-  857                 }
-  858             }
-  859             $out[] = ['title' => $t, 'link' => $l];
-  860         }
-  861         return $out;
-  862     }
-  863 
-  864     /** registered HWID devices of one account: GET /clients/hwids/{email} */
-  865     public function devices(string $email): array
-  866     {
-  867         $email = trim($email);
-  868         if ($email === '') return [];
-  869         $r = $this->api('/clients/hwids/' . rawurlencode($email));
-  870         if (($r['success'] ?? false) !== true) return [];
-  871         $out = [];
-  872         foreach ((array)($r['obj'] ?? []) as $d) {
----- end dump x3_happ ----
+Wed Sep 23 17:02:52 UTC 2026
 patched: app/Service/Links.php / #happ-norm-fn (1)
 patched: app/Service/Links.php / #happ-norm  (1)
 patched: app/Service/Links.php / #happ-fb4 (1)
@@ -87,8 +7,103 @@ patched: app/Bot/Bot.php / #happ-plain (1)
 wrote app/Bot/Bot.php
 wrote app/Service/Links.php
 php lint: on
-PHP LINT FAILED: app/Service/Links.php
-Errors parsing /home/runner/work/SR-BOT/SR-BOT/app/Service/Links.php
-
-PHP Parse error:  syntax error, unexpected identifier "به", expecting "function" in /home/runner/work/SR-BOT/SR-BOT/app/Service/Links.php on line 85
-exit: 1
+changed files: 2
+sanity app/Service/Links.php / #happ-norm-fn : ok
+sanity app/Service/Links.php / public static function normHapp(string $l): string : ok
+sanity app/Service/Links.php / #happ-norm  : ok
+sanity app/Service/Links.php / #happ-fb4 : ok
+sanity app/Service/Links.php / return 'happ://add/' . $u; : ok
+sanity app/Bot/Bot.php / #happ-plain : ok
+sanity app/Bot/Bot.php / Add subscription: : ok
+---- dump links_after : app/Service/Links.php (142 lines) ----
+   55     }
+   56 
+   57     /** دیپ‌لینک Happ سرویس؛ رشتهٔ خالی یعنی در دسترس نیست */
+   58     public static function happ(array $svc): string
+   59     {
+   60         if (!self::supported($svc)) return '';
+   61         $d = self::driver($svc);
+   62         if (!$d || !method_exists($d, 'happLink')) return self::happFallback($svc); /* 0.0.2 #happ-fb */
+   63         try {
+   64             $l = trim((string)$d->happLink((string)$svc['client_email']));
+   65             $l = self::normHapp($l); /* 0.0.2 #happ-norm */
+   66             return $l !== '' ? $l : self::happFallback($svc);
+   67         } catch (Throwable $e) {
+   68             if (function_exists('app_log')) {
+   69                 app_log('panel', 'happ link failed', ['svc' => (int)($svc['id'] ?? 0), 'err' => $e->getMessage()]);
+   70             }
+   71             return self::happFallback($svc); /* 0.0.2 #happ-fb3 */
+   72         }
+   73     }
+   74 
+   75     /** لینک‌های خارجی اکانت به شکل [['title' => ..., 'link' => ...], ...] */
+   76     /**
+   77      * ساب خودِ پنل برای این سرویس؛ ساب داخلی ربات کنار گذاشته می‌شود.
+   78      * محدودیت هاردویر (HWID) فقط وقتی شمرده می‌شود که مشتری ساب خودِ پنل یا
+   79      * لینک Happ را باز کند؛ ساب داخلی ربات از دید پنل دیده نمی‌شود.
+   80      * 0.0.2 #happ-sub-fb
+   81      */
+   82     /**
+   83      * فقط دیپ‌لینک معتبر Happ پذیرفته می‌شود.
+   84      * طبق مستندات Happ بعد از happ://add/ باید آدرس خام اشتراک بیاید؛
+   85      * فقط نسخهٔ رمزنگاری‌شده (happ://crypt4 و مشابه) base64 است.
+   86      * 0.0.2 #happ-norm-fn
+   87      */
+   88     public static function normHapp(string $l): string
+   89     {
+   90         $l = trim($l);
+   91         if ($l === '') return '';
+   92         if (stripos($l, 'happ://') === 0) return $l;
+   93         if (stripos($l, 'http://') === 0 || stripos($l, 'https://') === 0) return 'happ://add/' . $l;
+   94         return '';
+   95     }
+   96 
+   97     public static function panelSub(array $svc): string
+   98     {
+   99         $u = trim((string)($svc['sub_link'] ?? ''));
+  100         if ($u === '') return '';
+  101         if (class_exists('Svc') && method_exists('Svc', 'isOwnSub')) {
+  102             try {
+  103                 if (Svc::isOwnSub($u)) return '';
+  104             } catch (Throwable $e) {
+  105             }
+  106         }
+  107         return $u;
+  108     }
+  109 
+  110     /** اگر پنل لینک آمادهٔ Happ نداد، از روی ساب خودِ پنل ساخته می‌شود */
+  111     public static function happFallback(array $svc): string
+  112     {
+  113         $d = self::driver($svc);
+  114         if ($d && method_exists($d, 'externalLinks')) {
+  115             try {
+  116                 foreach ((array)$d->externalLinks((string)($svc['client_email'] ?? '')) as $row) {
+  117                     $l = trim((string)(is_array($row) ? ($row['link'] ?? '') : $row));
+  118                     if ($l !== '' && stripos($l, 'happ://') === 0) return $l;
+  119                 }
+  120             } catch (Throwable $e) {
+  121             }
+  122         }
+  123         $u = self::panelSub($svc);
+  124         if ($u === '') return '';
+  125         /* 0.0.2 #happ-fb4: آدرس اشتراک باید خام باشد؛ base64 را Happ نامعتبر می‌داند */
+  126         return 'happ://add/' . $u;
+  127     }
+  128 
+  129     public static function external(array $svc): array
+  130     {
+  131         if (!self::supported($svc)) return [];
+  132         $d = self::driver($svc);
+  133         if (!$d || !method_exists($d, 'externalLinks')) return [];
+  134         try {
+  135             $rows = $d->externalLinks((string)$svc['client_email']);
+  136             return is_array($rows) ? $rows : [];
+  137         } catch (Throwable $e) {
+  138             return [];
+  139         }
+  140     }
+---- end dump links_after ----
+changelog: entry added
+build: fixed139 (was fixed137)
+exit: 0
+exit: 0
