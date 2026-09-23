@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-# fixed131 - keep the product HWID limit after renewal + recon of the mini app service sheet
+# fixed132 - mini app service sheet honours the "happ only" delivery mode
 import io, os, re, sys, json, subprocess
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed131').strip() or 'fixed131'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed132').strip() or 'fixed132'
 
 CACHE = {}
 NEW = {}
@@ -116,41 +116,75 @@ def write_all():
             print(' - ' + w)
 
 
-# =============================== recon (mini app UI for the next build) ===============================
-dump('svc_renew_upd', 'app/Service/Svc.php', 640, 672)
-dump('ma_sheet', 'miniapp/index.php', 1690, 1720)
-dump('ma_sheet2', 'miniapp/index.php', 1745, 1815)
-dump_find('ma_links_sheet', 'miniapp/index.php', r'function linksSheet', 2, 55, 1)
+# =============================== recon: bot sub/cfg callbacks ===============================
+grep_lines('bot_cb', 'app/Bot/Bot.php', r"case 'svcsub'|case 'svccfg'|function subView|function cfgView|function sendSub", 20)
+dump_find('bot_subview', 'app/Bot/Bot.php', r"case 'svcsub'", 2, 6, 1)
 
-# =============================== patch: HWID survives renewal ===============================
-RENEW_HWID = r"""$upd = $xui->updateClient((int)$service['inbound_id'], $uuidKey, $client);
-{IND}/* 0.0.2 #hwid-renew: محدودیت هاردویر محصول پس از تمدید دوباره اعمال می‌شود */
-{IND}$devLimP = (int)($product['device_limit'] ?? 0);
-{IND}if ($devLimP > 0 && method_exists($xui, 'isXui3') && method_exists($xui, 'xui3')) {
-{IND}    try {
-{IND}        if ($xui->isXui3()) $xui->xui3()->setDeviceLimit([(string)$service['client_email']], $devLimP);
-{IND}    } catch (Throwable $e) { }
-{IND}}"""
-
-
-def _renew_hwid(m):
-    ind = m.group(1)
-    return ind + RENEW_HWID.replace('{IND}', ind)
-
+# =============================== mini app patches ===============================
+SHEET_HEAD = """  function serviceSheet(s, fresh) {
+    /* 0.0.2 #happ-only-ui: محصول «فقط لینک هپ» — ساب و کانفیگ مستقیم نمایش داده نمی‌شود */
+    var happOnly = !!s.happ_only;
+    var cfg = '';
+"""
 
 rep_rx(
-    'app/Service/Svc.php',
-    r"^(\s*)\$upd = \$xui->updateClient\(\(int\)\$service\['inbound_id'\], \$uuidKey, \$client\);",
-    _renew_hwid,
-    '#hwid-renew',
+    'miniapp/index.php',
+    r"""  function serviceSheet\(s, fresh\) \{\n    var cfg = '';\n""",
+    lambda m: SHEET_HEAD,
+    '#happ-only-ui',
+)
+
+rep_rx(
+    'miniapp/index.php',
+    r"""    \(s\.configs \|\| \[\]\)\.forEach\(function \(c, i\) \{""",
+    lambda m: "    (happOnly ? [] : (s.configs || [])).forEach(function (c, i) {",
+    'happOnly ? [] :',
+)
+
+rep_rx(
+    'miniapp/index.php',
+    r"""      \(s\.sub\n(        \? '<div class="sec-t">)""",
+    lambda m: "      (s.sub && !happOnly\n" + m.group(1),
+    's.sub && !happOnly',
+)
+
+HAPP_NOTE = """      (happOnly ? '<div class="sec-t"><span>⚡ لینک اختصاصی Happ</span></div>' +
+        '<div class="hint3d">این سرویس فقط با اپلیکیشن Happ کار می‌کند؛ تنظیمات سرور و محدودیت دستگاه (HWID) روی همین لینک اعمال می‌شود.</div>' +
+        '<button type="button" class="btn b3d" style="width:100%;margin-top:6px" data-links="' + s.id + '">⚡ دریافت لینک Happ</button>' : '') +
+"""
+
+rep_rx(
+    'miniapp/index.php',
+    r"""      \(!s\.sub && !cfg (\? '<div class="alert e">[^']*</div>' : ''\) \+)""",
+    lambda m: HAPP_NOTE + "      (!s.sub && !cfg && !happOnly " + m.group(1),
+    '!cfg && !happOnly',
+)
+
+rep_rx(
+    'miniapp/index.php',
+    r"""        \(s\.can_links \? '<button""",
+    lambda m: "        (s.can_links && !happOnly ? '<button",
+    's.can_links && !happOnly',
+)
+
+rep_rx(
+    'miniapp/index.php',
+    r"""    var sub = s\.sub \|\| s\.sub_link \|\| s\.link \|\| '';""",
+    lambda m: "    var sub = s.happ_only ? '' : (s.sub || s.sub_link || s.link || '');",
+    "s.happ_only ? '' :",
 )
 
 write_all()
 
 # =============================== sanity ===============================
 SANITY = [
-    ('app/Service/Svc.php', '#hwid-renew'),
-    ('app/Service/Svc.php', 'setDeviceLimit([(string)$service[\'client_email\']], $devLimP)'),
+    ('miniapp/index.php', '#happ-only-ui'),
+    ('miniapp/index.php', 'var happOnly = !!s.happ_only;'),
+    ('miniapp/index.php', 'happOnly ? [] : (s.configs || [])'),
+    ('miniapp/index.php', '(s.sub && !happOnly'),
+    ('miniapp/index.php', '!s.sub && !cfg && !happOnly'),
+    ('miniapp/index.php', '(s.can_links && !happOnly ?'),
+    ('miniapp/index.php', "var sub = s.happ_only ? '' :"),
 ]
 for path, needle in SANITY:
     try:
@@ -167,7 +201,7 @@ with io.open(vpath, 'r', encoding='utf-8') as fh:
     vj = json.load(fh)
 old_build = vj.get('build')
 vj['build'] = BUILD
-entry = 'حفظ محدودیت هاردویر (HWID) پس از تمدید سرویس'
+entry = 'مینی‌اپ: برای محصولات «فقط لینک هپ» فقط لینک Happ نمایش داده می‌شود'
 cl = vj.get('changelog')
 if isinstance(cl, list):
     if entry not in cl:
