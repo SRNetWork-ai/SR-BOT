@@ -806,20 +806,56 @@ class Xui3
 
     /* ========== 0.0.2 #happ-links : Happ deep link + external links ========== */
 
-    /** دیپ‌لینک اختصاصی Happ برای یک اکانت: GET /clients/happLink/{id} */
+    /**
+     * دیپ‌لینک رمزنگاری‌شدهٔ Happ برای یک اکانت.
+     * پنل نسل جدید این لینک را خودش محلی می‌سازد (happ://crypt5/...) و
+     * فقط روی POST /panel/api/clients/happLink/{id} پاسخ می‌دهد؛ کلید پاسخ encryptedLink است.
+     * 0.0.2 #happ-post
+     */
     public function happLink(string $email): string
     {
         $email = trim($email);
         if ($email === '') return '';
         $row = $this->clientRow($email);
-        $id  = (int)($row['id'] ?? 0);
+        if (!$row) return '';
+
+        $id = 0;
+        foreach (['id', 'clientId', 'recordId'] as $k) {
+            if (isset($row[$k]) && is_numeric($row[$k]) && (int)$row[$k] > 0) {
+                $id = (int)$row[$k];
+                break;
+            }
+        }
         if ($id <= 0) return '';
-        $r = $this->api('/clients/happLink/' . $id);
-        if (($r['success'] ?? false) !== true) return '';
-        $o = $r['obj'] ?? '';
+
+        $path = '/clients/happLink/' . $id;
+        $last = '';
+        foreach ([[null, 'POST'], [[], 'POST'], [null, 'GET']] as $try) {
+            $r = $this->api($path, $try[0], $try[1]);
+            if (($r['success'] ?? false) === true) {
+                $l = self::pickHappLink($r['obj'] ?? '');
+                if ($l !== '') return $l;
+                continue;
+            }
+            $last = trim((string)($r['msg'] ?? ''));
+            if (stripos($last, 'happ_source_too_long') !== false) break;
+        }
+        if ($last !== '' && function_exists('app_log')) {
+            app_log('panel', 'happ link unavailable', [
+                'panel' => (int)($this->panel['id'] ?? 0),
+                'email' => $email,
+                'msg'   => mb_substr($last, 0, 160),
+            ]);
+        }
+        return '';
+    }
+
+    /** استخراج دیپ‌لینک از پاسخ پنل — کلید رسمی encryptedLink است */
+    private static function pickHappLink($o): string
+    {
         if (is_string($o)) return trim($o);
         if (is_array($o)) {
-            foreach (['happLink', 'link', 'url', 'happ'] as $k) {
+            foreach (['encryptedLink', 'happLink', 'link', 'url', 'happ'] as $k) {
                 if (isset($o[$k]) && is_string($o[$k]) && trim($o[$k]) !== '') return trim($o[$k]);
             }
         }

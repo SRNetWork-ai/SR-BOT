@@ -1,109 +1,84 @@
 Python 3.12.3
-Wed Sep 23 17:02:52 UTC 2026
-patched: app/Service/Links.php / #happ-norm-fn (1)
-patched: app/Service/Links.php / #happ-norm  (1)
-patched: app/Service/Links.php / #happ-fb4 (1)
-patched: app/Bot/Bot.php / #happ-plain (1)
-wrote app/Bot/Bot.php
-wrote app/Service/Links.php
+Wed Sep 23 17:12:34 UTC 2026
+patched: app/Panel/Xui3.php / #happ-post (1)
+wrote app/Panel/Xui3.php
 php lint: on
-changed files: 2
-sanity app/Service/Links.php / #happ-norm-fn : ok
+changed files: 1
+sanity app/Panel/Xui3.php / #happ-post : ok
+sanity app/Panel/Xui3.php / $r = $this->api($path, $try[0], $try[1]); : ok
+sanity app/Panel/Xui3.php / private static function pickHappLink($o): string : ok
+sanity app/Panel/Xui3.php / 'encryptedLink', 'happLink', 'link', 'url', 'happ' : ok
+sanity app/Panel/Xui3.php / happ_source_too_long : ok
 sanity app/Service/Links.php / public static function normHapp(string $l): string : ok
-sanity app/Service/Links.php / #happ-norm  : ok
-sanity app/Service/Links.php / #happ-fb4 : ok
-sanity app/Service/Links.php / return 'happ://add/' . $u; : ok
-sanity app/Bot/Bot.php / #happ-plain : ok
-sanity app/Bot/Bot.php / Add subscription: : ok
----- dump links_after : app/Service/Links.php (142 lines) ----
-   55     }
-   56 
-   57     /** دیپ‌لینک Happ سرویس؛ رشتهٔ خالی یعنی در دسترس نیست */
-   58     public static function happ(array $svc): string
-   59     {
-   60         if (!self::supported($svc)) return '';
-   61         $d = self::driver($svc);
-   62         if (!$d || !method_exists($d, 'happLink')) return self::happFallback($svc); /* 0.0.2 #happ-fb */
-   63         try {
-   64             $l = trim((string)$d->happLink((string)$svc['client_email']));
-   65             $l = self::normHapp($l); /* 0.0.2 #happ-norm */
-   66             return $l !== '' ? $l : self::happFallback($svc);
-   67         } catch (Throwable $e) {
-   68             if (function_exists('app_log')) {
-   69                 app_log('panel', 'happ link failed', ['svc' => (int)($svc['id'] ?? 0), 'err' => $e->getMessage()]);
-   70             }
-   71             return self::happFallback($svc); /* 0.0.2 #happ-fb3 */
-   72         }
-   73     }
-   74 
-   75     /** لینک‌های خارجی اکانت به شکل [['title' => ..., 'link' => ...], ...] */
-   76     /**
-   77      * ساب خودِ پنل برای این سرویس؛ ساب داخلی ربات کنار گذاشته می‌شود.
-   78      * محدودیت هاردویر (HWID) فقط وقتی شمرده می‌شود که مشتری ساب خودِ پنل یا
-   79      * لینک Happ را باز کند؛ ساب داخلی ربات از دید پنل دیده نمی‌شود.
-   80      * 0.0.2 #happ-sub-fb
-   81      */
-   82     /**
-   83      * فقط دیپ‌لینک معتبر Happ پذیرفته می‌شود.
-   84      * طبق مستندات Happ بعد از happ://add/ باید آدرس خام اشتراک بیاید؛
-   85      * فقط نسخهٔ رمزنگاری‌شده (happ://crypt4 و مشابه) base64 است.
-   86      * 0.0.2 #happ-norm-fn
-   87      */
-   88     public static function normHapp(string $l): string
-   89     {
-   90         $l = trim($l);
-   91         if ($l === '') return '';
-   92         if (stripos($l, 'happ://') === 0) return $l;
-   93         if (stripos($l, 'http://') === 0 || stripos($l, 'https://') === 0) return 'happ://add/' . $l;
-   94         return '';
-   95     }
-   96 
-   97     public static function panelSub(array $svc): string
-   98     {
-   99         $u = trim((string)($svc['sub_link'] ?? ''));
-  100         if ($u === '') return '';
-  101         if (class_exists('Svc') && method_exists('Svc', 'isOwnSub')) {
-  102             try {
-  103                 if (Svc::isOwnSub($u)) return '';
-  104             } catch (Throwable $e) {
-  105             }
-  106         }
-  107         return $u;
-  108     }
-  109 
-  110     /** اگر پنل لینک آمادهٔ Happ نداد، از روی ساب خودِ پنل ساخته می‌شود */
-  111     public static function happFallback(array $svc): string
-  112     {
-  113         $d = self::driver($svc);
-  114         if ($d && method_exists($d, 'externalLinks')) {
-  115             try {
-  116                 foreach ((array)$d->externalLinks((string)($svc['client_email'] ?? '')) as $row) {
-  117                     $l = trim((string)(is_array($row) ? ($row['link'] ?? '') : $row));
-  118                     if ($l !== '' && stripos($l, 'happ://') === 0) return $l;
-  119                 }
-  120             } catch (Throwable $e) {
-  121             }
-  122         }
-  123         $u = self::panelSub($svc);
-  124         if ($u === '') return '';
-  125         /* 0.0.2 #happ-fb4: آدرس اشتراک باید خام باشد؛ base64 را Happ نامعتبر می‌داند */
-  126         return 'happ://add/' . $u;
-  127     }
-  128 
-  129     public static function external(array $svc): array
-  130     {
-  131         if (!self::supported($svc)) return [];
-  132         $d = self::driver($svc);
-  133         if (!$d || !method_exists($d, 'externalLinks')) return [];
-  134         try {
-  135             $rows = $d->externalLinks((string)$svc['client_email']);
-  136             return is_array($rows) ? $rows : [];
-  137         } catch (Throwable $e) {
-  138             return [];
-  139         }
-  140     }
----- end dump links_after ----
+---- dump happ_after : app/Panel/Xui3.php (1115 lines) ----
+  810      * دیپ‌لینک رمزنگاری‌شدهٔ Happ برای یک اکانت.
+  811      * پنل نسل جدید این لینک را خودش محلی می‌سازد (happ://crypt5/...) و
+  812      * فقط روی POST /panel/api/clients/happLink/{id} پاسخ می‌دهد؛ کلید پاسخ encryptedLink است.
+  813      * 0.0.2 #happ-post
+  814      */
+  815     public function happLink(string $email): string
+  816     {
+  817         $email = trim($email);
+  818         if ($email === '') return '';
+  819         $row = $this->clientRow($email);
+  820         if (!$row) return '';
+  821 
+  822         $id = 0;
+  823         foreach (['id', 'clientId', 'recordId'] as $k) {
+  824             if (isset($row[$k]) && is_numeric($row[$k]) && (int)$row[$k] > 0) {
+  825                 $id = (int)$row[$k];
+  826                 break;
+  827             }
+  828         }
+  829         if ($id <= 0) return '';
+  830 
+  831         $path = '/clients/happLink/' . $id;
+  832         $last = '';
+  833         foreach ([[null, 'POST'], [[], 'POST'], [null, 'GET']] as $try) {
+  834             $r = $this->api($path, $try[0], $try[1]);
+  835             if (($r['success'] ?? false) === true) {
+  836                 $l = self::pickHappLink($r['obj'] ?? '');
+  837                 if ($l !== '') return $l;
+  838                 continue;
+  839             }
+  840             $last = trim((string)($r['msg'] ?? ''));
+  841             if (stripos($last, 'happ_source_too_long') !== false) break;
+  842         }
+  843         if ($last !== '' && function_exists('app_log')) {
+  844             app_log('panel', 'happ link unavailable', [
+  845                 'panel' => (int)($this->panel['id'] ?? 0),
+  846                 'email' => $email,
+  847                 'msg'   => mb_substr($last, 0, 160),
+  848             ]);
+  849         }
+  850         return '';
+  851     }
+  852 
+  853     /** استخراج دیپ‌لینک از پاسخ پنل — کلید رسمی encryptedLink است */
+  854     private static function pickHappLink($o): string
+  855     {
+  856         if (is_string($o)) return trim($o);
+  857         if (is_array($o)) {
+  858             foreach (['encryptedLink', 'happLink', 'link', 'url', 'happ'] as $k) {
+  859                 if (isset($o[$k]) && is_string($o[$k]) && trim($o[$k]) !== '') return trim($o[$k]);
+  860             }
+  861         }
+  862         return '';
+  863     }
+  864 
+  865     /** لینک‌های خارجیِ ثبت‌شده روی پنل برای اکانت: GET /clients/{email}/externalLinks */
+  866     public function externalLinks(string $email): array
+  867     {
+  868         $email = trim($email);
+  869         if ($email === '') return [];
+  870         $r = $this->api('/clients/' . rawurlencode($email) . '/externalLinks');
+  871         if (($r['success'] ?? false) !== true) return [];
+  872         $out = [];
+  873         foreach ((array)($r['obj'] ?? []) as $row) {
+  874             if (is_string($row)) {
+  875                 $l = trim($row);
+---- end dump happ_after ----
 changelog: entry added
-build: fixed139 (was fixed137)
+build: fixed140 (was fixed139)
 exit: 0
 exit: 0
