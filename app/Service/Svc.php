@@ -651,6 +651,20 @@ class Svc
         foreach (Xui::speedKeys($rUp, $rDown) as $sk => $sv) $client[$sk] = $sv;
 
         $upd = $xui->updateClient((int)$service['inbound_id'], $uuidKey, $client);
+
+        /* 0.0.2 #hwid-renew: محدودیت هاردویر محصول پس از تمدید دوباره اعمال می‌شود */
+
+        $devLimP = (int)($product['device_limit'] ?? 0);
+
+        if ($devLimP > 0 && method_exists($xui, 'isXui3') && method_exists($xui, 'xui3')) {
+
+            try {
+
+                if ($xui->isXui3()) $xui->xui3()->setDeviceLimit([(string)$service['client_email']], $devLimP);
+
+            } catch (Throwable $e) { }
+
+        }
         if (($upd['success'] ?? false) !== true) {
             return ['ok' => false, 'message' => 'خطا در تمدید: ' . (string)($upd['msg'] ?? 'نامشخص')];
         }
