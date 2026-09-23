@@ -357,6 +357,11 @@ function ma_service_row(array $s): array
         /* 0.0.2 #ma-dev-flags — دکمه‌های دستگاه و لینک فقط روی پنل‌های پشتیبانی‌شده */
         'can_devs'   => class_exists('Devices') && Devices::supported($s),
         'can_links'  => class_exists('Links') && Links::supported($s),
+        /* 0.0.2 #happ-only-ma: محصول «فقط لینک هپ» */
+        'deliver'    => class_exists('Svc') && method_exists('Svc', 'deliverMode') ? Svc::deliverMode($s) : '',
+        'happ_only'  => class_exists('Svc') && method_exists('Svc', 'wantsHapp')
+            && Svc::wantsHapp(Svc::deliverMode($s))
+            && class_exists('Links') && Links::supported($s),
         /* فقط خطوط کانفیگ معتبر برگردانده می شود، نه متن خام */
         'configs'    => class_exists('Svc') && method_exists('Svc', 'storedConfigs')
             ? Svc::storedConfigs($s)

@@ -1557,6 +1557,8 @@ class Svc
         'both'   => ['لینک ساب + کانفیگ', 'هم لینک اشتراک و هم کانفیگ‌های مستقیم تحویل داده می‌شود', '🎁'],
         'sub'    => ['فقط لینک ساب', 'فقط لینک اشتراک با به‌روزرسانی خودکار', '🔗'],
         'config' => ['فقط کانفیگ', 'فقط کانفیگ‌های مستقیم بدون لینک ساب', '⚙️'],
+        /* 0.0.2 #happ-only-mode: فقط دیپ‌لینک اختصاصی Happ */
+        'happ'   => ['فقط لینک هپ (Happ)', 'فقط دیپ‌لینک اختصاصی Happ؛ بدون لینک ساب و کانفیگ مستقیم', '⚡'],
     ];
 
     /** پیش‌فرض کلی فروشگاه */
@@ -1594,13 +1596,30 @@ class Svc
     /** آیا لینک اشتراک باید تحویل شود؟ */
     public static function wantsSub(string $m): bool
     {
-        return $m !== 'config';
+        return $m !== 'config' && $m !== 'happ'; /* 0.0.2 #happ-only-sub */
     }
 
     /** آیا کانفیگ مستقیم باید تحویل شود؟ */
     public static function wantsCfg(string $m): bool
     {
-        return $m !== 'sub';
+        return $m !== 'sub' && $m !== 'happ'; /* 0.0.2 #happ-only-cfg */
+    }
+
+    /** آیا فقط دیپ‌لینک اختصاصی Happ تحویل شود؟ */
+    public static function wantsHapp(string $m): bool
+    {
+        return $m === 'happ';
+    }
+
+    /** دیپ‌لینک Happ سرویس؛ رشتهٔ خالی یعنی در دسترس نیست */
+    public static function happLink(array $s): string
+    {
+        if (!class_exists('Links')) return '';
+        try {
+            return trim((string)Links::happ($s));
+        } catch (Throwable $e) {
+            return '';
+        }
     }
 
     public static function find($id): ?array

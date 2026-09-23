@@ -360,7 +360,7 @@ if ($dmHas) {
             <span class="i"><?= h($dv[2]) ?></span>
             <span class="t"><?= h($dv[0]) ?></span>
             <span class="d"><?= h($dv[1]) ?></span>
-            <span class="c"><?= fa_num($dmStat[$dk]) ?> محصول</span>
+            <span class="c"><?= fa_num((int)($dmStat[$dk] ?? 0)) ?> محصول</span>
           </label>
         <?php endforeach; ?>
       </div>
@@ -747,9 +747,9 @@ if ($dmHas) {
             <?php endif; ?>
             <?php if ($prHasLimits): ?>
               <div class="field">
-                <label>محدودیت دستگاه (Device limit)</label>
+                <label>محدودیت دستگاه / هاردویر (HWID)</label>
                 <input class="mono" type="number" min="0" name="device_limit" value="<?= h((string)$v('device_limit', 0)) ?>">
-                <div class="hint">۰ = بدون محدودیت – مخصوص پنل VPN-UI</div>
+                <div class="hint">۰ = بدون محدودیت — روی پنل نسل جدید سنایی به‌صورت محدودیت هاردویر (limitHwid) روی همان اکانت و لینک هپ اعمال می‌شود؛ روی VPN-UI هم پشتیبانی می‌شود</div>
               </div>
               <?php if (isset($prCols['reset_days'])): ?>
               <div class="field">

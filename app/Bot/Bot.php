@@ -2877,9 +2877,12 @@ class Bot
         $n    = count($list);
 
         /* طبق تنظیم محصول: ساب، کانفیگ یا هردو — اگر یکی نبود، همان دیگری فرستاده می‌شود */
+        /* 0.0.2 #happ-only-bot: محصول «فقط لینک هپ» */
+        $happ = Svc::wantsHapp($mode) ? Svc::happLink($service) : '';
         $wantSub = Svc::wantsSub($mode) && $sub !== '';
         $wantCfg = Svc::wantsCfg($mode) && $n > 0;
-        if (!$wantSub && !$wantCfg) {
+        if ($happ !== '') { $wantSub = false; $wantCfg = false; }
+        if (!$wantSub && !$wantCfg && $happ === '') {
             $wantSub = ($sub !== '');
             $wantCfg = ($n > 0);
         }
@@ -2896,6 +2899,13 @@ class Bot
             $txt .= '<code>' . h($sub) . "</code>\n";
         }
 
+        if ($happ !== '') { /* 0.0.2 #happ-only-txt */
+            $txt .= "\n<code>────────────────</code>\n";
+            $txt .= "⚡ <b>لینک اختصاصی Happ</b>\n";
+            $txt .= "<i>تنظیمات سرور (محدودیت دستگاه، مسیریابی و…) روی همین لینک اعمال می‌شود.</i>\n";
+            $txt .= '<code>' . h($happ) . "</code>\n";
+        }
+
         if ($wantCfg && !$wantSub) {
             $txt .= "\n<code>────────────────</code>\n";
             $txt .= "⚙️ <b>کانفیگ‌های مستقیم در پیام بعدی ارسال می‌شود.</b>\n";
@@ -2907,9 +2917,9 @@ class Bot
 
         $txt .= "\n<code>────────────────</code>\n";
         $txt .= "💡 <b>راهنمای سریع</b>\n";
-        $txt .= $wantSub
+        $txt .= ($wantSub || $happ !== '') /* 0.0.2 #happ-only-tip */
             ? "۱) روی لینک بالا بزنید تا کپی شود.\n"
-            : "۱) روی کا��فیگ بزنید تا کپی شود.\n";
+            : "۱) روی کانفیگ بزنید تا کپی شود.\n";
         $txt .= "۲) وارد برنامه شوید و گزینهٔ «افزودن از کلیپ‌بورد» را بزنید.\n";
         $txt .= "۳) به سرور متصل شوید. 🚀";
 
@@ -2918,6 +2928,7 @@ class Bot
             $br = [];
             if ($wantSub) $br[] = Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $sid);
             if ($wantCfg) $br[] = Tg::btn('⚙️ کانفیگ‌ها', 'svccfg:' . $sid);
+            if ($happ !== '') $br[] = Tg::btn('⚡ افزودن به Happ', 'svchapp:' . $sid); /* 0.0.2 #happ-only-btn */
             if ($br) $rows[] = $br;
         }
         $rows[] = [Tg::btn('📦 سرویس‌های من', 'menu:services'), Tg::btn('🎓 راهنمای اتصال', 'tut:menu')];
@@ -2972,7 +2983,10 @@ class Bot
         $txt = "📦 <b>جزئیات سرویس</b>\n" . '<code>─────────────────</code>' . "\n" . self::specCard($s, false);
         /* فقط مسیری که برای این محصول فعال است نشان داده می‌شود */
         $mode = Svc::deliverMode($s);
+        /* 0.0.2 #happ-only-view: محصول «فقط لینک هپ» */
+        $hOnly = Svc::wantsHapp($mode) && class_exists('Links') && Links::supported($s);
         $top  = [];
+        if ($hOnly) $top[] = Tg::btn('⚡ افزودن به Happ', 'svchapp:' . $id);
         if (Svc::wantsSub($mode)) $top[] = Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $id);
         if (Svc::wantsCfg($mode)) $top[] = Tg::btn('⚙️ کانفیگ‌ها', 'svccfg:' . $id);
         if (!$top) $top[] = Tg::btn('🔗 لینک اشتراک', 'svcsub:' . $id);
@@ -2983,7 +2997,7 @@ class Bot
             [Tg::btn('♻️ تمدید سرویس', 'svcrn:' . $id)],
         ];
         /* 0.0.2 #happ-btn: لینک اختصاصی Happ — فقط پنل نسل جدید سنایی */
-        if (class_exists('Links') && Links::supported($s)) {
+        if (!$hOnly && class_exists('Links') && Links::supported($s)) {
             $rows[] = [Tg::btn('⚡ افزودن به Happ', 'svchapp:' . $id)];
         }
         /* 0.0.2 #dev-btn: مدیریت دستگاه‌های ثبت‌شده (HWID) — فقط پنل نسل جدید سنایی */
