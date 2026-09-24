@@ -1,17 +1,13 @@
 # -*- coding: utf-8 -*-
-# fixed142 - RECON ONLY (no patches): map the discount/gift code plumbing
-# so row 17 (discount codes) can be wired into admin, bot and mini-app.
+# fixed143 - RECON ONLY: figure out which 0.0.2 roadmap rows already exist.
 import io, os, re, sys, json, subprocess
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed142').strip() or 'fixed142'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed143').strip() or 'fixed143'
 
 CACHE = {}
-NEW = set()
-ERRORS = []
-WARN = []
-SKIP_DIRS = {'.git', '.github', 'node_modules', 'vendor', 'storage', 'uploads', 'backups'}
-EXT = ('.php', '.sql', '.js', '.html', '.json')
+SKIP_DIRS = {'.git', 'node_modules', 'vendor', 'storage', 'uploads', 'backups'}
+EXT = ('.php', '.sql', '.js', '.html', '.json', '.yml', '.sh', '.md', '.neon', '.xml', '.dist')
 
 
 def load(path):
@@ -20,34 +16,6 @@ def load(path):
     with io.open(os.path.join(ROOT, path), 'r', encoding='utf-8', errors='replace') as fh:
         CACHE[path] = fh.read()
     return CACHE[path]
-
-
-def dump(tag, path, start, end):
-    try:
-        lines = load(path).split(chr(10))
-    except Exception as e:
-        print('---- dump %s : %s FAILED (%s) ----' % (tag, path, e))
-        return
-    print('---- dump %s : %s (%d lines) ----' % (tag, path, len(lines)))
-    for i in range(max(1, start), min(len(lines), end) + 1):
-        s = lines[i - 1]
-        if len(s) > 200:
-            s = s[:200] + ' ...'
-        print('%5d %s' % (i, s))
-    print('---- end dump %s ----' % tag)
-
-
-def dump_find(tag, path, needle, before=4, after=40):
-    try:
-        lines = load(path).split(chr(10))
-    except Exception as e:
-        print('---- dump %s FAILED (%s) ----' % (tag, e))
-        return
-    for i, ln in enumerate(lines, 1):
-        if needle in ln:
-            dump(tag, path, i - before, i + after)
-            return
-    print('---- dump %s : needle not found ----' % tag)
 
 
 ALL = []
@@ -65,7 +33,7 @@ def files_all():
     return ALL
 
 
-def grep_all(needle, limit=60, only=None):
+def grep_all(needle, limit=40, only=None):
     print('---- grep: %s ----' % needle)
     n = 0
     for p in files_all():
@@ -78,74 +46,99 @@ def grep_all(needle, limit=60, only=None):
         for i, ln in enumerate(lines, 1):
             if needle in ln:
                 s = ln.strip()
-                if len(s) > 150:
-                    s = s[:150] + ' ...'
+                if len(s) > 140:
+                    s = s[:140] + ' ...'
                 print('%s:%d: %s' % (p, i, s))
                 n += 1
                 if n >= limit:
-                    print('---- end grep: %s (truncated at %d) ----' % (needle, n))
+                    print('---- end grep: %s (truncated) ----' % needle)
                     return
     print('---- end grep: %s (%d) ----' % (needle, n))
 
 
-def listdir(tag, rel):
+def funcs(path):
+    print('---- functions: %s ----' % path)
+    try:
+        for i, ln in enumerate(load(path).split(chr(10)), 1):
+            if 'function ' in ln:
+                print('%5d %s' % (i, ln.strip()[:140]))
+    except Exception as e:
+        print('FAILED (%s)' % e)
+    print('---- end functions ----')
+
+
+def listdir(rel):
     d = os.path.join(ROOT, rel)
-    print('---- ls %s : %s ----' % (tag, rel))
+    print('---- ls %s ----' % rel)
     try:
         for fn in sorted(os.listdir(d)):
             fp = os.path.join(d, fn)
-            print('%9d  %s' % (os.path.getsize(fp) if os.path.isfile(fp) else 0, fn))
+            print('%9s  %s' % (os.path.getsize(fp) if os.path.isfile(fp) else '<dir>', fn))
     except Exception as e:
         print('FAILED (%s)' % e)
-    print('---- end ls %s ----' % tag)
+    print('---- end ls %s ----' % rel)
 
 
-# ------------------------------- RECON -------------------------------
-listdir('admin_pages', 'admin/pages')
-listdir('services', 'app/Service')
+listdir('.')
+listdir('.github/workflows')
+listdir('docs')
+listdir('tools')
+listdir('cron')
 
-grep_all('discount_codes', 40)
-grep_all('gift_codes', 30)
-grep_all('discount_uses', 20)
-grep_all('Codes::', 40)
-grep_all('discount', 90)
+# row 18 - auto renew + reminders
+funcs('app/Service/AutoRenew.php')
+grep_all('AutoRenew::', 30)
+grep_all('expire_soon', 20)
+grep_all('remind', 30)
 
-# where a purchase price is computed / charged
-grep_all('Wallet::debit', 40)
-grep_all('function buy', 30)
+# row 19 - trial abuse
+grep_all("'trial'", 40)
+grep_all('trial_used', 20)
 
-# migration runner + schema tail
-dump_find('migrate_run', 'app/Service/Migrate.php', 'migrations', 6, 50)
+# row 20 - referral levels
+funcs('app/Service/Referral.php')
+grep_all('ref_l2', 20)
 
-print('---- functions: app/Service/Orders.php ----')
-try:
-    for i, ln in enumerate(load('app/Service/Orders.php').split(chr(10)), 1):
-        if 'function ' in ln:
-            print('%5d %s' % (i, ln.strip()[:150]))
-except Exception as e:
-    print('FAILED (%s)' % e)
-print('---- end functions ----')
+# row 21 - tickets
+grep_all('priority', 25)
+grep_all('canned', 15)
 
-print('---- functions: app/Service/Wallet.php ----')
-try:
-    for i, ln in enumerate(load('app/Service/Wallet.php').split(chr(10)), 1):
-        if 'function ' in ln:
-            print('%5d %s' % (i, ln.strip()[:150]))
-except Exception as e:
-    print('FAILED (%s)' % e)
-print('---- end functions ----')
+# row 22 - gateways
+grep_all('GATEWAYS', 15)
+grep_all("case 'zarinpal", 10)
+grep_all('zarinpal', 15)
+
+# row 23 - i18n
+grep_all("'lang'", 25)
+grep_all('i18n', 15)
+
+# row 24 - financial report
+grep_all('p=reports', 10)
+grep_all('profit', 20)
+
+# row 25 - cloud backup
+grep_all('backup_cloud', 15)
+grep_all('sendDocument', 20)
+
+# row 27 - reseller api
+grep_all('rs_api', 15)
+grep_all('api/v1', 15)
+
+# improvements 33-36
+grep_all('phpstan', 10)
+grep_all('phpunit', 10)
+grep_all('CREATE INDEX', 15)
 
 print('---- file sizes ----')
-for p in ['app/Bot/Bot.php', 'miniapp/api.php', 'miniapp/index.php', 'admin/pages/settings.php',
-          'database/schema.sql', 'app/Service/Migrate.php', 'app/Service/Orders.php',
-          'app/Service/Wallet.php', 'app/Service/Svc.php', 'app/Service/Codes.php']:
+for p in ['app/Service/AutoRenew.php', 'app/Service/Referral.php', 'app/Service/Gateway.php',
+          'app/Service/Backup.php', 'app/Service/Txt.php', 'cron/tasks.php', 'admin/pages/tickets.php',
+          'CHANGELOG.md', 'README.md']:
     try:
         print('%6d lines  %s' % (len(load(p).split(chr(10))), p))
     except Exception as e:
         print('   n/a  %s (%s)' % (p, e))
 print('---- end file sizes ----')
 
-# ============================== version bump ==============================
 vpath = os.path.join(ROOT, 'version.json')
 with io.open(vpath, 'r', encoding='utf-8') as fh:
     vj = json.load(fh)
