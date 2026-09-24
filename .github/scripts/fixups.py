@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-# fixed161 - 0.0.2 #22: expose Zarinpal in the miniapp payment pickers; recon render branches.
+# fixed162 - recon: why reply-keyboard buttons stopped resolving; plus miniapp zarinpal pickers.
 import io, os, sys, json
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed161').strip() or 'fixed161'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed162').strip() or 'fixed162'
 
 CACHE = {}
 NEW = set()
@@ -13,8 +13,8 @@ SKIP_DIRS = {'.git', 'node_modules', 'vendor', 'storage', 'uploads', 'backups'}
 EXT = ('.php', '.sql', '.js', '.html', '.json')
 
 MA = 'miniapp/index.php'
-API = 'miniapp/api.php'
 BOT = 'app/Bot/Bot.php'
+BTN = 'app/Service/Btn.php'
 
 
 def load(path):
@@ -88,7 +88,7 @@ def files_all():
 
 
 def grep_all(needle, limit=20, only=None, ci=False):
-    print('---- grep%s: %s ----' % ('(ci)' if ci else '', needle))
+    print('---- grep: %s ----' % needle)
     nl = needle.lower()
     n = 0
     for p in files_all():
@@ -112,27 +112,38 @@ def grep_all(needle, limit=20, only=None, ci=False):
     print('---- end grep: %s (%d) ----' % (needle, n))
 
 
-# ==================================================================
-# 1) quick method list
-# ==================================================================
-rep_lit(
-    MA,
-    "if (b.flags.hooshpay) ms.push([",
-    "if (b.flags.zarinpal) ms.push(['zarinpal', '\u{1F3E6} زرین‌پال (آنلاین)']);\n"
-    "    if (b.flags.hooshpay) ms.push([",
-    'b.flags.zarinpal) ms.push',
-)
+def funcs(path, limit=200):
+    print('---- funcs: %s ----' % path)
+    n = 0
+    try:
+        lines = load(path).split(chr(10))
+    except Exception as e:
+        print('failed (%s)' % e)
+        return
+    for i, ln in enumerate(lines, 1):
+        s = ln.strip()
+        if s.startswith('function ') or ' function ' in s or s.startswith('const ') or ' const ' in s:
+            if len(s) > 150:
+                s = s[:150] + ' ...'
+            print('%5d %s' % (i, s))
+            n += 1
+            if n >= limit:
+                break
+    print('---- end funcs: %s ----' % path)
+
 
 # ==================================================================
-# 2) methods sheet
+# miniapp pickers (optional - recon must always run)
 # ==================================================================
-rep_lit(
-    MA,
-    "if (b.flags.hooshpay) m.push([",
-    "if (b.flags.zarinpal) m.push(['zarinpal', '\u{1F3E6}', 'زرین‌پال — پرداخت آنلاین', 'اتصال به درگاه بانکی؛ پس از پرداخت موفق، کیف پول خودکار شارژ می‌شود']);\n"
-    "    if (b.flags.hooshpay) m.push([",
-    'b.flags.zarinpal) m.push',
-)
+MS_OLD = "if (b.flags.hooshpay) ms.push(["
+MS_NEW = r"""if (b.flags.zarinpal) ms.push(['zarinpal', '\u{1F3E6} زرین‌پال (آنلاین)']);
+    if (b.flags.hooshpay) ms.push(["""
+rep_lit(MA, MS_OLD, MS_NEW, 'b.flags.zarinpal) ms.push', optional=True)
+
+M_OLD = "if (b.flags.hooshpay) m.push(["
+M_NEW = r"""if (b.flags.zarinpal) m.push(['zarinpal', '\u{1F3E6}', 'زرین‌پال — پرداخت آنلاین', 'اتصال به درگاه بانکی؛ پس از پرداخت موفق، کیف پول خودکار شارژ می‌شود']);
+    if (b.flags.hooshpay) m.push(["""
+rep_lit(MA, M_OLD, M_NEW, 'b.flags.zarinpal) m.push', optional=True)
 
 # ---------------- write ----------------
 if ERRORS:
@@ -153,29 +164,22 @@ for p in sorted(NEW):
     print('wrote ' + p)
 print('changed files: %d' % len(NEW))
 
-SANITY = [
-    (MA, 'b.flags.zarinpal) ms.push'),
-    (MA, 'b.flags.zarinpal) m.push'),
-]
-ok = 0
-for p, needle in SANITY:
-    good = needle in load(p)
-    print('sanity %s / %s : %s' % (p, needle[:36], 'ok' if good else 'MISSING'))
-    if good:
-        ok += 1
-print('sanity: %d/%d' % (ok, len(SANITY)))
-
-# ---------------- recon ----------------
-print('===== case-insensitive method hunt =====')
-grep_all('function check', 25, only='app/Bot')
-grep_all('function askamount', 6, ci=True)
+# ---------------- RECON: button map ----------------
+print('===== Btn.php head (BUILTIN / SUBMENU / SEED) =====')
+dump('btn_head', BTN, 1, 150)
+print('===== Btn.php api =====\n')
+funcs(BTN, 90)
+print('===== how Bot.php resolves reply-keyboard text =====')
+grep_all('Btn::', 60, only=BOT)
+print('===== main text dispatcher =====')
+grep_all('function kbMain', 4, ci=True)
+dump_find('bot_text', BOT, 'private static function route', 2, 60)
+print('===== zarinpal branch placement check =====')
+dump('bot_zp', BOT, 1418, 1470)
 print('===== miniapp render branch 1 =====')
 dump('ma_r1', MA, 2200, 2250)
 print('===== miniapp render branch 2 =====')
-dump('ma_r2', MA, 3612, 3665)
-print('===== miniapp topup check endpoint =====')
-grep_all('topup_hp', 12)
-dump_find('api_chk', API, "topup_hp_check", 3, 48)
+dump('ma_r2', MA, 3612, 3662)
 
 # ---------------- version bump ----------------
 vpath = os.path.join(ROOT, 'version.json')
@@ -185,7 +189,7 @@ old_build = vj.get('build')
 vj['build'] = BUILD
 note = '0.0.2 #22: \u0646\u0645\u0627\u06cc\u0634 \u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644 \u062f\u0631 \u0631\u0648\u0634\u200c\u0647\u0627\u06cc \u067e\u0631\u062f\u0627\u062e\u062a \u0645\u06cc\u0646\u06cc\u200c\u0627\u067e'
 cl = vj.get('changelog')
-if isinstance(cl, list):
+if isinstance(cl, list) and NEW:
     vj['changelog'] = ([note] + cl)[:60]
     print('changelog: entry added')
 with io.open(vpath, 'w', encoding='utf-8') as fh:
