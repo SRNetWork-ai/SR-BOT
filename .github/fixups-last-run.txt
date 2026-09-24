@@ -1,84 +1,61 @@
 Python 3.12.3
-Wed Sep 23 17:12:34 UTC 2026
-patched: app/Panel/Xui3.php / #happ-post (1)
-wrote app/Panel/Xui3.php
+Thu Sep 24 12:20:31 UTC 2026
+patched: app/Bot/Bot.php / #happ-plain-off (1)
+wrote app/Bot/Bot.php
 php lint: on
 changed files: 1
+sanity app/Bot/Bot.php / #happ-plain-off : ok
 sanity app/Panel/Xui3.php / #happ-post : ok
-sanity app/Panel/Xui3.php / $r = $this->api($path, $try[0], $try[1]); : ok
-sanity app/Panel/Xui3.php / private static function pickHappLink($o): string : ok
 sanity app/Panel/Xui3.php / 'encryptedLink', 'happLink', 'link', 'url', 'happ' : ok
-sanity app/Panel/Xui3.php / happ_source_too_long : ok
-sanity app/Service/Links.php / public static function normHapp(string $l): string : ok
----- dump happ_after : app/Panel/Xui3.php (1115 lines) ----
-  810      * دیپ‌لینک رمزنگاری‌شدهٔ Happ برای یک اکانت.
-  811      * پنل نسل جدید این لینک را خودش محلی می‌سازد (happ://crypt5/...) و
-  812      * فقط روی POST /panel/api/clients/happLink/{id} پاسخ می‌دهد؛ کلید پاسخ encryptedLink است.
-  813      * 0.0.2 #happ-post
-  814      */
-  815     public function happLink(string $email): string
-  816     {
-  817         $email = trim($email);
-  818         if ($email === '') return '';
-  819         $row = $this->clientRow($email);
-  820         if (!$row) return '';
-  821 
-  822         $id = 0;
-  823         foreach (['id', 'clientId', 'recordId'] as $k) {
-  824             if (isset($row[$k]) && is_numeric($row[$k]) && (int)$row[$k] > 0) {
-  825                 $id = (int)$row[$k];
-  826                 break;
-  827             }
-  828         }
-  829         if ($id <= 0) return '';
-  830 
-  831         $path = '/clients/happLink/' . $id;
-  832         $last = '';
-  833         foreach ([[null, 'POST'], [[], 'POST'], [null, 'GET']] as $try) {
-  834             $r = $this->api($path, $try[0], $try[1]);
-  835             if (($r['success'] ?? false) === true) {
-  836                 $l = self::pickHappLink($r['obj'] ?? '');
-  837                 if ($l !== '') return $l;
-  838                 continue;
-  839             }
-  840             $last = trim((string)($r['msg'] ?? ''));
-  841             if (stripos($last, 'happ_source_too_long') !== false) break;
-  842         }
-  843         if ($last !== '' && function_exists('app_log')) {
-  844             app_log('panel', 'happ link unavailable', [
-  845                 'panel' => (int)($this->panel['id'] ?? 0),
-  846                 'email' => $email,
-  847                 'msg'   => mb_substr($last, 0, 160),
-  848             ]);
-  849         }
-  850         return '';
-  851     }
-  852 
-  853     /** استخراج دیپ‌لینک از پاسخ پنل — کلید رسمی encryptedLink است */
-  854     private static function pickHappLink($o): string
-  855     {
-  856         if (is_string($o)) return trim($o);
-  857         if (is_array($o)) {
-  858             foreach (['encryptedLink', 'happLink', 'link', 'url', 'happ'] as $k) {
-  859                 if (isset($o[$k]) && is_string($o[$k]) && trim($o[$k]) !== '') return trim($o[$k]);
-  860             }
-  861         }
-  862         return '';
-  863     }
-  864 
-  865     /** لینک‌های خارجیِ ثبت‌شده روی پنل برای اکانت: GET /clients/{email}/externalLinks */
-  866     public function externalLinks(string $email): array
-  867     {
-  868         $email = trim($email);
-  869         if ($email === '') return [];
-  870         $r = $this->api('/clients/' . rawurlencode($email) . '/externalLinks');
-  871         if (($r['success'] ?? false) !== true) return [];
-  872         $out = [];
-  873         foreach ((array)($r['obj'] ?? []) as $row) {
-  874             if (is_string($row)) {
-  875                 $l = trim($row);
----- end dump happ_after ----
+absent app/Bot/Bot.php / Add subscription: : ok
+absent app/Bot/Bot.php / #happ-plain: : ok
+absent app/Bot/Bot.php / $psub : ok
+---- dump happ_view : app/Bot/Bot.php (3062 lines) ----
+ 3018         }
+ 3019         /* fixed83: حذف سرویس و عودت وجه — کانفیگ قطع‌شده اجازهٔ جداگانه دارد */
+ 3020         $dead = Svc::isDead($s);
+ 3021         if (Svc::userDelEnabled() || ($dead && Svc::deadDelEnabled())) {
+ 3022             $rows[] = [Tg::btn($dead ? '🗑 حذف کانفیگ قطع‌شده و عودت وجه' : '🗑 حذف سرویس و عودت وجه', 'svcdel:' . $id)];
+ 3023         }
+ 3024         $rows[] = [Tg::btn('⬅️ سرویس‌های من', 'menu:services')];
+ 3025         $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
+ 3026     }
+ 3027 
+ 3028     /* ============ 0.0.2: دستگاه‌های ثبت‌شده (HWID) — پنل 3x-ui ============ */
+ 3029 
+ 3030     /* ============ 0.0.2 #happ-links: لینک Happ و لینک‌های خارجی ============ */
+ 3031 
+ 3032     private static function happView($chatId, $msgId, int $id): void
+ 3033     {
+ 3034         $s = self::myService($id);
+ 3035         if (!$s) { Tg::send($chatId, '⚠️ سرویس یافت نشد.'); return; }
+ 3036         if (!class_exists('Links') || !Links::supported($s)) {
+ 3037             Tg::send($chatId, 'ℹ️ این سرویس لینک Happ ندارد.');
+ 3038             return;
+ 3039         }
+ 3040 
+ 3041         $happ = Links::happ($s);
+ 3042         $ext  = Links::external($s);
+ 3043 
+ 3044         $txt = "⚡ <b>افزودن به Happ</b>\n"
+ 3045             . '<code>─────────────────</code>' . "\n";
+ 3046         if ($happ !== '') {
+ 3047             $txt .= "لینک زیر را کپی کنید و در اپلیکیشن Happ بزنید روی «+» ← Import from clipboard:\n\n"
+ 3048                 . '<code>' . h($happ) . '</code>' . "\n";
+ 3049         } else {
+ 3050             $txt .= "لینک Happ برای این سرویس در دسترس نیست.\n";
+ 3051         }
+ 3052         /* 0.0.2 #happ-plain-off: آدرس خام اشتراک عمداً نمایش داده نمی‌شود تا فقط لینک رمزنگاری‌شدهٔ Happ به مشتری برسد و محدودیت هاردویر دور زده نشود */
+ 3053         $txt .= "\n<i>ویرایش حجم، حذف و عودت وجه این کانفیگ از پنل نمایندگی انجام می‌شود.</i>";
+ 3054         $rows = [
+ 3055             [Tg::btn('🧩 همهٔ کانفیگ‌های نمایندگی', 'rs:svcs')],
+ 3056             Kb::navRow('rs:panel'),
+ 3057         ];
+ 3058         $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
+ 3059     }
+ 3060 
+---- end dump happ_view ----
 changelog: entry added
-build: fixed140 (was fixed139)
+build: fixed141 (was fixed140)
 exit: 0
 exit: 0
