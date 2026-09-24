@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-# fixed159 - 0.0.2 #22: cron auto-poll for Zarinpal + admin bot label; recon of driver signatures.
+# fixed160 - 0.0.2 #22: Zarinpal deposit branch in the bot state handler and the miniapp API.
 import io, os, sys, json
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed159').strip() or 'fixed159'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed160').strip() or 'fixed160'
 
 CACHE = {}
 NEW = set()
@@ -12,9 +12,6 @@ WARN = []
 SKIP_DIRS = {'.git', 'node_modules', 'vendor', 'storage', 'uploads', 'backups'}
 EXT = ('.php', '.sql', '.js', '.html', '.json')
 
-CRON = 'cron/tasks.php'
-AB = 'app/Bot/AdminBot.php'
-ZP = 'app/Service/Zarinpal.php'
 BOT = 'app/Bot/Bot.php'
 API = 'miniapp/api.php'
 
@@ -112,71 +109,89 @@ def grep_all(needle, limit=20, only=None):
     print('---- end grep: %s (%d) ----' % (needle, n))
 
 
-def funcs(path, limit=200):
-    print('---- funcs: %s ----' % path)
-    n = 0
-    try:
-        lines = load(path).split(chr(10))
-    except Exception as e:
-        print('failed: %s' % e)
-        return
-    for i, ln in enumerate(lines, 1):
-        s = ln.strip()
-        if s.startswith('public ') or s.startswith('private ') or s.startswith('protected ') or s.startswith('const ') or s.startswith('function '):
-            if len(s) > 150:
-                s = s[:150] + ' ...'
-            print('%5d %s' % (i, s))
-            n += 1
-            if n >= limit:
-                break
-    print('---- end funcs: %s ----' % path)
+# ==================================================================
+# 1) bot deposit branch
+# ==================================================================
+BOT_ANCHOR = "} elseif ($method === 'hooshpay') {"
 
+ZP_BOT = r"""} elseif ($method === 'zarinpal') { /* 0.0.2 #22 */
+                    self::setState(null);
+                    $waitId = self::waitMsg(
+                        $chatId,
+                        "\u{1F3E6} <b>در حال ساخت لینک پرداخت…</b>\n\n\u{23F3} اتصال به زرین‌پال، چند لحظه صبر کنید.",
+                        self::kbMain()
+                    );
+
+                    if (!class_exists('Zarinpal') || !Zarinpal::enabled()) {
+                        self::waitEdit($chatId, $waitId, "\u{26A0} درگاه زرین‌پال در دسترس نیست.");
+                        return true;
+                    }
+
+                    $invZ = Zarinpal::createInvoice(self::$u, $amount);
+                    if (empty($invZ['ok'])) {
+                        self::waitEdit($chatId, $waitId, "\u{274C} " . (string)($invZ['message'] ?? 'ساخت لینک پرداخت ناموفق بود.'));
+                        Logs::send('errors', Logs::fmt("\u{26A0} خطای ساخت تراکنش زرین‌پال", [
+                            'کاربر' => (int)self::$u['tg_id'],
+                            'مبلغ'  => money($amount) . ' ' . currency(),
+                            'خطا'   => (string)($invZ['message'] ?? '-'),
+                        ]));
+                        return true;
+                    }
+
+                    $txZ = (int)($invZ['tx'] ?? 0);
+                    $txt = "\u{1F3E6} <b>پرداخت آنلاین با کارت بانکی</b>\n\n"
+                        . 'مبلغ: <b>' . money($amount) . ' ' . currency() . "</b>\n"
+                        . 'شماره پیگیری: <code>#' . $txZ . "</code>\n\n"
+                        . "روی دکمهٔ زیر بزنید و پرداخت را در درگاه زرین‌پال کامل کنید.\n"
+                        . "پس از پرداخت موفق، کیف پول شما <b>خودکار</b> شارژ می‌شود.";
+
+                    self::waitEdit($chatId, $waitId, $txt, Tg::ikb([
+                        [Tg::url("\u{1F3E6} رفتن به درگاه پرداخت", (string)$invZ['url'])],
+                    ]));
+                    Logs::send('financial', Logs::fmt("\u{1F3E6} تراکنش زرین‌پال جدید", [
+                        'کاربر'  => (($uZ = self::$u)['first_name'] ?? '-') . ' (' . (int)$uZ['tg_id'] . ')',
+                        'مبلغ'   => money($amount) . ' ' . currency(),
+                        'پیگیری' => '#' . $txZ,
+                    ]));
+                    return true;
+                """
+
+rep_lit(BOT, BOT_ANCHOR, ZP_BOT + BOT_ANCHOR, "$method === 'zarinpal'")
 
 # ==================================================================
-# 1) cron poller
+# 2) miniapp deposit endpoint
 # ==================================================================
-HP_CRON_TAIL = (
-    "        } catch (Throwable $e) {\n"
-    "            cron_say('hooshpay poll failed: ' . $e->getMessage());\n"
-    "        }\n"
-    "        usleep(250000);\n"
-    "    }\n"
-    "}\n"
+API_ANCHOR = (
+    "        if ($method === 'hooshpay') {\n"
+    "            if (!class_exists('HooshPay') || !HooshPay::enabled()) ma_fail('"
 )
 
-ZP_CRON = """
-/* 0.0.2 #22: auto-poll pending Zarinpal transactions */
-if (class_exists('Zarinpal') && Zarinpal::enabled()) {
-    $zpWait = DB::all("SELECT * FROM {p}transactions
-                       WHERE method = 'zarinpal' AND status = 'pending'
-                         AND created_at > DATE_SUB(NOW(), INTERVAL 2 DAY)
-                       ORDER BY id ASC LIMIT 25");
-    foreach ($zpWait as $tx) {
-        try {
-            $pr = Zarinpal::poll($tx);
-            if (!empty($pr['ok'])) {
-                $report['zarinpal'] = ($report['zarinpal'] ?? 0) + 1;
-                cron_say('zarinpal tx #' . (int)$tx['id'] . ' => ' . (string)($pr['message'] ?? 'done'));
+ZP_API = r"""        if ($method === 'zarinpal') { /* 0.0.2 #22 */
+            if (!class_exists('Zarinpal') || !Zarinpal::enabled()) ma_fail('درگاه زرین‌پال فعال نیست.');
+            if (!Zarinpal::forUser($isRs)) ma_fail('این درگاه برای حساب شما فعال نیست.');
+
+            $zpMin = Zarinpal::minAmount();
+            $zpMax = Zarinpal::maxAmount();
+            if ($zpMin > 0 && $amount < $zpMin) ma_fail('حداقل مبلغ این درگاه ' . ma_money($zpMin) . ' است.');
+            if ($zpMax > 0 && $amount > $zpMax) ma_fail('حداکثر مبلغ این درگاه ' . ma_money($zpMax) . ' است.');
+
+            $invZp = Zarinpal::createInvoice($user, $amount);
+            if (empty($invZp['ok'])) {
+                ma_fail((string)($invZp['message'] ?? 'ساخت لینک پرداخت زرین‌پال ناموفق بود.'));
             }
-        } catch (Throwable $e) {
-            cron_say('zarinpal poll failed: ' . $e->getMessage());
+
+            ma_out(['ok' => true, 'method' => 'zarinpal',
+                'amount'     => $amount,
+                'amount_txt' => ma_money($amount),
+                'tx'         => (int)($invZp['tx'] ?? 0),
+                'url'        => (string)($invZp['url'] ?? ''),
+                'authority'  => (string)($invZp['authority'] ?? ''),
+                'note'       => 'روی دکمهٔ پرداخت بزنید؛ پس از پرداخت موفق، کیف پول شما خودکار شارژ می‌شود.']);
         }
-        usleep(250000);
-    }
-}
+
 """
 
-rep_lit(CRON, HP_CRON_TAIL, HP_CRON_TAIL + ZP_CRON, "zarinpal poll failed")
-
-# ==================================================================
-# 2) admin bot payment card label
-# ==================================================================
-rep_lit(
-    AB,
-    "$mLbl   = ['card' => '",
-    "$mLbl   = ['zarinpal' => \"\\u{1F3E6} \u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644 (\u062e\u0648\u062f\u06a9\u0627\u0631)\", 'card' => '",
-    "'zarinpal' => \"",
-)
+rep_lit(API, API_ANCHOR, ZP_API + API_ANCHOR, "$method === 'zarinpal'")
 
 # ---------------- write ----------------
 if ERRORS:
@@ -198,33 +213,29 @@ for p in sorted(NEW):
 print('changed files: %d' % len(NEW))
 
 SANITY = [
-    (CRON, "zarinpal poll failed"),
-    (CRON, "method = 'zarinpal' AND status = 'pending'"),
-    (AB, "'zarinpal' => \""),
+    (BOT, "$method === 'zarinpal'"),
+    (BOT, 'Zarinpal::createInvoice(self::$u'),
+    (API, "'method' => 'zarinpal'"),
+    (API, 'Zarinpal::createInvoice($user'),
 ]
 ok = 0
 for p, needle in SANITY:
     good = needle in load(p)
-    print('sanity %s / %s : %s' % (p, needle[:34], 'ok' if good else 'MISSING'))
+    print('sanity %s / %s : %s' % (p, needle[:36], 'ok' if good else 'MISSING'))
     if good:
         ok += 1
 print('sanity: %d/%d' % (ok, len(SANITY)))
 
-# ---------------- recon: driver signatures ----------------
-print('===== Zarinpal map =====')
-funcs(ZP, 80)
-print('===== Zarinpal consts head =====')
-dump('zp_head', ZP, 1, 60)
-print('===== createInvoice =====')
-dump_find('zp_inv', ZP, 'function createInvoice', 2, 62)
-print('===== poll =====')
-dump_find('zp_poll', ZP, 'function poll', 2, 26)
-print('===== status check callbacks =====')
-grep_all('hpchk', 20)
-grep_all("'wal:chk", 10)
-print('===== wallet menu builder =====')
-grep_all('walletMenu', 12)
-grep_all('hooshpayOn', 12)
+# ---------------- recon ----------------
+print('===== hooshpay status check in bot =====')
+grep_all('checkHooshPay', 10)
+dump_find('bot_chk', BOT, 'checkHooshPay($chatId, int', 2, 45)
+print('===== askAmount hunt =====')
+grep_all('Amount(', 40, only='app/Bot')
+print('===== miniapp wallet UI =====')
+grep_all('hooshpay', 30, only='miniapp/index.php')
+print('===== miniapp hp button =====')
+dump('ma_ui', 'miniapp/index.php', 2280, 2330)
 
 # ---------------- version bump ----------------
 vpath = os.path.join(ROOT, 'version.json')
@@ -232,7 +243,7 @@ with io.open(vpath, 'r', encoding='utf-8') as fh:
     vj = json.load(fh)
 old_build = vj.get('build')
 vj['build'] = BUILD
-note = '0.0.2 #22: \u067e\u06cc\u06af\u06cc\u0631\u06cc \u062e\u0648\u062f\u06a9\u0627\u0631 \u062a\u0631\u0627\u06a9\u0646\u0634\u200c\u0647\u0627\u06cc \u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644 \u062f\u0631 \u06a9\u0631\u0627\u0646'
+note = '0.0.2 #22: \u0634\u0627\u0631\u0698 \u06a9\u06cc\u0641 \u067e\u0648\u0644 \u0628\u0627 \u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644 \u062f\u0631 \u0631\u0628\u0627\u062a \u0648 \u0645\u06cc\u0646\u06cc\u200c\u0627\u067e'
 cl = vj.get('changelog')
 if isinstance(cl, list):
     vj['changelog'] = ([note] + cl)[:60]
