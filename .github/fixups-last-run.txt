@@ -1,609 +1,171 @@
 Python 3.12.3
-Thu Sep 24 22:53:16 UTC 2026
-changed files: 0 (recon only)
-===== runButton switch =====
----- dump run : app/Bot/Bot.php (3104 lines) ----
-  450     }
-  451 
-  452     public static function runButton($chatId, $msgId, array $b): bool
-  453     {
-  454         $kind = (string)($b['kind'] ?? 'builtin');
-  455 
-  456         if ($kind === 'url') {
-  457             $u = trim((string)($b['url'] ?? ''));
-  458             if ($u === '') return false;
-  459             Tg::send($chatId, '🔗 <b>' . h((string)($b['label'] ?? '')) . '</b>',
-  460                 Tg::ikb([[Tg::url('🌐 باز کردن', $u)]]));
-  461             return true;
-  462         }
-  463 
-  464         if ($kind === 'text') {
-  465             $t = trim((string)($b['text'] ?? ''));
-  466             if ($t === '') return false;
-  467             Tg::send($chatId, $t, self::kbMain());
-  468             return true;
-  469         }
-  470 
-  471         if ($kind === 'miniapp') {
-  472             $mb = self::miniappBtn();
-  473             if ($mb === null) {
-  474                 Tg::send($chatId, '⚠️ مینی‌اپ فعال نیست.', self::kbMain());
-  475                 return true;
-  476             }
-  477             Tg::send($chatId, '🚀 <b>' . h((string)($b['label'] ?? 'اپلیکیشن')) . '</b>', Tg::ikb([[$mb]]));
-  478             return true;
-  479         }
-  480 
-  481         if ($kind === 'menu') {
-  482             self::openBtnMenu($chatId, $msgId, (string)($b['key'] ?? ''));
-  483             return true;
-  484         }
-  485 
-  486         if ($kind === 'copy') {
-  487             $c = trim((string)($b['copy'] ?? ''));
-  488             if ($c === '') return false;
-  489             Tg::send($chatId,
-  490                 '�� <b>' . h((string)($b['label'] ?? '')) . "</b>
-  491 
-  492 <code>" . h($c) . '</code>'
-  493                 . "
-  494 
-  495 <i>برای کپی، روی متن بالا بزنید.</i>",
-  496                 self::kbMain());
-  497             return true;
-  498         }
-  499 
-  500         if ($kind === 'share') {
-  501             $un  = ltrim(trim((string)DB::setting('bot_username', '')), '@');
-  502             $shr = trim((string)($b['text'] ?? ''));
-  503             if ($shr === '') $shr = 'این ربات را امتحان کن 👌';
-  504 
-  505             $rws = [];
-  506             if ($un !== '') {
-  507                 $rws[] = [Tg::url('📤 ارسال برای دوستان',
-  508                     'https://t.me/share/url?url=' . rawurlencode('https://t.me/' . $un)
-  509                     . '&text=' . rawurlencode($shr))];
-  510             }
-  511             $rws[] = [['text' => '💬 انتخاب گفتگو', 'switch_inline_query' => $shr]];
-  512             $rws[] = [Tg::btn('🏠 منوی اصلی', 'menu:main')];
-  513 
-  514             Tg::send($chatId, '📣 <b>' . h((string)($b['label'] ?? 'معرفی ربات')) . "</b>
-  515 
-  516 " . h($shr),
-  517                 Tg::ikb($rws));
-  518             return true;
-  519         }
-  520 
-  521         if ($kind === 'contact') {
-  522             self::setState('set_phone');
-  523             Tg::send($chatId, '📱 برای ثبت شمارهٔ تماس، دکمهٔ زیر را بزنید:', Tg::rkb([
-  524                 [['text' => '📲 ارسال شمارهٔ من', 'request_contact' => true]],
-  525                 [['text' => Kb::CANCEL]],
-  526             ]));
-  527             return true;
-  528         }
-  529 
-  530         if ($kind === 'location') {
-  531             Tg::send($chatId, '📍 موقعیت خود را با دکمهٔ زیر بفرستید:', Tg::rkb([
-  532                 [['text' => '🗺 ارسال موقعیت من', 'request_location' => true]],
-  533                 [['text' => Kb::CANCEL]],
-  534             ]));
-  535             return true;
-  536         }
-  537 
-  538         switch ((string)($b['key'] ?? '')) {
-  539             case 'products': self::sectionProducts($chatId, $msgId); return true;
-  540             case 'custom':   self::cusMenu($chatId); return true;
-  541             case 'services': self::sectionServices($chatId, $msgId); return true;
-  542             case 'wallet':   self::sectionWallet($chatId, $msgId); return true;
-  543             case 'account':  self::sectionAccount($chatId); return true;
-  544             case 'test':     self::sectionTest($chatId); return true;
-  545             case 'gift':
-  546                 self::setState('gift_code');
-  547                 Tg::send($chatId, self::tx('gift_ask', '🎁 کد هدیه خود را ارسال کنید:'), Kb::cancel());
-  548                 return true;
-  549             case 'tutorial': self::sectionTutorials($chatId); return true;
-  550             case 'support':  self::sectionSupport($chatId, $msgId); return true;
-  551             /* fixed76: دکمه‌های جدید قابل‌افزودن از «دکمه‌های ربات» */
-  552             case 'tickets':  self::sectionSupport($chatId, $msgId); return true;
-  553             case 'renew':    self::sectionServices($chatId, $msgId); return true;
-  554             case 'campaign': self::sectionCampaign($chatId); return true;
-  555             case 'prices':   self::priceList($chatId); return true;
-  556             case 'orders':   self::sectionOrders($chatId); return true; /* fixed79 */
-  557             case 'reseller': self::sectionReseller($chatId); return true;
-  558             case 'rsreq':    self::resellerRequest($chatId); return true;
-  559             case 'rssvcs':
-  560                 if (self::isRs()) self::sectionResellerServices($chatId, $msgId);
-  561                 else self::sectionServices($chatId, $msgId);
-  562                 return true;
-  563             case 'referral': self::sectionReferral($chatId, $msgId); return true;
-  564             case 'stock':    self::sectionStock($chatId, $msgId); return true;
-  565 
-  566             /* ---------- دکمه‌های کیف پول ---------- */
-  567             case 'wal_card':   self::walletCardMenu($chatId); return true;
-  568             case 'wal_crypto': self::cryptoAssets($chatId, $msgId); return true;
-  569             case 'wal_np':     self::askAmount($chatId, 'nowpay'); return true;
-  570             case 'wal_hp':     self::askAmount($chatId, 'hooshpay'); return true;
-  571             case 'wal_zp':     self::askAmount($chatId, 'zarinpal'); return true; /* 0.0.2 #22 */
-  572             case 'wal_hash':   self::askAmount($chatId, 'crypto_hash'); return true;
-  573             case 'wal_hist':   self::walletHistory($chatId, $msgId); return true;
-  574 
-  575             /* ---------- حساب کاربری ---------- */
-  576             case 'acc_phone':
-  577                 self::setState('set_phone');
-  578                 Tg::send($chatId, '📱 شماره تماس خود را ارسال کنید:', Kb::cancel());
-  579                 return true;
-  580             case 'acc_email':
-  581                 self::setState('set_email');
-  582                 Tg::send($chatId, '✉️ ایمیل خود را ارسال کنید:', Kb::cancel());
-  583                 return true;
-  584             case 'acc_name':
-  585                 self::setState('set_name');
-  586                 Tg::send($chatId, '👤 نام و نام خانوادگی خود را ارسال کنید:', Kb::cancel());
-  587                 return true;
-  588             case 'verify': self::verifyMenu($chatId, $msgId); return true;
-  589             case 'refs':   self::referralList($chatId, $msgId); return true;
-  590 
-  591             /* ---------- نمایندگی ---------- */
-  592             case 'rspay':
----- end dump run ----
-===== submenu opener =====
----- dump bot_menu : app/Bot/Bot.php (3104 lines) ----
-  415         if (class_exists('Txt')) {
-  416             try { return Txt::t($key, $def); } catch (Throwable $e) {}
-  417         }
-  418         return $def;
-  419     }
-  420 
-  421     /** آیا کاربر جاری نماینده است؟ */
-  422     private static function isRs(): bool
-  423     {
-  424         if (!class_exists('Reseller')) return false;
-  425         try { return Reseller::isReseller((array)(self::$u ?? [])); } catch (Throwable $e) { return false; }
-  426     }
-  427 
-  428     /**
-  429      * اجرای یک دکمهٔ منو (چه کیبوردی چه شیشه‌ای)
-  430      */
-  431     /** باز کردن یک زیرمنوی ساخته‌شده در پنل مدیریت */
-  432     public static function openBtnMenu($chatId, $msgId, string $menu): void
-  433     {
-  434         if (!class_exists('Btn') || $menu === '') return;
-  435 
-  436         $rows = Btn::subRows($menu, self::isAdmin(), self::isRs());
-  437         if ($rows === []) {
-  438             Tg::send($chatId, '⚠️ این بخش فعلاً دکمه‌ای ندارد.', self::kbMain());
-  439             return;
-  440         }
-  441 
-  442         $rows[] = Kb::navRow('menu:main');
-  443         $txt = '<b>' . h(Btn::menuTitle($menu)) . "</b>
-  444 
-  445 "
-  446              . 'یکی از گزینه‌های زیر را انتخاب کنید 👇';
-  447 
-  448         if ($msgId) Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows));
-  449         else        Tg::send($chatId, $txt, Tg::ikb($rows));
-  450     }
-  451 
-  452     public static function runButton($chatId, $msgId, array $b): bool
-  453     {
-  454         $kind = (string)($b['kind'] ?? 'builtin');
-  455 
-  456         if ($kind === 'url') {
-  457             $u = trim((string)($b['url'] ?? ''));
-  458             if ($u === '') return false;
-  459             Tg::send($chatId, '🔗 <b>' . h((string)($b['label'] ?? '')) . '</b>',
-  460                 Tg::ikb([[Tg::url('🌐 باز کردن', $u)]]));
-  461             return true;
-  462         }
-  463 
-  464         if ($kind === 'text') {
-  465             $t = trim((string)($b['text'] ?? ''));
-  466             if ($t === '') return false;
-  467             Tg::send($chatId, $t, self::kbMain());
-  468             return true;
-  469         }
-  470 
----- end dump bot_menu ----
-===== Kb constants =====
----- dump kb_head : app/Bot/Kb.php (103 lines) ----
+Thu Sep 24 22:56:22 UTC 2026
+===== method existence =====
+ok       sectionProducts            app/Bot/Bot.php:1905
+ok       sectionServices            app/Bot/Bot.php:2998
+MISSING  sectionWallet
+MISSING  sectionAccount
+MISSING  sectionTest
+MISSING  sectionTutorials
+MISSING  sectionSupport
+MISSING  sectionReseller
+MISSING  sectionReferral
+MISSING  sectionStock
+ok       sectionOrders              app/Bot/Bot.php:2277
+ok       sectionCampaign            app/Bot/Bot.php:2351
+MISSING  sectionResellerServices
+ok       cusMenu                    app/Bot/Bot.php:2517
+MISSING  walletCardMenu
+MISSING  walletHistory
+ok       cryptoAssets               app/Bot/Bot.php:644
+MISSING  askAmount
+MISSING  verifyMenu
+MISSING  referralList
+ok       priceList                  app/Bot/Bot.php:2321
+MISSING  resellerRequest
+ok       mainMenu                   app/Bot/Bot.php:899
+ok       kbMain                     app/Bot/Bot.php:890
+MISSING  miniappBtn
+ok       attachLooseReceipt         app/Bot/Bot.php:1795
+ok       handleState                app/Bot/AdminBot.php:664
+ok       runButton                  app/Bot/Bot.php:452
+ok       openBtnMenu                app/Bot/Bot.php:432
+ok       setState                   app/Bot/AdminHub.php:309
+ok       stateData                  app/Bot/Bot.php:89
+ok       waitMsg                    app/Bot/Bot.php:330
+ok       waitEdit                   app/Bot/Bot.php:337
+ok       isAdmin                    app/Bot/Bot.php:91
+ok       tx                         app/Bot/Bot.php:413
+ok       verifyGate                 app/Bot/Bot.php:349
+ok       cusProducts                app/Bot/Bot.php:2217
+missing count: 16
+missing list: sectionWallet, sectionAccount, sectionTest, sectionTutorials, sectionSupport, sectionReseller, sectionReferral, sectionStock, sectionResellerServices, walletCardMenu, walletHistory, askAmount, verifyMenu, referralList, resellerRequest, miniappBtn
+===== app/Bot files =====
+app/Bot/AdminBot.php                  73445 B   1311 lines
+app/Bot/AdminHub.php                 120043 B   1710 lines
+app/Bot/Bot.php                      165272 B   3104 lines
+app/Bot/Kb.php                         3867 B    103 lines
+app/Tg.php                            12030 B    283 lines
+===== traits / class heads =====
+---- grep: trait  ----
+---- end grep: trait  (0) ----
+---- grep: class Bot ----
+app/Bot/Bot.php:7: class Bot
+---- end grep: class Bot (1) ----
+===== Bot.php head =====
+---- dump bot_head : app/Bot/Bot.php (3104 lines) ----
     1 <?php
     2 declare(strict_types=1);
     3 
     4 /**
-    5  * متون و کیبوردهای ربات
+    5  * مغز ربات: دریافت آپدیت‌ها و مدیریت بخش‌ها
     6  */
-    7 class Kb
+    7 class Bot
     8 {
-    9     /* دکمه‌های منوی اصلی */
-   10     public const PRODUCTS = '🛒 محصولات';
-   11     public const SERVICES = '📦 سرویس‌های من';
-   12     public const WALLET   = '💳 شارژ کیف پول';
-   13     public const ACCOUNT  = '👤 حساب کاربری';
-   14     public const TEST     = '🧪 اکانت تست';
-   15     public const GIFT     = '🎁 کد هدیه';
-   16     public const TUTORIAL = '🎓 آموزش';
-   17     public const SUPPORT  = '🆘 پشتیبانی';
-   18     public const RESELLER = '🏷 نمایندگی';
-   19     public const ADMIN    = '🛠 پنل مدیریت';
-   20     public const CANCEL   = '❌ انصراف';
-   21     public const CUSTOM   = '📐 حجم و زمان دلخواه';
-   22 
-   23     public static function main(bool $isAdmin = false, bool $isReseller = false, bool $hasCustom = false): array
-   24     {
-   25         /* چیدمان دکمه‌ها از پنل وب */
-   26         if (class_exists('Btn')) {
-   27             try {
-   28                 if (Btn::mode() === 'inline') return Tg::removeKb();
-   29                 $custom = Btn::replyRows($isAdmin, $isReseller);
-   30                 if ($custom !== []) return Tg::rkb($custom);
-   31             } catch (Throwable $e) {
-   32                 /* در صورت خطا به کیبورد پیش‌فرض برمی‌گردیم */
-   33             }
-   34         }
-   35 
-   36         $rows = [
-   37             [['text' => self::PRODUCTS], ['text' => self::SERVICES]],
-   38             [['text' => self::WALLET], ['text' => self::ACCOUNT]],
-   39             [['text' => self::TEST], ['text' => self::GIFT]],
-   40             [['text' => self::TUTORIAL], ['text' => self::SUPPORT]],
-   41         ];
-   42         /* دکمهٔ مستقل «حجم و زمان دلخواه» زیر ردیف اول */
-   43         if ($hasCustom) array_splice($rows, 1, 0, [[['text' => self::CUSTOM]]]);
-   44         if ($isReseller) $rows[] = [['text' => self::RESELLER]];
-   45         if ($isAdmin)    $rows[] = [['text' => self::ADMIN]];
-   46         return Tg::rkb($rows);
-   47     }
-   48 
-   49     public static function cancel(): array
-   50     {
-   51         return Tg::rkb([[['text' => self::CANCEL]]]);
-   52     }
-   53 
-   54     public static function isMenuButton(string $text): bool
-   55     {
-   56         if (class_exists('Btn')) {
-   57             try {
-   58                 if (Btn::match($text) !== null) return true;
-   59             } catch (Throwable $e) {
-   60             }
-   61         }
-   62         return in_array($text, [
-   63             self::PRODUCTS, self::SERVICES, self::WALLET, self::ACCOUNT,
-   64             self::TEST, self::GIFT, self::TUTORIAL, self::SUPPORT,
-   65             self::RESELLER, self::ADMIN, self::CANCEL, self::CUSTOM,
-   66         ], true);
-   67     }
-   68 
-   69     /** دکمه بازگشت اینلاین */
-   70     public static function backRow(string $data = 'menu:main'): array
-   71     {
-   72         return [Tg::btn('⬅️ بازگشت', $data)];
-   73     }
-   74 
-   75     /**
-   76      * ردیف ناوبری استاندارد برای همهٔ بخش‌های شیشه‌ای.
-   77      * همیشه یک «بازگشت» و در صورت نیاز یک «منوی اصلی» می‌دهد تا کاربر هیچ‌وقت گیر نکند.
-   78      */
-   79     public static function navRow(string $back = 'menu:main', bool $home = true): array
-   80     {
-   81         $row = [Tg::btn('⬅️ بازگشت', $back)];
-   82         if ($home && $back !== 'menu:main') $row[] = Tg::btn('🏠 منوی اصلی', 'menu:main');
-   83         return $row;
-   84     }
-   85 
-   86     public static function platforms(): array
-   87     {
-   88         return [
-   89             'android' => '🤖 اندروید',
-   90             'ios'     => '🍏 آی‌او‌اس',
-   91             'windows' => '💻 ویندوز',
-   92             'mac'     => '🖥 مک',
-   93             'tv'      => '📺 تلویزیون',
-   94             'other'   => '📚 سایر',
-   95         ];
-   96     }
-   97 
-   98     public static function platformLabel(string $key): string
-   99     {
-  100         return self::platforms()[$key] ?? $key;
-  101     }
-  102 }
-  103 
----- end dump kb_head ----
-===== Kb::isMenuButton =====
----- dump kb_ismenu : app/Bot/Kb.php (103 lines) ----
-   52     }
-   53 
-   54     public static function isMenuButton(string $text): bool
-   55     {
-   56         if (class_exists('Btn')) {
-   57             try {
-   58                 if (Btn::match($text) !== null) return true;
-   59             } catch (Throwable $e) {
-   60             }
-   61         }
-   62         return in_array($text, [
-   63             self::PRODUCTS, self::SERVICES, self::WALLET, self::ACCOUNT,
-   64             self::TEST, self::GIFT, self::TUTORIAL, self::SUPPORT,
-   65             self::RESELLER, self::ADMIN, self::CANCEL, self::CUSTOM,
-   66         ], true);
-   67     }
-   68 
-   69     /** دکمه بازگشت اینلاین */
-   70     public static function backRow(string $data = 'menu:main'): array
-   71     {
-   72         return [Tg::btn('⬅️ بازگشت', $data)];
-   73     }
-   74 
-   75     /**
-   76      * ردیف ناوبری استاندارد برای همهٔ بخش‌های شیشه‌ای.
-   77      * همیشه یک «بازگشت» و در صورت نیاز یک «منوی اصلی» می‌دهد تا کاربر هیچ‌وقت گیر نکند.
-   78      */
-   79     public static function navRow(string $back = 'menu:main', bool $home = true): array
-   80     {
-   81         $row = [Tg::btn('⬅️ بازگشت', $back)];
-   82         if ($home && $back !== 'menu:main') $row[] = Tg::btn('🏠 منوی اصلی', 'menu:main');
-   83         return $row;
-   84     }
-   85 
-   86     public static function platforms(): array
-   87     {
-   88         return [
-   89             'android' => '🤖 اندروید',
-   90             'ios'     => '🍏 آی‌او‌اس',
-   91             'windows' => '💻 ویندوز',
-   92             'mac'     => '🖥 مک',
-   93             'tv'      => '📺 تلویزیون',
-   94             'other'   => '📚 سایر',
----- end dump kb_ismenu ----
-===== handleState head =====
----- dump bot_state : app/Bot/Bot.php (3104 lines) ----
- 1174     /* ================= حالت‌ها ================= */
- 1175 
- 1176     private static function handleState($chatId, string $state, string $text, array $msg): bool
- 1177     {
- 1178         $d = self::stateData();
- 1179         switch ($state) {
- 1180             case 'set_phone':
- 1181                 DB::update('users', ['phone' => mb_substr(en_num($text), 0, 30)], 'id = :id', [':id' => (int)self::$u['id']]);
- 1182                 self::setState(null);
- 1183                 Tg::send($chatId, '✅ شماره تماس ذخیره شد.', self::kbMain());
- 1184                 self::sectionAccount($chatId);
- 1185                 return true;
- 1186 
- 1187             case 'verify_email':
- 1188             case 'verify_phone':
- 1189                 if (!class_exists('Security')) { self::setState(null); return true; }
- 1190                 $vk = $state === 'verify_email' ? 'email' : 'phone';
- 1191                 $vu = DB::one('SELECT * FROM {p}users WHERE id = :id', [':id' => (int)self::$u['id']]) ?: [];
- 1192                 $vr = Security::start($vu, $vk, $text);
- 1193                 if (empty($vr['ok'])) { Tg::send($chatId, '❌ ' . (string)$vr['message']); return true; }
- 1194                 self::setState('verify_code');
- 1195                 Tg::send($chatId, '✅ ' . (string)$vr['message'] . "\n\n"
- 1196                     . '🔢 کد ' . fa_num((string)Security::codeLen()) . " رقمی را همینجا ارسال کنید.\n"
- 1197                     . '⏱ اعتبار کد: ' . fa_num((string)Security::ttlMin()) . ' دقیقه',
- 1198                     Tg::ikb([[Tg::btn('🔄 ارسال مجدد کد', 'ver:resend')], Kb::backRow('ver:menu')]));
- 1199                 return true;
- 1200 
- 1201             case 'verify_code':
- 1202                 if (!class_exists('Security')) { self::setState(null); return true; }
- 1203                 $vu = DB::one('SELECT * FROM {p}users WHERE id = :id', [':id' => (int)self::$u['id']]) ?: [];
- 1204                 $vr = Security::checkCode($vu, $text);
- 1205                 if (empty($vr['ok'])) {
- 1206                     Tg::send($chatId, '❌ ' . (string)$vr['message'],
- 1207                         Tg::ikb([[Tg::btn('🔄 ارسال مجدد کد', 'ver:resend')], Kb::backRow('ver:menu')]));
- 1208                     return true;
- 1209                 }
- 1210                 self::setState(null);
- 1211                 Tg::send($chatId, (string)$vr['message'], self::kbMain());
- 1212                 self::sectionAccount($chatId);
- 1213                 return true;
- 1214 
- 1215             case 'set_email':
- 1216                 if (!filter_var($text, FILTER_VALIDATE_EMAIL)) { Tg::send($chatId, '❌ ایمیل معتبر نیست. دوباره تلاش کنید.'); return true; }
- 1217                 DB::update('users', ['email' => mb_substr($text, 0, 120)], 'id = :id', [':id' => (int)self::$u['id']]);
- 1218                 self::setState(null);
- 1219                 Tg::send($chatId, '✅ ایمیل ذخیره شد.', self::kbMain());
- 1220                 self::sectionAccount($chatId);
- 1221                 return true;
- 1222 
- 1223             case 'set_name':
- 1224                 $parts = preg_split('/\\s+/', trim($text), 2) ?: [];
- 1225                 DB::update('users', [
- 1226                     'first_name' => mb_substr((string)($parts[0] ?? ''), 0, 120),
- 1227                     'last_name'  => mb_substr((string)($parts[1] ?? ''), 0, 120),
- 1228                 ], 'id = :id', [':id' => (int)self::$u['id']]);
- 1229                 self::setState(null);
- 1230                 Tg::send($chatId, '✅ اطلاعات ذخیره شد.', self::kbMain());
- 1231                 self::sectionAccount($chatId);
----- end dump bot_state ----
-===== verifyGate =====
----- dump bot_vg : app/Bot/Bot.php (3104 lines) ----
-  347      * @return bool true یعنی درخواست متوقف شود
-  348      */
-  349     private static function verifyGate($chatId): bool
-  350     {
-  351         if (!class_exists('Security')) return false;
-  352 
-  353         try {
-  354             if (self::isAdmin()) return false;
-  355             if (!Security::needs(self::$u, 'any')) return false;
-  356 
-  357             $shop  = (string)DB::setting('shop_title', 'فروشگاه کانفیگ');
-  358             $kinds = Security::activeKinds();
-  359             $names = implode(' یا ', array_map(static fn($m) => (string)$m['label'], $kinds));
-  360 
-  361             $rows = [];
-  362             if (isset($kinds['link']))  $rows[] = [Tg::btn('🔗 دریافت لینک تایید', 'verify:link')];
-  363             if (isset($kinds['email'])) $rows[] = [Tg::btn('📧 تایید با ایمیل', 'verify:email')];
-  364             if (isset($kinds['phone'])) $rows[] = [Tg::btn('📱 تایید با شماره موبایل', 'verify:phone')];
-  365             $rows[] = [Tg::btn('✅ تایید حساب کاربری', 'verify:menu')];
-  366 
-  367             Tg::send(
-  368                 $chatId,
-  369                 "🔐 <b>تایید حساب کاربری</b>\n"
-  370                 . "<code>─────────────────</code>\n"
-  371                 . 'به <b>' . h($shop) . "</b> خوش آمدید 👋\n\n"
-  372                 . "برای جلوگیری از سوءاستفاده، پیش از استفاده از ربات باید حساب خود را تایید کنید.\n"
-  373                 . '🔑 روش‌های فعال: <b>' . h($names !== '' ? $names : '—') . "</b>\n\n"
-  374                 . '👇 روی دکمهٔ زیر بزنید. پس از تایید، همهٔ ��خش‌های ربات برای شما باز می‌شود.',
-  375                 Tg::ikb($rows)
-  376             );
-  377             return true;
-  378         } catch (Throwable $e) {
-  379             return false;
-  380         }
-  381     }
-  382 
-  383     /** یادآور تایید حساب – بلافاصله پس از /start وقتی تایید اجباری است */
-  384     private static function verifyNudge($chatId): void
-  385     {
-  386         if (!class_exists('Security')) return;
-  387         try {
-  388             if (Security::mode() !== 'required' || !Security::enabled()) return;
-  389             if (Security::isVerified(self::$u)) return;
----- end dump bot_vg ----
-===== section handlers =====
----- grep: function section ----
-app/Bot/Bot.php:1905: private static function sectionProducts($chatId, $msgId = null): void
-app/Bot/Bot.php:2277: private static function sectionOrders($chatId): void
-app/Bot/Bot.php:2351: private static function sectionCampaign($chatId): void
-app/Bot/Bot.php:2998: private static function sectionServices($chatId, $msgId = null): void
----- end grep: function section (4) ----
-===== Btn::meta / guessMeta / scanReport / autoFix =====
----- dump btn_meta : app/Service/Btn.php (1679 lines) ----
- 1522 
- 1523     /** متادیتای یک کلید درون‌ساخت (null = ناشناخته) */
- 1524     public static function meta(string $key): ?array
- 1525     {
- 1526         if ($key === '') return null;
- 1527         if (isset(self::BUILTIN[$key])) return self::BUILTIN[$key];
- 1528         $all = self::builtinAll();
- 1529         return isset($all[$key]) ? (array)$all[$key] : null;
- 1530     }
- 1531 
- 1532     /** برچسب پیشنهادی برای کلید تازه (products_new → Products new) */
- 1533     private static function guessMeta(string $key): array
- 1534     {
- 1535         $aud = 'all';
- 1536         if (strncmp($key, 'admin', 5) === 0) $aud = 'admin';
- 1537         elseif (strncmp($key, 'rs', 2) === 0 || strncmp($key, 'reseller', 8) === 0) $aud = 'reseller';
- 1538         $label = ucwords(str_replace('_', ' ', $key));
- 1539         return ['🔘', $label, $aud, 'کشف‌شده'];
- 1540     }
- 1541 
- 1542     /**
- 1543      * گزارش اسکن: هندلرهای موجود در کد، کلیدهای تازه (بدون دکمه)، دکمه‌های بی‌هندلر، هندلرهای خارج از فهرست
- 1544      */
- 1545     public static function scanReport(bool $fresh = false): array
- 1546     {
- 1547         $handlers = self::scanHandlers($fresh);
- 1548         $all      = self::builtinAll();
- 1549         $rows     = self::all();
- 1550         $inList   = [];
----- end dump btn_meta ----
----- dump btn_report : app/Service/Btn.php (1679 lines) ----
- 1543      * گزارش اسکن: هندلرهای موجود در کد، کلیدهای تازه (بدون دکمه)، دکمه‌های بی‌هندلر، هندلرهای خارج از فهرست
- 1544      */
- 1545     public static function scanReport(bool $fresh = false): array
- 1546     {
- 1547         $handlers = self::scanHandlers($fresh);
- 1548         $all      = self::builtinAll();
- 1549         $rows     = self::all();
- 1550         $inList   = [];
- 1551         foreach ($rows as $r) {
- 1552             if ((string)($r['kind'] ?? '') === 'builtin') $inList[(string)($r['key'] ?? '')] = $r;
- 1553         }
- 1554         $new = []; $dead = []; $notInList = []; $matched = 0;
- 1555         foreach ($handlers as $k) {
- 1556             if (!isset($all[$k])) { $new[] = $k; continue; }
- 1557             $matched++;
- 1558             if (!isset($inList[$k])) $notInList[] = $k;
- 1559         }
- 1560         foreach ($all as $k => $m) {
- 1561             if ($handlers !== [] && !in_array((string)$k, $handlers, true)) $dead[] = (string)$k;
- 1562         }
- 1563         $cache = jdec((string)DB::setting('btn_scan_cache', ''), []);
- 1564         return [
- 1565             'handlers'    => $handlers,
- 1566             'matched'     => $matched,
- 1567             'new'         => $new,
- 1568             'dead'        => $dead,
- 1569             'not_in_list' => $notInList,
- 1570             'discovered'  => self::discovered(),
- 1571             'scanned_at'  => (string)(is_array($cache) ? ($cache['at'] ?? '') : ''),
- 1572             'sig'         => self::scanSig(),
- 1573             'auto'        => (int)DB::setting('btn_autoscan', 1) === 1,
- 1574             'last_auto'   => (string)DB::setting('btn_autoscan_last', ''),
- 1575             'files'       => array_map('basename', self::scanFiles()),
- 1576         ];
- 1577     }
- 1578 
- 1579     /**
- 1580      * اسکن خودکار: کلیدهای تازه را به فهرست کشف‌شده‌ها و سپس (خاموش) به فهرست دکمه‌ها اضافه می‌کند.
- 1581      * $force = نادیده گرفتن خاموش بودن اسکن خودکار و امضای کش.
- 1582      */
- 1583     public static function autoScan(bool $force = false): array
- 1584     {
- 1585         if (!$force && (int)DB::setting('btn_autoscan', 1) !== 1) return ['ok' => false, 'skipped' => true, 'message' => 'اسکن خودکار خاموش است.'];
- 1586         $sig = self::scanSig();
- 1587         if (!$force && (string)DB::setting('btn_autoscan_sig', '') === $sig) return ['ok' => true, 'skipped' => true, 'message' => 'کد ربات تغییری نکرده است.'];
----- end dump btn_report ----
----- dump btn_fix : app/Service/Btn.php (1679 lines) ----
- 1249     public static function autoFix(): array
- 1250     {
- 1251         $rows = self::all();
- 1252         $log  = [];
- 1253         $out  = [];
- 1254         $ids  = [];
- 1255         $lbl  = [];
- 1256 
- 1257         foreach ($rows as $b) {
- 1258             $kind = (string)($b['kind'] ?? 'builtin');
- 1259             $name = trim((string)($b['label'] ?? ''));
- 1260 
- 1261             /* شناسهٔ تکراری */
- 1262             $id = (string)($b['id'] ?? '');
- 1263             if ($id === '' || isset($ids[$id])) {
- 1264                 $b['id'] = 'b_' . rnd(6);
- 1265                 $log[]   = 'شناسهٔ تکراری «' . $name . '» اصلاح شد.';
- 1266             }
- 1267             $ids[(string)$b['id']] = true;
- 1268 
- 1269             /* برچسب خالی */
- 1270             if ($name === '') {
- 1271                 $b['label'] = (string)((self::meta((string)($b['key'] ?? '')) ?? [])[1] ?? 'دکمه');
- 1272                 $log[]      = 'برچسب خالی پر شد: ' . $b['label'];
- 1273             }
- 1274 
- 1275             /* لینک بدون پروتکل */
- 1276             if ($kind === 'url') {
- 1277                 $u = trim((string)($b['url'] ?? ''));
- 1278                 if ($u !== '' && !preg_match('~^https?://~i', $u)) {
- 1279                     $b['url'] = 'https://' . ltrim($u, '/');
- 1280                     $log[]    = 'آدرس «' . $b['label'] . '» به https تبدیل شد.';
- 1281                 }
- 1282                 if (trim((string)$b['url']) === '' && !empty($b['enabled'])) {
- 1283                     $b['enabled'] = false;
- 1284                     $log[]        = 'دکمهٔ بدون آدرس خاموش شد: ' . $b['label'];
- 1285                 }
- 1286             }
- 1287 
- 1288             /* متن یا کپی خالی */
- 1289             if (($kind === 'text' && trim((string)($b['text'] ?? '')) === '')
- 1290                 || ($kind === 'copy' && trim((string)($b['copy'] ?? '')) === '')) {
- 1291                 if (!empty($b['enabled'])) {
- 1292                     $b['enabled'] = false;
- 1293                     $log[]        = 'دکمهٔ ناقص خاموش شد: ' . $b['label'];
- 1294                 }
- 1295             }
- 1296 
- 1297             /* منوی نامعتبر */
- 1298             if ($kind === 'menu') {
- 1299                 $t = (string)($b['key'] ?? '');
- 1300                 if (!isset(self::MENUS[$t]) || $t === self::menuOf($b)) {
----- end dump btn_fix ----
+    9     public static array $u = [];
+   10 
+   11     public static function handle(array $update): void
+   12     {
+   13         try {
+   14             /* محدودساز پیام: جلوی اسپم پیام و کلیک گرفته می‌شود — مدیران معاف‌اند */
+   15             if (class_exists('Flood')) {
+   16                 $fFrom = (int)($update['message']['from']['id'] ?? $update['callback_query']['from']['id'] ?? 0);
+   17                 if ($fFrom > 0) {
+   18                     $fRes = Flood::hit($fFrom);
+   19                     if ($fRes !== 'ok') {
+   20                         if ($fRes === 'notice') {
+   21                             if (isset($update['callback_query']['id'])) {
+   22                                 Tg::answerCb((string)$update['callback_query']['id'], '⏳ تعداد درخواست‌های شما زیاد است؛ چند لحظه صبر کنید.', true);
+   23                             } else {
+   24                                 Tg::send($fFrom, '⏳ تعداد پیام‌های شما زیاد است؛ لطفاً چند لحظه صبر کنید.');
+   25                             }
+   26                         }
+   27                         return;
+   28                     }
+   29                 }
+   30             }
+   31             if (isset($update['message'])) {
+   32                 self::onMessage($update['message']);
+   33             } elseif (isset($update['callback_query'])) {
+   34                 self::onCallback($update['callback_query']);
+   35             }
+   36         } catch (Throwable $e) {
+   37             app_log('bot', 'exception: ' . $e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine()]);
+   38         }
+   39     }
+   40 
+---- end dump bot_head ----
+===== Bot.php tail =====
+---- dump bot_tail : app/Bot/Bot.php (3104 lines) ----
+ 3079             Tg::send($chatId, 'ℹ️ این سرویس لینک Happ ندارد.');
+ 3080             return;
+ 3081         }
+ 3082 
+ 3083         $happ = Links::happ($s);
+ 3084         $ext  = Links::external($s);
+ 3085 
+ 3086         $txt = "⚡ <b>افزودن به Happ</b>\n"
+ 3087             . '<code>─────────────────</code>' . "\n";
+ 3088         if ($happ !== '') {
+ 3089             $txt .= "لینک زیر را کپی کنید و در اپلیکیشن Happ بزنید روی «+» ← Import from clipboard:\n\n"
+ 3090                 . '<code>' . h($happ) . '</code>' . "\n";
+ 3091         } else {
+ 3092             $txt .= "لینک Happ برای این سرویس در دسترس نیست.\n";
+ 3093         }
+ 3094         /* 0.0.2 #happ-plain-off: آدرس خام اشتراک عمداً نمایش داده نمی‌شود تا فقط لینک رمزنگاری‌شدهٔ Happ به مشتری برسد و محدودیت هاردویر دور زده نشود */
+ 3095         $txt .= "\n<i>ویرایش حجم، حذف و عودت وجه این کانفیگ از پنل نمایندگی انجام می‌شود.</i>";
+ 3096         $rows = [
+ 3097             [Tg::btn('🧩 همهٔ کانفیگ‌های نمایندگی', 'rs:svcs')],
+ 3098             Kb::navRow('rs:panel'),
+ 3099         ];
+ 3100         $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
+ 3101     }
+ 3102 
+ 3103 }
+ 3104 
+---- end dump bot_tail ----
+===== self::section callers =====
+---- grep: self::section ----
+app/Bot/Bot.php:183: case Kb::PRODUCTS: self::sectionProducts($chatId); return;
+app/Bot/Bot.php:185: case Kb::SERVICES: self::sectionServices($chatId); return;
+app/Bot/Bot.php:186: case Kb::WALLET:   self::sectionWallet($chatId); return;
+app/Bot/Bot.php:187: case Kb::ACCOUNT:  self::sectionAccount($chatId); return;
+app/Bot/Bot.php:188: case Kb::TEST:     self::sectionTest($chatId); return;
+app/Bot/Bot.php:193: case Kb::TUTORIAL: self::sectionTutorials($chatId); return;
+app/Bot/Bot.php:194: case Kb::SUPPORT:  self::sectionSupport($chatId); return;
+app/Bot/Bot.php:195: case Kb::RESELLER: self::sectionReseller($chatId); return;
+app/Bot/Bot.php:539: case 'products': self::sectionProducts($chatId, $msgId); return true;
+app/Bot/Bot.php:541: case 'services': self::sectionServices($chatId, $msgId); return true;
+app/Bot/Bot.php:542: case 'wallet':   self::sectionWallet($chatId, $msgId); return true;
+app/Bot/Bot.php:543: case 'account':  self::sectionAccount($chatId); return true;
+app/Bot/Bot.php:544: case 'test':     self::sectionTest($chatId); return true;
+app/Bot/Bot.php:549: case 'tutorial': self::sectionTutorials($chatId); return true;
+app/Bot/Bot.php:550: case 'support':  self::sectionSupport($chatId, $msgId); return true;
+app/Bot/Bot.php:552: case 'tickets':  self::sectionSupport($chatId, $msgId); return true;
+app/Bot/Bot.php:553: case 'renew':    self::sectionServices($chatId, $msgId); return true;
+app/Bot/Bot.php:554: case 'campaign': self::sectionCampaign($chatId); return true;
+app/Bot/Bot.php:556: case 'orders':   self::sectionOrders($chatId); return true; /* fixed79 */
+app/Bot/Bot.php:557: case 'reseller': self::sectionReseller($chatId); return true;
+app/Bot/Bot.php:560: if (self::isRs()) self::sectionResellerServices($chatId, $msgId);
+app/Bot/Bot.php:561: else self::sectionServices($chatId, $msgId);
+app/Bot/Bot.php:563: case 'referral': self::sectionReferral($chatId, $msgId); return true;
+app/Bot/Bot.php:564: case 'stock':    self::sectionStock($chatId, $msgId); return true;
+app/Bot/Bot.php:594: else self::sectionAccount($chatId);
+app/Bot/Bot.php:991: elseif ($arg === 'products') self::sectionProducts($chatId, $msgId);
+app/Bot/Bot.php:992: elseif ($arg === 'services') self::sectionServices($chatId, $msgId);
+app/Bot/Bot.php:993: elseif ($arg === 'wallet') self::sectionWallet($chatId, $msgId);
+app/Bot/Bot.php:998: elseif ($arg === 'ref') self::sectionReferral($chatId, $msgId);
+app/Bot/Bot.php:999: elseif ($arg === 'support') self::sectionSupport($chatId, $msgId);
+app/Bot/Bot.php:1005: else self::sectionReferral($chatId, $msgId);
+app/Bot/Bot.php:1012: case 'tst':  Tg::answerCb($cbId); self::sectionTest($chatId, (int)$arg, $msgId); return;
+app/Bot/Bot.php:1016: elseif ($arg === 'svcs') self::sectionResellerServices($chatId, $msgId);
+app/Bot/Bot.php:1017: elseif ($arg === 'panel') self::sectionReseller($chatId);
+app/Bot/Bot.php:1069: case 'test': self::sectionTest($chatId); Tg::answerCb($cbId); return;
+app/Bot/Bot.php:1112: self::sectionAccount($chatId, $msgId);
+app/Bot/Bot.php:1184: self::sectionAccount($chatId);
+app/Bot/Bot.php:1212: self::sectionAccount($chatId);
+app/Bot/Bot.php:1220: self::sectionAccount($chatId);
+app/Bot/Bot.php:1231: self::sectionAccount($chatId);
+---- end grep: self::section (truncated) ----
 exit: 0
 exit: 0
