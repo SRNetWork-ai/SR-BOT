@@ -32,6 +32,9 @@ class Migrate
             'verify_tries'      => 'INT NOT NULL DEFAULT 0',
             'verified_at'       => 'DATETIME NULL',
             'miniapp_at'        => 'DATETIME NULL',
+            'test_ip'           => 'VARCHAR(64) NULL',   /* 0.0.2 #19 */
+            'test_dev'          => 'VARCHAR(64) NULL',   /* 0.0.2 #19 */
+            'test_at'           => 'DATETIME NULL',      /* 0.0.2 #19 */
             'reseller_level'    => 'TINYINT(1) NOT NULL DEFAULT 0',
             'reseller_credit'   => 'BIGINT NOT NULL DEFAULT 0',
             'reseller_discount' => 'TINYINT(2) NOT NULL DEFAULT 0',

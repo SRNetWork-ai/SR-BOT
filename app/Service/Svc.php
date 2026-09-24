@@ -455,6 +455,7 @@ class Svc
         ]);
         if ($r['ok']) {
             DB::q('UPDATE {p}users SET test_count = test_count + 1 WHERE id = :id', [':id' => (int)$user['id']]);
+            self::testStampFp((int)$user['id']); /* 0.0.2 #19 */
         }
         return $r;
     }
@@ -514,6 +515,30 @@ class Svc
             }
         }
 
+        /* 0.0.2 #19 - IP / device caps (0 or empty fingerprint = off) */
+        if (self::testFpReady()) {
+            [$fpIp, $fpDev] = self::testFp();
+            $ipMax = (int)DB::setting('test_ip_max', '0');
+            if ($ipMax > 0 && $fpIp !== '') {
+                $sameIp = (int)DB::val(
+                    'SELECT COUNT(*) FROM {p}users WHERE test_ip = :ip AND test_count > 0 AND id <> :u',
+                    [':ip' => $fpIp, ':u' => $uid]
+                );
+                if ($sameIp >= $ipMax) {
+                    return self::testDeny($user, $panel, 'ip_max', 'از این شبکه بیش از حد مجاز اکانت تست دریافت شده است.');
+                }
+            }
+            if ((string)DB::setting('test_device_unique', '0') === '1' && $fpDev !== '') {
+                $sameDev = (int)DB::val(
+                    'SELECT COUNT(*) FROM {p}users WHERE test_dev = :d AND test_count > 0 AND id <> :u',
+                    [':d' => $fpDev, ':u' => $uid]
+                );
+                if ($sameDev > 0) {
+                    return self::testDeny($user, $panel, 'device_dup', 'با این دستگاه قبلاً اکانت تست دریافت شده است.');
+                }
+            }
+        }
+
         if ((string)DB::setting('test_panel_check', '1') === '1' && (int)($user['test_count'] ?? 0) === 0) {
             try {
                 $x = new Xui($panel);
@@ -531,6 +556,43 @@ class Svc
     }
 
     /** پاسخ رد + ثبت در لاگ اقدامات (قابل خاموش‌کردن با test_log_block) */
+    /* 0.0.2 #19 - request fingerprint (web/mini-app only; empty on Telegram webhook) */
+    public static array $testFp = ['', ''];
+
+    /** ip = real client ip, dev = raw device string (hashed here) */
+    public static function setTestFp(string $ip, string $dev = ''): void
+    {
+        $ip  = trim($ip);
+        $dev = trim($dev);
+        self::$testFp = [
+            $ip === '' ? '' : substr($ip, 0, 64),
+            $dev === '' ? '' : substr(hash('sha256', $dev), 0, 48),
+        ];
+    }
+
+    private static function testFp(): array
+    {
+        return [(string)(self::$testFp[0] ?? ''), (string)(self::$testFp[1] ?? '')];
+    }
+
+    private static function testFpReady(): bool
+    {
+        try { return class_exists('Migrate') && Migrate::hasColumn('users', 'test_ip'); }
+        catch (\Throwable $e) { return false; }
+    }
+
+    /** store the fingerprint of the request that took a trial */
+    private static function testStampFp(int $uid): void
+    {
+        if (!self::testFpReady()) return;
+        [$ip, $dev] = self::testFp();
+        $set = ['test_at' => now()];
+        if ($ip !== '')  $set['test_ip']  = $ip;
+        if ($dev !== '') $set['test_dev'] = $dev;
+        try { DB::update('users', $set, 'id = :id', [':id' => $uid]); }
+        catch (\Throwable $e) { app_log('test', 'fp stamp failed: ' . $e->getMessage()); }
+    }
+
     private static function testDeny(array $user, array $panel, string $why, string $msg): array
     {
         if ((string)DB::setting('test_log_block', '1') === '1' && class_exists('Audit')) {
