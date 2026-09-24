@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-# fixed160 - 0.0.2 #22: Zarinpal deposit branch in the bot state handler and the miniapp API.
+# fixed161 - 0.0.2 #22: expose Zarinpal in the miniapp payment pickers; recon render branches.
 import io, os, sys, json
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed160').strip() or 'fixed160'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed161').strip() or 'fixed161'
 
 CACHE = {}
 NEW = set()
@@ -12,8 +12,9 @@ WARN = []
 SKIP_DIRS = {'.git', 'node_modules', 'vendor', 'storage', 'uploads', 'backups'}
 EXT = ('.php', '.sql', '.js', '.html', '.json')
 
-BOT = 'app/Bot/Bot.php'
+MA = 'miniapp/index.php'
 API = 'miniapp/api.php'
+BOT = 'app/Bot/Bot.php'
 
 
 def load(path):
@@ -86,8 +87,9 @@ def files_all():
     return ALL
 
 
-def grep_all(needle, limit=20, only=None):
-    print('---- grep: %s ----' % needle)
+def grep_all(needle, limit=20, only=None, ci=False):
+    print('---- grep%s: %s ----' % ('(ci)' if ci else '', needle))
+    nl = needle.lower()
     n = 0
     for p in files_all():
         if only and not p.startswith(only):
@@ -97,7 +99,8 @@ def grep_all(needle, limit=20, only=None):
         except Exception:
             continue
         for i, ln in enumerate(lines, 1):
-            if needle in ln:
+            hit = (nl in ln.lower()) if ci else (needle in ln)
+            if hit:
                 s = ln.strip()
                 if len(s) > 170:
                     s = s[:170] + ' ...'
@@ -110,88 +113,26 @@ def grep_all(needle, limit=20, only=None):
 
 
 # ==================================================================
-# 1) bot deposit branch
+# 1) quick method list
 # ==================================================================
-BOT_ANCHOR = "} elseif ($method === 'hooshpay') {"
-
-ZP_BOT = r"""} elseif ($method === 'zarinpal') { /* 0.0.2 #22 */
-                    self::setState(null);
-                    $waitId = self::waitMsg(
-                        $chatId,
-                        "\u{1F3E6} <b>در حال ساخت لینک پرداخت…</b>\n\n\u{23F3} اتصال به زرین‌پال، چند لحظه صبر کنید.",
-                        self::kbMain()
-                    );
-
-                    if (!class_exists('Zarinpal') || !Zarinpal::enabled()) {
-                        self::waitEdit($chatId, $waitId, "\u{26A0} درگاه زرین‌پال در دسترس نیست.");
-                        return true;
-                    }
-
-                    $invZ = Zarinpal::createInvoice(self::$u, $amount);
-                    if (empty($invZ['ok'])) {
-                        self::waitEdit($chatId, $waitId, "\u{274C} " . (string)($invZ['message'] ?? 'ساخت لینک پرداخت ناموفق بود.'));
-                        Logs::send('errors', Logs::fmt("\u{26A0} خطای ساخت تراکنش زرین‌پال", [
-                            'کاربر' => (int)self::$u['tg_id'],
-                            'مبلغ'  => money($amount) . ' ' . currency(),
-                            'خطا'   => (string)($invZ['message'] ?? '-'),
-                        ]));
-                        return true;
-                    }
-
-                    $txZ = (int)($invZ['tx'] ?? 0);
-                    $txt = "\u{1F3E6} <b>پرداخت آنلاین با کارت بانکی</b>\n\n"
-                        . 'مبلغ: <b>' . money($amount) . ' ' . currency() . "</b>\n"
-                        . 'شماره پیگیری: <code>#' . $txZ . "</code>\n\n"
-                        . "روی دکمهٔ زیر بزنید و پرداخت را در درگاه زرین‌پال کامل کنید.\n"
-                        . "پس از پرداخت موفق، کیف پول شما <b>خودکار</b> شارژ می‌شود.";
-
-                    self::waitEdit($chatId, $waitId, $txt, Tg::ikb([
-                        [Tg::url("\u{1F3E6} رفتن به درگاه پرداخت", (string)$invZ['url'])],
-                    ]));
-                    Logs::send('financial', Logs::fmt("\u{1F3E6} تراکنش زرین‌پال جدید", [
-                        'کاربر'  => (($uZ = self::$u)['first_name'] ?? '-') . ' (' . (int)$uZ['tg_id'] . ')',
-                        'مبلغ'   => money($amount) . ' ' . currency(),
-                        'پیگیری' => '#' . $txZ,
-                    ]));
-                    return true;
-                """
-
-rep_lit(BOT, BOT_ANCHOR, ZP_BOT + BOT_ANCHOR, "$method === 'zarinpal'")
-
-# ==================================================================
-# 2) miniapp deposit endpoint
-# ==================================================================
-API_ANCHOR = (
-    "        if ($method === 'hooshpay') {\n"
-    "            if (!class_exists('HooshPay') || !HooshPay::enabled()) ma_fail('"
+rep_lit(
+    MA,
+    "if (b.flags.hooshpay) ms.push([",
+    "if (b.flags.zarinpal) ms.push(['zarinpal', '\u{1F3E6} زرین‌پال (آنلاین)']);\n"
+    "    if (b.flags.hooshpay) ms.push([",
+    'b.flags.zarinpal) ms.push',
 )
 
-ZP_API = r"""        if ($method === 'zarinpal') { /* 0.0.2 #22 */
-            if (!class_exists('Zarinpal') || !Zarinpal::enabled()) ma_fail('درگاه زرین‌پال فعال نیست.');
-            if (!Zarinpal::forUser($isRs)) ma_fail('این درگاه برای حساب شما فعال نیست.');
-
-            $zpMin = Zarinpal::minAmount();
-            $zpMax = Zarinpal::maxAmount();
-            if ($zpMin > 0 && $amount < $zpMin) ma_fail('حداقل مبلغ این درگاه ' . ma_money($zpMin) . ' است.');
-            if ($zpMax > 0 && $amount > $zpMax) ma_fail('حداکثر مبلغ این درگاه ' . ma_money($zpMax) . ' است.');
-
-            $invZp = Zarinpal::createInvoice($user, $amount);
-            if (empty($invZp['ok'])) {
-                ma_fail((string)($invZp['message'] ?? 'ساخت لینک پرداخت زرین‌پال ناموفق بود.'));
-            }
-
-            ma_out(['ok' => true, 'method' => 'zarinpal',
-                'amount'     => $amount,
-                'amount_txt' => ma_money($amount),
-                'tx'         => (int)($invZp['tx'] ?? 0),
-                'url'        => (string)($invZp['url'] ?? ''),
-                'authority'  => (string)($invZp['authority'] ?? ''),
-                'note'       => 'روی دکمهٔ پرداخت بزنید؛ پس از پرداخت موفق، کیف پول شما خودکار شارژ می‌شود.']);
-        }
-
-"""
-
-rep_lit(API, API_ANCHOR, ZP_API + API_ANCHOR, "$method === 'zarinpal'")
+# ==================================================================
+# 2) methods sheet
+# ==================================================================
+rep_lit(
+    MA,
+    "if (b.flags.hooshpay) m.push([",
+    "if (b.flags.zarinpal) m.push(['zarinpal', '\u{1F3E6}', 'زرین‌پال — پرداخت آنلاین', 'اتصال به درگاه بانکی؛ پس از پرداخت موفق، کیف پول خودکار شارژ می‌شود']);\n"
+    "    if (b.flags.hooshpay) m.push([",
+    'b.flags.zarinpal) m.push',
+)
 
 # ---------------- write ----------------
 if ERRORS:
@@ -213,10 +154,8 @@ for p in sorted(NEW):
 print('changed files: %d' % len(NEW))
 
 SANITY = [
-    (BOT, "$method === 'zarinpal'"),
-    (BOT, 'Zarinpal::createInvoice(self::$u'),
-    (API, "'method' => 'zarinpal'"),
-    (API, 'Zarinpal::createInvoice($user'),
+    (MA, 'b.flags.zarinpal) ms.push'),
+    (MA, 'b.flags.zarinpal) m.push'),
 ]
 ok = 0
 for p, needle in SANITY:
@@ -227,15 +166,16 @@ for p, needle in SANITY:
 print('sanity: %d/%d' % (ok, len(SANITY)))
 
 # ---------------- recon ----------------
-print('===== hooshpay status check in bot =====')
-grep_all('checkHooshPay', 10)
-dump_find('bot_chk', BOT, 'checkHooshPay($chatId, int', 2, 45)
-print('===== askAmount hunt =====')
-grep_all('Amount(', 40, only='app/Bot')
-print('===== miniapp wallet UI =====')
-grep_all('hooshpay', 30, only='miniapp/index.php')
-print('===== miniapp hp button =====')
-dump('ma_ui', 'miniapp/index.php', 2280, 2330)
+print('===== case-insensitive method hunt =====')
+grep_all('function check', 25, only='app/Bot')
+grep_all('function askamount', 6, ci=True)
+print('===== miniapp render branch 1 =====')
+dump('ma_r1', MA, 2200, 2250)
+print('===== miniapp render branch 2 =====')
+dump('ma_r2', MA, 3612, 3665)
+print('===== miniapp topup check endpoint =====')
+grep_all('topup_hp', 12)
+dump_find('api_chk', API, "topup_hp_check", 3, 48)
 
 # ---------------- version bump ----------------
 vpath = os.path.join(ROOT, 'version.json')
@@ -243,7 +183,7 @@ with io.open(vpath, 'r', encoding='utf-8') as fh:
     vj = json.load(fh)
 old_build = vj.get('build')
 vj['build'] = BUILD
-note = '0.0.2 #22: \u0634\u0627\u0631\u0698 \u06a9\u06cc\u0641 \u067e\u0648\u0644 \u0628\u0627 \u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644 \u062f\u0631 \u0631\u0628\u0627\u062a \u0648 \u0645\u06cc\u0646\u06cc\u200c\u0627\u067e'
+note = '0.0.2 #22: \u0646\u0645\u0627\u06cc\u0634 \u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644 \u062f\u0631 \u0631\u0648\u0634\u200c\u0647\u0627\u06cc \u067e\u0631\u062f\u0627\u062e\u062a \u0645\u06cc\u0646\u06cc\u200c\u0627\u067e'
 cl = vj.get('changelog')
 if isinstance(cl, list):
     vj['changelog'] = ([note] + cl)[:60]
