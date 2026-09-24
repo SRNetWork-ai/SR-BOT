@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-# fixed152 - 0.0.2 #19: trial abuse guard by IP/device fingerprint (schema + Svc) + recon for settings/miniapp.
+# fixed153 - 0.0.2 #19: admin settings for IP/device trial caps + mini-app fingerprint. Recon for #22 gateways.
 import io, os, sys, json
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed152').strip() or 'fixed152'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed153').strip() or 'fixed153'
 
 CACHE = {}
 NEW = set()
@@ -12,8 +12,8 @@ WARN = []
 SKIP_DIRS = {'.git', 'node_modules', 'vendor', 'storage', 'uploads', 'backups'}
 EXT = ('.php', '.sql', '.js', '.html', '.json')
 
-MIG = 'app/Service/Migrate.php'
-SVC = 'app/Service/Svc.php'
+SET = 'admin/pages/settings.php'
+MA = 'miniapp/api.php'
 
 
 def load(path):
@@ -96,108 +96,68 @@ def grep_all(needle, limit=25, only=None):
     print('---- end grep: %s (%d) ----' % (needle, n))
 
 
-# ---------------- 1) schema: users fingerprint columns ----------------
+def funcs(path, limit=90):
+    print('---- funcs %s ----' % path)
+    try:
+        lines = load(path).split(chr(10))
+    except Exception as e:
+        print('(failed %s)' % e)
+        return
+    n = 0
+    for i, ln in enumerate(lines, 1):
+        s = ln.strip()
+        if s.startswith('function ') or ' function ' in s:
+            if len(s) > 150:
+                s = s[:150] + ' ...'
+            print('%5d %s' % (i, s))
+            n += 1
+            if n >= limit:
+                break
+    print('---- end funcs %s (%d lines) ----' % (path, len(lines)))
+
+
+# ---------------- 1) settings: save handlers ----------------
 rep_lit(
-    MIG,
-    "            'miniapp_at'        => 'DATETIME NULL',\n",
-    "            'miniapp_at'        => 'DATETIME NULL',\n"
-    "            'test_ip'           => 'VARCHAR(64) NULL',   /* 0.0.2 #19 */\n"
-    "            'test_dev'          => 'VARCHAR(64) NULL',   /* 0.0.2 #19 */\n"
-    "            'test_at'           => 'DATETIME NULL',      /* 0.0.2 #19 */\n",
-    "'test_ip'           =>",
+    SET,
+    "        $chk('test_panel_check');\n",
+    "        $chk('test_panel_check');\n"
+    "        $clamp('test_ip_max', 0, 0, 100);   /* 0.0.2 #19 */\n"
+    "        $chk('test_device_unique');         /* 0.0.2 #19 */\n",
+    "$clamp('test_ip_max'",
 )
 
-# ---------------- 2) Svc: fingerprint helpers ----------------
-MSG_IP = '\u0627\u0632 \u0627\u06cc\u0646 \u0634\u0628\u06a9\u0647 \u0628\u06cc\u0634 \u0627\u0632 \u062d\u062f \u0645\u062c\u0627\u0632 \u0627\u06a9\u0627\u0646\u062a \u062a\u0633\u062a \u062f\u0631\u06cc\u0627\u0641\u062a \u0634\u062f\u0647 \u0627\u0633\u062a.'
-MSG_DEV = '\u0628\u0627 \u0627\u06cc\u0646 \u062f\u0633\u062a\u06af\u0627\u0647 \u0642\u0628\u0644\u0627\u064b \u0627\u06a9\u0627\u0646\u062a \u062a\u0633\u062a \u062f\u0631\u06cc\u0627\u0641\u062a \u0634\u062f\u0647 \u0627\u0633\u062a.'
+# ---------------- 2) settings: form fields ----------------
+LBL_IP = '\u0633\u0642\u0641 \u0627\u06a9\u0627\u0646\u062a \u062a\u0633\u062a \u0628\u0631\u0627\u06cc \u0647\u0631 IP'
+HINT_IP = '\u06f0 = \u062e\u0627\u0645\u0648\u0634 \u00b7 \u0641\u0642\u0637 \u0628\u0631\u0627\u06cc \u0645\u06cc\u0646\u06cc\u200c\u0627\u067e \u0648 \u0648\u0628'
+LBL_DEV = '\u0647\u0631 \u062f\u0633\u062a\u06af\u0627\u0647 \u0641\u0642\u0637 \u06cc\u06a9 \u0627\u06a9\u0627\u0646\u062a \u062a\u0633\u062a'
 
-HELPERS = (
-    "    /* 0.0.2 #19 - request fingerprint (web/mini-app only; empty on Telegram webhook) */\n"
-    "    public static array $testFp = ['', ''];\n"
-    "\n"
-    "    /** ip = real client ip, dev = raw device string (hashed here) */\n"
-    "    public static function setTestFp(string $ip, string $dev = ''): void\n"
-    "    {\n"
-    "        $ip  = trim($ip);\n"
-    "        $dev = trim($dev);\n"
-    "        self::$testFp = [\n"
-    "            $ip === '' ? '' : substr($ip, 0, 64),\n"
-    "            $dev === '' ? '' : substr(hash('sha256', $dev), 0, 48),\n"
-    "        ];\n"
-    "    }\n"
-    "\n"
-    "    private static function testFp(): array\n"
-    "    {\n"
-    "        return [(string)(self::$testFp[0] ?? ''), (string)(self::$testFp[1] ?? '')];\n"
-    "    }\n"
-    "\n"
-    "    private static function testFpReady(): bool\n"
-    "    {\n"
-    "        try { return class_exists('Migrate') && Migrate::hasColumn('users', 'test_ip'); }\n"
-    "        catch (\\Throwable $e) { return false; }\n"
-    "    }\n"
-    "\n"
-    "    /** store the fingerprint of the request that took a trial */\n"
-    "    private static function testStampFp(int $uid): void\n"
-    "    {\n"
-    "        if (!self::testFpReady()) return;\n"
-    "        [$ip, $dev] = self::testFp();\n"
-    "        $set = ['test_at' => now()];\n"
-    "        if ($ip !== '')  $set['test_ip']  = $ip;\n"
-    "        if ($dev !== '') $set['test_dev'] = $dev;\n"
-    "        try { DB::update('users', $set, 'id = :id', [':id' => $uid]); }\n"
-    "        catch (\\Throwable $e) { app_log('test', 'fp stamp failed: ' . $e->getMessage()); }\n"
-    "    }\n"
-    "\n"
+FORM_ANCHOR = '      <label class="check"><input type="checkbox" name="test_panel_check" value="1"'
+
+FORM_NEW = (
+    '      <div class="form-grid g2 mt3">\n'
+    '        <div class="field"><label>' + LBL_IP + '</label>\n'
+    '          <input class="mono" type="number" min="0" name="test_ip_max" value="<?= (int)$SET(\'test_ip_max\', 0) ?>">'
+    '<div class="hint">' + HINT_IP + '</div></div>\n'
+    '      </div>\n'
+    '      <label class="check"><input type="checkbox" name="test_device_unique" value="1" <?= $on(\'test_device_unique\') ?>>'
+    '<span>' + LBL_DEV + '</span></label>\n'
 )
 
-rep_lit(
-    SVC,
-    '    private static function testDeny(array $user, array $panel, string $why, string $msg): array',
-    HELPERS + '    private static function testDeny(array $user, array $panel, string $why, string $msg): array',
-    'function setTestFp(',
+rep_lit(SET, FORM_ANCHOR, FORM_NEW + FORM_ANCHOR, 'name="test_ip_max"')
+
+# ---------------- 3) mini-app: request fingerprint ----------------
+MA_ANCHOR = "$tg   = (int)$auth['user']['id'];\n"
+MA_NEW = (
+    MA_ANCHOR
+    + '\n'
+    + '/* 0.0.2 #19: request fingerprint for trial-abuse rules (real client ip, only here - not on the bot webhook) */\n'
+    + "if (class_exists('Svc')) {\n"
+    + "    $maFpIp = class_exists('Guard') ? Guard::clientIp() : (string)($_SERVER['REMOTE_ADDR'] ?? '');\n"
+    + "    Svc::setTestFp($maFpIp, (string)($_SERVER['HTTP_USER_AGENT'] ?? ''));\n"
+    + '}\n'
 )
 
-# ---------------- 3) Svc: the guard itself ----------------
-ANCHOR = "        if ((string)DB::setting('test_panel_check', '1') === '1' && (int)($user['test_count'] ?? 0) === 0) {"
-
-GUARD = (
-    "        /* 0.0.2 #19 - IP / device caps (0 or empty fingerprint = off) */\n"
-    "        if (self::testFpReady()) {\n"
-    "            [$fpIp, $fpDev] = self::testFp();\n"
-    "            $ipMax = (int)DB::setting('test_ip_max', '0');\n"
-    "            if ($ipMax > 0 && $fpIp !== '') {\n"
-    "                $sameIp = (int)DB::val(\n"
-    "                    'SELECT COUNT(*) FROM {p}users WHERE test_ip = :ip AND test_count > 0 AND id <> :u',\n"
-    "                    [':ip' => $fpIp, ':u' => $uid]\n"
-    "                );\n"
-    "                if ($sameIp >= $ipMax) {\n"
-    "                    return self::testDeny($user, $panel, 'ip_max', '" + MSG_IP + "');\n"
-    "                }\n"
-    "            }\n"
-    "            if ((string)DB::setting('test_device_unique', '0') === '1' && $fpDev !== '') {\n"
-    "                $sameDev = (int)DB::val(\n"
-    "                    'SELECT COUNT(*) FROM {p}users WHERE test_dev = :d AND test_count > 0 AND id <> :u',\n"
-    "                    [':d' => $fpDev, ':u' => $uid]\n"
-    "                );\n"
-    "                if ($sameDev > 0) {\n"
-    "                    return self::testDeny($user, $panel, 'device_dup', '" + MSG_DEV + "');\n"
-    "                }\n"
-    "            }\n"
-    "        }\n"
-    "\n"
-)
-
-rep_lit(SVC, ANCHOR, GUARD + ANCHOR, "'test_ip_max'")
-
-# ---------------- 4) Svc: stamp after a successful trial ----------------
-rep_lit(
-    SVC,
-    "            DB::q('UPDATE {p}users SET test_count = test_count + 1 WHERE id = :id', [':id' => (int)$user['id']]);\n",
-    "            DB::q('UPDATE {p}users SET test_count = test_count + 1 WHERE id = :id', [':id' => (int)$user['id']]);\n"
-    "            self::testStampFp((int)$user['id']); /* 0.0.2 #19 */\n",
-    'self::testStampFp(',
-)
+rep_lit(MA, MA_ANCHOR, MA_NEW, 'Svc::setTestFp(')
 
 # ---------------- write ----------------
 if ERRORS:
@@ -219,11 +179,10 @@ for p in sorted(NEW):
 print('changed files: %d' % len(NEW))
 
 SANITY = [
-    (MIG, "'test_ip'           => 'VARCHAR(64) NULL'"),
-    (SVC, 'public static function setTestFp('),
-    (SVC, "DB::setting('test_ip_max', '0')"),
-    (SVC, "DB::setting('test_device_unique', '0')"),
-    (SVC, 'self::testStampFp((int)$user[\'id\']);'),
+    (SET, "$clamp('test_ip_max', 0, 0, 100);"),
+    (SET, 'name="test_ip_max"'),
+    (SET, 'name="test_device_unique"'),
+    (MA, 'Svc::setTestFp($maFpIp'),
 ]
 ok = 0
 for p, needle in SANITY:
@@ -233,18 +192,17 @@ for p, needle in SANITY:
         ok += 1
 print('sanity: %d/%d' % (ok, len(SANITY)))
 
-# ---------------- recon for the next build ----------------
-print('===== settings.php: trial rules save-handlers =====')
-dump('set_save', 'admin/pages/settings.php', 26, 48)
-print('===== settings.php: trial rules form =====')
-dump('set_form', 'admin/pages/settings.php', 2818, 2848)
-print('===== mini-app: client ip context =====')
-dump('ma_ip', 'miniapp/api.php', 218, 248)
-print('===== trial entry points =====')
-grep_all('Svc::test', 14)
-grep_all('clientIp()', 14)
-print('===== users INDEXES block =====')
-grep_all("'users' => [", 8)
+# ---------------- recon: payment gateways (0.0.2 #22) ----------------
+print('===== Gateway.php surface =====')
+funcs('app/Service/Gateway.php', 70)
+dump('gw_head', 'app/Service/Gateway.php', 1, 70)
+print('===== gateway drivers / keys =====')
+grep_all('pay_gateways', 12)
+grep_all("'nowpay'", 16)
+grep_all("'hooshpay'", 16)
+grep_all('zarinpal', 10)
+print('===== admin gateways page head =====')
+dump('gw_page', 'admin/pages/gateways.php', 1, 60)
 
 # ---------------- version bump ----------------
 vpath = os.path.join(ROOT, 'version.json')
@@ -252,7 +210,7 @@ with io.open(vpath, 'r', encoding='utf-8') as fh:
     vj = json.load(fh)
 old_build = vj.get('build')
 vj['build'] = BUILD
-note = '0.0.2 #19: \u0645\u062d\u062f\u0648\u062f\u06cc\u062a \u0627\u06a9\u0627\u0646\u062a \u062a\u0633\u062a \u0628\u0631 \u067e\u0627\u06cc\u0647\u0654 IP \u0648 \u062f\u0633\u062a\u06af\u0627\u0647'
+note = '0.0.2 #19: \u062a\u0646\u0638\u06cc\u0645\u0627\u062a \u0645\u062d\u062f\u0648\u062f\u06cc\u062a IP \u0648 \u062f\u0633\u062a\u06af\u0627\u0647 \u0627\u06a9\u0627\u0646\u062a \u062a\u0633\u062a'
 cl = vj.get('changelog')
 if isinstance(cl, list):
     vj['changelog'] = ([note] + cl)[:60]
