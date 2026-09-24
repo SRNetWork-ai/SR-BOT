@@ -1422,6 +1422,46 @@ class Bot
                         'فاکتور' => (string)$inv['order'],
                     ]));
                     return true;
+                } elseif ($method === 'zarinpal') { /* 0.0.2 #22 */
+                    self::setState(null);
+                    $waitId = self::waitMsg(
+                        $chatId,
+                        "\u{1F3E6} <b>در حال ساخت لینک پرداخت…</b>\n\n\u{23F3} اتصال به زرین‌پال، چند لحظه صبر کنید.",
+                        self::kbMain()
+                    );
+
+                    if (!class_exists('Zarinpal') || !Zarinpal::enabled()) {
+                        self::waitEdit($chatId, $waitId, "\u{26A0} درگاه زرین‌پال در دسترس نیست.");
+                        return true;
+                    }
+
+                    $invZ = Zarinpal::createInvoice(self::$u, $amount);
+                    if (empty($invZ['ok'])) {
+                        self::waitEdit($chatId, $waitId, "\u{274C} " . (string)($invZ['message'] ?? 'ساخت لینک پرداخت ناموفق بود.'));
+                        Logs::send('errors', Logs::fmt("\u{26A0} خطای ساخت تراکنش زرین‌پال", [
+                            'کاربر' => (int)self::$u['tg_id'],
+                            'مبلغ'  => money($amount) . ' ' . currency(),
+                            'خطا'   => (string)($invZ['message'] ?? '-'),
+                        ]));
+                        return true;
+                    }
+
+                    $txZ = (int)($invZ['tx'] ?? 0);
+                    $txt = "\u{1F3E6} <b>پرداخت آنلاین با کارت بانکی</b>\n\n"
+                        . 'مبلغ: <b>' . money($amount) . ' ' . currency() . "</b>\n"
+                        . 'شماره پیگیری: <code>#' . $txZ . "</code>\n\n"
+                        . "روی دکمهٔ زیر بزنید و پرداخت را در درگاه زرین‌پال کامل کنید.\n"
+                        . "پس از پرداخت موفق، کیف پول شما <b>خودکار</b> شارژ می‌شود.";
+
+                    self::waitEdit($chatId, $waitId, $txt, Tg::ikb([
+                        [Tg::url("\u{1F3E6} رفتن به درگاه پرداخت", (string)$invZ['url'])],
+                    ]));
+                    Logs::send('financial', Logs::fmt("\u{1F3E6} تراکنش زرین‌پال جدید", [
+                        'کاربر'  => (($uZ = self::$u)['first_name'] ?? '-') . ' (' . (int)$uZ['tg_id'] . ')',
+                        'مبلغ'   => money($amount) . ' ' . currency(),
+                        'پیگیری' => '#' . $txZ,
+                    ]));
+                    return true;
                 } elseif ($method === 'hooshpay') {
                     self::setState(null);
                     $waitId = self::waitMsg(

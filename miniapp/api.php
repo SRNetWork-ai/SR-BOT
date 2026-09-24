@@ -1482,6 +1482,29 @@ switch ($action) {
                 'note' => 'مقادیر با نرخ همین لحظه محاسبه شد. پس از واریز، هش تراکنش (TXID) را همین‌جا ارسال کنید.']);
         }
 
+        if ($method === 'zarinpal') { /* 0.0.2 #22 */
+            if (!class_exists('Zarinpal') || !Zarinpal::enabled()) ma_fail('درگاه زرین‌پال فعال نیست.');
+            if (!Zarinpal::forUser($isRs)) ma_fail('این درگاه برای حساب شما فعال نیست.');
+
+            $zpMin = Zarinpal::minAmount();
+            $zpMax = Zarinpal::maxAmount();
+            if ($zpMin > 0 && $amount < $zpMin) ma_fail('حداقل مبلغ این درگاه ' . ma_money($zpMin) . ' است.');
+            if ($zpMax > 0 && $amount > $zpMax) ma_fail('حداکثر مبلغ این درگاه ' . ma_money($zpMax) . ' است.');
+
+            $invZp = Zarinpal::createInvoice($user, $amount);
+            if (empty($invZp['ok'])) {
+                ma_fail((string)($invZp['message'] ?? 'ساخت لینک پرداخت زرین‌پال ناموفق بود.'));
+            }
+
+            ma_out(['ok' => true, 'method' => 'zarinpal',
+                'amount'     => $amount,
+                'amount_txt' => ma_money($amount),
+                'tx'         => (int)($invZp['tx'] ?? 0),
+                'url'        => (string)($invZp['url'] ?? ''),
+                'authority'  => (string)($invZp['authority'] ?? ''),
+                'note'       => 'روی دکمهٔ پرداخت بزنید؛ پس از پرداخت موفق، کیف پول شما خودکار شارژ می‌شود.']);
+        }
+
         if ($method === 'hooshpay') {
             if (!class_exists('HooshPay') || !HooshPay::enabled()) ma_fail('درگاه هوش‌پی فعال نیست.');
             if (!HooshPay::forUser($isRs)) ma_fail('این درگاه برای حساب شما فعال نیست.');
