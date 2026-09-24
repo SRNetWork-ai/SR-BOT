@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-# fixed140 - the panel builds the Happ link locally (happ://crypt5/...) and only
-# answers on POST /panel/api/clients/happLink/{id}, returning {encryptedLink:...}.
-# Our driver used GET and never looked at the encryptedLink key, so it always
-# fell through to the generic happ://add/ fallback.
+# fixed141 - the panel now returns a real happ://crypt5 link, so the manual
+# "copy this subscription URL" fallback added in fixed139 only leaks the raw
+# sub address (and lets the customer bypass HWID). Remove it.
 import io, os, re, sys, json, subprocess
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed140').strip() or 'fixed140'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed141').strip() or 'fixed141'
 
 CACHE = {}
 NEW = set()
@@ -34,7 +33,7 @@ def dump(tag, path, start, end):
     print('---- end dump %s ----' % tag)
 
 
-def dump_find(tag, path, needle, before=2, after=60):
+def dump_find(tag, path, needle, before=4, after=40):
     try:
         lines = load(path).split(chr(10))
     except Exception as e:
@@ -109,86 +108,26 @@ def write_all():
             print(' - ' + w)
 
 
+BOT = 'app/Bot/Bot.php'
 X3 = 'app/Panel/Xui3.php'
-LNK = 'app/Service/Links.php'
 
-HAPP = r"""    /**
-     * دیپ‌لینک رمزنگاری‌شدهٔ Happ برای یک اکانت.
-     * پنل نسل جدید این لینک را خودش محلی می‌سازد (happ://crypt5/...) و
-     * فقط روی POST /panel/api/clients/happLink/{id} پاسخ می‌دهد؛ کلید پاسخ encryptedLink است.
-     * 0.0.2 #happ-post
-     */
-    public function happLink(string $email): string
-    {
-        $email = trim($email);
-        if ($email === '') return '';
-        $row = $this->clientRow($email);
-        if (!$row) return '';
-
-        $id = 0;
-        foreach (['id', 'clientId', 'recordId'] as $k) {
-            if (isset($row[$k]) && is_numeric($row[$k]) && (int)$row[$k] > 0) {
-                $id = (int)$row[$k];
-                break;
-            }
-        }
-        if ($id <= 0) return '';
-
-        $path = '/clients/happLink/' . $id;
-        $last = '';
-        foreach ([[null, 'POST'], [[], 'POST'], [null, 'GET']] as $try) {
-            $r = $this->api($path, $try[0], $try[1]);
-            if (($r['success'] ?? false) === true) {
-                $l = self::pickHappLink($r['obj'] ?? '');
-                if ($l !== '') return $l;
-                continue;
-            }
-            $last = trim((string)($r['msg'] ?? ''));
-            if (stripos($last, 'happ_source_too_long') !== false) break;
-        }
-        if ($last !== '' && function_exists('app_log')) {
-            app_log('panel', 'happ link unavailable', [
-                'panel' => (int)($this->panel['id'] ?? 0),
-                'email' => $email,
-                'msg'   => mb_substr($last, 0, 160),
-            ]);
-        }
-        return '';
-    }
-
-    /** استخراج دیپ‌لینک از پاسخ پنل — کلید رسمی encryptedLink است */
-    private static function pickHappLink($o): string
-    {
-        if (is_string($o)) return trim($o);
-        if (is_array($o)) {
-            foreach (['encryptedLink', 'happLink', 'link', 'url', 'happ'] as $k) {
-                if (isset($o[$k]) && is_string($o[$k]) && trim($o[$k]) !== '') return trim($o[$k]);
-            }
-        }
-        return '';
-    }
-"""
+OFF = "\u0622\u062f\u0631\u0633 \u062e\u0627\u0645 \u0627\u0634\u062a\u0631\u0627\u06a9 \u0639\u0645\u062f\u0627\u064b \u0646\u0645\u0627\u06cc\u0634 \u062f\u0627\u062f\u0647 \u0646\u0645\u06cc\u200c\u0634\u0648\u062f \u062a\u0627 \u0641\u0642\u0637 \u0644\u06cc\u0646\u06a9 \u0631\u0645\u0632\u0646\u06af\u0627\u0631\u06cc\u200c\u0634\u062f\u0647\u0654 Happ \u0628\u0647 \u0645\u0634\u062a\u0631\u06cc \u0628\u0631\u0633\u062f \u0648 \u0645\u062d\u062f\u0648\u062f\u06cc\u062a \u0647\u0627\u0631\u062f\u0648\u06cc\u0631 \u062f\u0648\u0631 \u0632\u062f\u0647 \u0646\u0634\u0648\u062f"
 
 rep_rx(
-    X3,
-    (r"^    /\*\*[^\n]*GET /clients/happLink[^\n]*\*/\n"
-     r"    public function happLink\(string \$email\): string\n"
-     r"    \{.*?^    \}\n"),
-    lambda m: HAPP,
-    '#happ-post',
-    flags=re.M | re.S,
+    BOT,
+    r"\n([ \t]*)/\* 0\.0\.2 #happ-plain:[^\n]*\n.*?\. '</code>' \. \"\\n\";\n[ \t]*\}\n",
+    lambda m: '\n' + m.group(1) + '/* 0.0.2 #happ-plain-off: ' + OFF + ' */\n',
+    '#happ-plain-off',
+    flags=re.S,
 )
 
 write_all()
 
 # ================================ SANITY ================================
 SANITY = [
+    (BOT, '#happ-plain-off'),
     (X3, '#happ-post'),
-    (X3, "$r = $this->api($path, $try[0], $try[1]);"),
-    (X3, 'private static function pickHappLink($o): string'),
     (X3, "'encryptedLink', 'happLink', 'link', 'url', 'happ'"),
-    (X3, 'happ_source_too_long'),
-    (LNK, 'public static function normHapp(string $l): string'),
 ]
 for p, needle in SANITY:
     try:
@@ -197,7 +136,19 @@ for p, needle in SANITY:
         ok = False
     print('sanity %s / %s : %s' % (p, needle, 'ok' if ok else 'MISSING'))
 
-dump_find('happ_after', X3, '#happ-post', 3, 62)
+ABSENT = [
+    (BOT, 'Add subscription:'),
+    (BOT, '#happ-plain:'),
+    (BOT, '$psub'),
+]
+for p, needle in ABSENT:
+    try:
+        gone = needle not in load(p)
+    except Exception:
+        gone = False
+    print('absent %s / %s : %s' % (p, needle, 'ok' if gone else 'STILL PRESENT'))
+
+dump_find('happ_view', BOT, '#happ-plain-off', 34, 8)
 
 # ============================== version bump ==============================
 vpath = os.path.join(ROOT, 'version.json')
@@ -206,8 +157,7 @@ with io.open(vpath, 'r', encoding='utf-8') as fh:
 old_build = vj.get('build')
 vj['build'] = BUILD
 notes = [
-    'لینک رمزنگاری‌شدهٔ Happ (happ://crypt5) از خودِ پنل گرفته می‌شود: درخواست POST و خواندن کلید encryptedLink',
-    'پیام خطای پنل (مثلاً طولانی‌بودن آدرس اشتراک) در لاگ ثبت می‌شود',
+    'در صفحهٔ «افزودن به Happ» دیگر آدرس خام اشتراک نمایش داده نمی‌شود؛ فقط لینک رمزنگاری‌شدهٔ پنل تحویل می‌شود',
 ]
 cl = vj.get('changelog')
 if isinstance(cl, list):
