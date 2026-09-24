@@ -42,6 +42,7 @@ class Btn
         'wal_crypto' => ['🪙', 'شارژ با رمزارز', 'all', 'کیف پول'],
         'wal_np'     => ['🌐', 'شارژ خودکار (NowPayments)', 'all', 'کیف پول'],
         'wal_hp'     => ['🪙', 'شارژ آنی هوش‌پی', 'all', 'کیف پول'],
+        'wal_zp'     => ["\u{1F3E6}", 'شارژ آنی زرین‌پال', 'all', 'کیف پول'], /* 0.0.2 #22 */
         'wal_hash'   => ['🔗', 'ثبت هش تراکنش', 'all', 'کیف پول'],
         'wal_hist'   => ['📜', 'تاریخچهٔ کیف پول', 'all', 'کیف پول'],
 
@@ -75,6 +76,7 @@ class Btn
         'wal_crypto' => 'wallet',
         'wal_np'     => 'wallet',
         'wal_hp'     => 'wallet',
+        'wal_zp'     => 'wallet',
         'wal_hash'   => 'wallet',
         'wal_hist'   => 'wallet',
         'acc_phone'  => 'account',

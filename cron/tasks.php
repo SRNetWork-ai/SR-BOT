@@ -121,7 +121,7 @@ if (class_exists('HooshPay') && HooshPay::enabled()) {
 /* fixed84: فاکتورهای درگاه که کاربر هرگز پرداخت نکرده، پس از چند ساعت لغو می‌شوند */
 try {
     $gwHours = max(1, (int)DB::setting('gw_stale_hours', '6'));
-    $gwAuto  = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay'";
+    $gwAuto  = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay','zarinpal'";
     $gwStale = DB::all("SELECT id FROM {p}transactions
                         WHERE status = 'pending' AND type = 'deposit' AND method IN ($gwAuto)
                           AND created_at < DATE_SUB(NOW(), INTERVAL $gwHours HOUR)

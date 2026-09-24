@@ -1,178 +1,222 @@
 Python 3.12.3
-Thu Sep 24 13:33:53 UTC 2026
-patched: admin/pages/gateways.php (ptxt('kind') === 'zarinpal')
-patched: admin/pages/gateways.php ('zarinpal' => ')
-patched: admin/pages/gateways.php ($isZp   = $g['kind'])
-patched: admin/pages/gateways.php ($isZp) { $val)
-patched: admin/pages/gateways.php (id="gwZp")
-patched: admin/pages/gateways.php (bz = $('gwZp'))
-patched: admin/pages/gateways.php (bz.style.display)
-patched: admin/pages/gateways.php (KIND_T = { zarinpal)
-patched: admin/pages/gateways.php (k === 'zarinpal' ? '#ffd400')
-patched: admin/pages/gateways.php (val = 'ZarinPal')
-wrote admin/pages/gateways.php
-changed files: 1
-sanity ptxt('kind') === 'zarinpal' : ok
-sanity id="gwZp" : ok
-sanity name="zp_merchant" : ok
-sanity bz = $('gwZp') : ok
-sanity val = 'ZarinPal' : ok
-sanity $isZp   = $g['kind'] : ok
+Thu Sep 24 13:37:31 UTC 2026
+patched: app/Service/Btn.php ('wal_zp'     => [)
+patched: app/Service/Btn.php ('wal_zp'     => 'wallet')
+patched: app/Bot/Bot.php (case 'wal_zp':)
+patched: app/Bot/Bot.php ($arg === 'zp'))
+patched: admin/pages/payments.php (Zarinpal::poll($tx))
+patched: miniapp/api.php ('zarinpal' => class_exists('Zarinpal'))
+patched: admin/pages/payments.php (nowpay','zarinpal' x2)
+patched: cron/tasks.php (nowpay','zarinpal' x1)
+wrote admin/pages/payments.php
+wrote app/Bot/Bot.php
+wrote app/Service/Btn.php
+wrote cron/tasks.php
+wrote miniapp/api.php
+changed files: 5
+sanity app/Service/Btn.php / 'wal_zp'     => [ : ok
+sanity app/Service/Btn.php / 'wal_zp'     => 'wallet' : ok
+sanity app/Bot/Bot.php / case 'wal_zp': : ok
+sanity app/Bot/Bot.php / $arg === 'zp') : ok
+sanity admin/pages/payments.php / Zarinpal::poll($tx) : ok
+sanity miniapp/api.php / 'zarinpal' => class_exists('Zarinp : ok
 sanity: 6/6
-===== Btn.php =====
----- dump btn : app/Service/Btn.php (1677 lines) ----
-    1 <?php
-    2 declare(strict_types=1);
-    3 
-    4 /**
-    5  * مدیریت دکمه‌های ربات
-    6  *
-    7  * • افزودن / حذف / تغییر ترتیب دکمه‌های منوی اصلی
-    8  * • دکمهٔ سفارشی: لینک، متن دلخواه یا مینی‌اپ
-    9  * • دو حالت نمایش: کیبورد پایین (معمولی) یا دکمهٔ شیشه‌ای (اینلاین)
-   10  * • رنگ‌بندی: تلگرام رنگ واقعی دکمه را پشتیبانی نمی‌کند، پس با
-   11  *   نشانگرهای رنگی (🟦 🔵 …) و سبک‌های مختلف شبیه‌سازی می‌شود.
-   12  */
-   13 class Btn
-   14 {
-   15     public const KEY = 'bot_buttons';
-   16 
-   17     /** دکمه‌های درون‌ساخت: کلید => [آیکون، برچسب، مخاطب پیش‌فرض، گروه] */
-   18     public const BUILTIN = [
-   19         /* fixed76: دکمه‌های جدید (پیش‌فرض خاموش — از «دکمه‌های ربات» روشن کنید) */
-   20         'prices'     => ['💰', 'تعرفه‌ها', 'all', 'منوی اصلی'],
-   21         'campaign'   => ['🔥', 'پیشنهاد ویژه', 'all', 'منوی اصلی'],
-   22         'renew'      => ['🔄', 'تمدید سرویس', 'all', 'منوی اصلی'],
-   23         'tickets'    => ['🎫', 'تیکت‌های من', 'all', 'منوی اصلی'],
-   24         'orders'     => ['🧾', 'سوابق خرید', 'all', 'منوی اصلی'], /* fixed79 */
-   25         /* ---------- منوی اصلی ---------- */
-   26         'products'   => ['🛒', 'محصولات', 'all', 'منوی اصلی'],
-   27         'custom'     => ['📐', 'حجم و زمان دلخواه', 'all', 'منوی اصلی'],
-   28         'services'   => ['📦', 'سرویس‌های من', 'all', 'منوی اصلی'],
-   29         'wallet'     => ['💳', 'شارژ کیف پول', 'all', 'منوی اصلی'],
-   30         'account'    => ['👤', 'حساب کاربری', 'all', 'منوی اصلی'],
-   31         'test'       => ['🧪', 'اکانت تست', 'all', 'منوی اصلی'],
-   32         'gift'       => ['🎁', 'کد هدیه', 'all', 'منوی اصلی'],
-   33         'tutorial'   => ['🎓', 'آموزش', 'all', 'منوی اصلی'],
-   34         'support'    => ['🆘', 'پشتیبانی', 'all', 'منوی اصلی'],
-   35         'referral'   => ['🎯', 'معرفی به دوستان', 'all', 'منوی اصلی'],
-   36         'miniapp'    => ['🚀', 'اپلیکیشن', 'all', 'منوی اصلی'],
-   37         'stock'      => ['🏪', 'انبار ملی', 'all', 'منوی اصلی'],
-   38         'home'       => ['🏠', 'منوی اصلی', 'all', 'منوی اصلی'],
-   39 
-   40         /* ---------- کیف پول ---------- */
-   41         'wal_card'   => ['🧾', 'شارژ با کارت به کارت', 'all', 'کیف پول'],
-   42         'wal_crypto' => ['🪙', 'شارژ با رمزارز', 'all', 'کیف پول'],
-   43         'wal_np'     => ['🌐', 'شارژ خودکار (NowPayments)', 'all', 'کیف پول'],
-   44         'wal_hp'     => ['🪙', 'شارژ آنی هوش‌پی', 'all', 'کیف پول'],
-   45         'wal_hash'   => ['🔗', 'ثبت هش تراکنش', 'all', 'کیف پول'],
-   46         'wal_hist'   => ['📜', 'تاریخچهٔ کیف پول', 'all', 'کیف پول'],
-   47 
-   48         /* ---------- حساب کاربری ---------- */
-   49         'acc_phone'  => ['📱', 'ثبت شماره تماس', 'all', 'حساب کاربری'],
-   50         'acc_email'  => ['📧', 'ثبت ایمیل', 'all', 'حساب کاربری'],
-   51         'acc_name'   => ['✏️', 'ثبت نام و نام خانوادگی', 'all', 'حساب کاربری'],
-   52         'verify'     => ['✅', 'تایید حساب', 'all', 'حساب کاربری'],
-   53         'refs'       => ['👥', 'زیرمجموعه‌های من', 'all', 'حساب کاربری'],
-   54 
-   55         /* ---------- نمایندگی ---------- */
-   56         'reseller'   => ['🏷', 'نمایندگی', 'reseller', 'نمایندگی'],
-   57         'rssvcs'     => ['🧩', 'کانفیگ های نمایندگی', 'reseller', 'نمایندگی'],
-   58         'rsapp'      => ['🖥', 'پنل نمایندگی (مینی‌اپ)', 'reseller', 'نمایندگی'],
-   59         'rspay'      => ['💰', 'تسویه و اعتبار نمایندگی', 'reseller', 'نمایندگی'],
-   60         'rsreq'      => ['📝', 'درخواست نمایندگی', 'user', 'نمایندگی'],
-   61 
-   62         /* ---------- مدیریت ---------- */
-   63         'admin'      => ['🛠', 'پنل مدیریت', 'admin', 'مدیریت'],
-   64         'admin_web'  => ['🔐', 'پنل وب مدیریت', 'admin', 'مدیریت'],
-   65     ];
-   66 
-   67     /**
-   68      * زیرمنوها: کلید دکمهٔ درون‌ساخت => منویی که دکمه داخل آن دیده می‌شود
-   69      *
-   70      * این دکمه‌ها زیرمجموعهٔ یک بخش دیگر هستند و نباید روی کیبورد منوی اصلی
-   71      * بیایند؛ جای آن‌ها فقط داخل همان زیرمنو است.
-   72      */
-   73     public const SUBMENU = [
-   74         'wal_card'   => 'wallet',
-   75         'wal_crypto' => 'wallet',
-   76         'wal_np'     => 'wallet',
-   77         'wal_hp'     => 'wallet',
-   78         'wal_hash'   => 'wallet',
-   79         'wal_hist'   => 'wallet',
-   80         'acc_phone'  => 'account',
-   81         'acc_email'  => 'account',
-   82         'acc_name'   => 'account',
-   83         'verify'     => 'account',
-   84         'refs'       => 'account',
-   85     ];
-   86 
-   87     /** منوهایی که یک دکمه می‌تواند داخلشان بنشیند */
-   88     /**
-   89      * دکمه‌های پیشنهادی هر منو — برای «تکمیل» زیرمنوهای خالی
-   90      *
-   91      * قالب هر ردیف: [کلید، آیکون، برچسب، مخاطب، عرض، روشن؟، نوع (اختیاری)]
-   92      * این دکمه‌ها روی همان بخش‌های واقعی ربات سوار می‌شوند؛ پس بدون هیچ
-   93      * تنظیم دیگری کار می‌کنند و فقط جای نمایششان زیرمنو است.
-   94      */
-   95     public const SEED = [
-   96         /* بازکننده‌های زیرمنو روی کیبورد اصلی (پیش‌فرض خاموش) */
-   97         'main' => [
-   98             ['shop', '🛒', 'خرید و محصولات',   'all', 'half', 0, 'menu'],
-   99             ['svc',  '📦', 'سرویس‌های من',     'all', 'half', 0, 'menu'],
-  100             ['help', '🆘', 'پشتیبانی و آموزش', 'all', 'half', 0, 'menu'],
-  101             ['more', '➕', 'امکانات بیشتر',    'all', 'half', 0, 'menu'],
-  102         ],
-  103 
-  104         'wallet' => [
-  105             ['gift',     '🎁', 'کد هدیه',             'all', 'half', 1],
-  106             ['referral', '🎯', 'کسب اعتبار با معرفی', 'all', 'half', 1],
-  107             ['verify',   '✅', 'تایید حساب',          'all', 'half', 0],
-  108             ['home',     '🏠', 'بازگشت به منوی اصلی', 'all', 'full', 0],
-  109         ],
-  110 
----- end dump btn ----
-===== magic dispatch? =====
----- grep: __callStatic ----
----- end grep: __callStatic (0) ----
----- grep: Amount(int ----
----- end grep: Amount(int (0) ----
-===== hooshpay inside bot =====
----- grep: hooshpay ----
-app/Bot/AdminBot.php:489: 'hooshpay' => '🪙 هوش‌پی (خودکار)', 'nowpay' => '🤖 نوپیمنتس (خودکار)'];
+===== bot deposit branch =====
+---- dump app/Bot/Bot.php : app/Bot/Bot.php (3064 lines) ----
+ 1400                         Logs::send('errors', Logs::fmt('⚠ خطای ساخت فاکتور ارزی', [
+ 1401                             'کاربر' => (int)self::$u['tg_id'],
+ 1402                             'مبلغ'  => money($amount) . ' ' . currency(),
+ 1403                             'خطا'   => (string)($inv['message'] ?? '-'),
+ 1404                         ]));
+ 1405                         return true;
+ 1406                     }
+ 1407                     $txt = "⚡️ <b>پرداخت ارزی خودکار</b>\n\n"
+ 1408                         . 'مبلغ: <b>' . money($amount) . ' ' . currency() . "</b>\n"
+ 1409                         . 'معادل: <b>' . fa_num((string)$inv['usd']) . " $</b>\n"
+ 1410                         . 'نرخ محاسبه: ' . money(Wallet::rate()) . ' ' . currency() . "\n"
+ 1411                         . 'شماره پیگیری: <code>#' . $txN . "</code>\n\n"
+ 1412                         . "روی دکمهٔ زیر بزنید، ارز دلخواه را انتخاب و مبلغ را واریز کنید.\n"
+ 1413                         . "پس از تایید شبکه، کیف پول شما <b>خودکار</b> شارژ می‌شود.";
+ 1414                     self::waitEdit($chatId, $waitId, $txt, Tg::ikb([
+ 1415                         [Tg::url('💠 صفحه پرداخت', (string)$inv['url'])],
+ 1416                         [Tg::btn('🔄 بررسی وضعیت پرداخت', 'wal:chk:' . $txN)],
+ 1417                     ]));
+ 1418                     Logs::send('financial', Logs::fmt('⚡️ فاکتور ارزی جدید', [
+ 1419                         'کاربر'  => (($u2 = self::$u)['first_name'] ?? '-') . ' (' . (int)$u2['tg_id'] . ')',
+ 1420                         'مبلغ'   => money($amount) . ' ' . currency(),
+ 1421                         'معادل'  => $inv['usd'] . ' $',
+ 1422                         'فاکتور' => (string)$inv['order'],
+ 1423                     ]));
+ 1424                     return true;
+ 1425                 } elseif ($method === 'hooshpay') {
+ 1426                     self::setState(null);
+ 1427                     $waitId = self::waitMsg(
+ 1428                         $chatId,
+ 1429                         "🪙 <b>در حال ساخت لینک پرداخت…</b>\n\n⏳ اتصال به هوش‌پی و رزرو کارت دریافت، چند لحطه صبر کنید.",
+ 1430                         self::kbMain()
+ 1431                     );
+ 1432 
+ 1433                     if (!class_exists('HooshPay')) {
+ 1434                         self::waitEdit($chatId, $waitId, '⚠️ درگاه هوش‌پی در دسترس نیست.');
+ 1435                         return true;
+ 1436                     }
+ 1437 
+ 1438                     $txH = Wallet::createDeposit(self::$u, $amount, 'hooshpay');
+ 1439                     $inv = HooshPay::createInvoice(self::$u, $amount, $txH);
+ 1440 
+ 1441                     if (empty($inv['ok'])) {
+ 1442                         DB::update('transactions', [
+ 1443                             'status' => 'rejected', 'decided_at' => now(),
+ 1444                             'note' => mb_substr((string)($inv['message'] ?? 'خطا'), 0, 250),
+ 1445                         ], 'id = :id', [':id' => $txH]);
+ 1446                         self::waitEdit($chatId, $waitId, '❌ ' . (string)($inv['message'] ?? 'ساخت لینک پرداخت ناموفق بود.'));
+ 1447                         Logs::send('errors', Logs::fmt('⚠ خطای ساخت فاکتور هوش‌پی', [
+ 1448                             'کاربر' => (int)self::$u['tg_id'],
+ 1449                             'مبلغ'  => money($amount) . ' ' . currency(),
+ 1450                             'خطا'   => (string)($inv['message'] ?? '-'),
+ 1451                         ]));
+ 1452                         return true;
+ 1453                     }
+ 1454 
+ 1455                     $hpPay = (int)($inv['payable'] ?? 0);
+ 1456                     $hpFee = HooshPay::FEE_SHORT[HooshPay::feeMode()] ?? '';
+ 1457                     $hpCrd = is_array($inv['card'] ?? null) ? $inv['card'] : [];
+ 1458 
+ 1459                     $txt = "🪙 <b>پرداخت آنی کارت به کارت</b>\n\n"
+ 1460                         . 'مبلغ فاکتور: <b>' . money($amount) . ' ' . currency() . "</b>\n";
+ 1461                     if ($hpPay > 0) {
+ 1462                         $txt .= 'مبلغ قابل پرداخت: <b>' . fa_num((string)$hpPay) . " تومان</b>\n";
+ 1463                     }
+ 1464                     if ($hpFee !== '') $txt .= 'کارم��د درگاه: ' . $hpFee . "\n";
+ 1465                     if (trim((string)($hpCrd['bank_name'] ?? '')) !== '') {
+ 1466                         $txt .= 'بانک مقصد: ' . h((string)$hpCrd['bank_name']) . "\n";
+ 1467                     }
+ 1468                     $txt .= 'شماره پیگیری: <code>#' . $txH . "</code>\n\n"
+ 1469                         . "⚠️ <b>مهم:</b> دقیقاً همان مبلغی را واریز کنید که در صفحهٔ پرداخت نشان داده می‌شود؛ "
+ 1470                         . "چند تومان اختلاف عمدی است و برای تشخیص خودکار واریز شما لازم است.\n\n"
+ 1471                         . "پس از واریز، تایید <b>آنی</b> انجام می‌شود و کیف پول شما خودکار شارژ می‌گردد.";
+ 1472 
+ 1473                     self::waitEdit($chatId, $waitId, $txt, Tg::ikb([
+ 1474                         [Tg::url('🪙 رفتن به صفحهٔ پرداخت', (string)$inv['url'])],
+ 1475                         [Tg::btn('🔄 بررسی وضعیت پرداخت', 'wal:hpchk:' . $txH)],
+ 1476                     ]));
+---- end dump app/Bot/Bot.php ----
+===== bot askAmount definition hunt =====
+---- grep: function ask ----
+app/Bot/AdminBot.php:969: public static function askUser($chatId): void
+app/Bot/AdminBot.php:1047: public static function askService($chatId): void
+---- end grep: function ask (2) ----
+---- grep: wal_hp ----
 app/Bot/Bot.php:570: case 'wal_hp':     self::askAmount($chatId, 'hooshpay'); return true;
-app/Bot/Bot.php:1087: elseif ($arg === 'hp') self::askAmount($chatId, 'hooshpay');
-app/Bot/Bot.php:1423: } elseif ($method === 'hooshpay') {
-app/Bot/Bot.php:1436: $txH = Wallet::createDeposit(self::$u, $amount, 'hooshpay');
----- end grep: hooshpay (5) ----
-===== HooshPay:: usages =====
----- grep: HooshPay:: ----
-admin/pages/gateways.php:399: elseif ($isHp) { $val = class_exists('HooshPay') ? HooshPay::callbackUrl() : 'HooshPay'; }
-admin/pages/gateways.php:782: <?php foreach (HooshPay::FEE_MODES as $fk => $fv): ?>
-admin/pages/gateways.php:790: <?php foreach (HooshPay::UNITS as $uk => $uv): ?>
-admin/pages/gateways.php:815: <div class="hint">آدرس کال‌بک: <b class="mono ltr"><?= h(HooshPay::callbackUrl()) ?></b></div>
-admin/pages/payments.php:190: if ($mth === 'hooshpay' && class_exists('HooshPay'))   $pr = HooshPay::poll($tx);
-app/Bot/Bot.php:1437: $inv = HooshPay::createInvoice(self::$u, $amount, $txH);
-app/Bot/Bot.php:1454: $hpFee = HooshPay::FEE_SHORT[HooshPay::feeMode()] ?? '';
-app/Service/Gateway.php:349: if (!class_exists('HooshPay') || !HooshPay::enabled()) return false;
-app/Service/Gateway.php:350: if (!HooshPay::forUser($isReseller)) return false;
-app/Service/Gateway.php:367: return class_exists('HooshPay') ? HooshPay::btnLabel() : '🪙 پرداخت آنی کارت به کارت';
-cron/tasks.php:102: if (class_exists('HooshPay') && HooshPay::enabled()) {
-cron/tasks.php:109: $pr = HooshPay::poll($tx);
-hooshpay.php:62: echo HooshPay::enabled() ? 'hooshpay callback ready' : 'hooshpay disabled';
-hooshpay.php:75: $trusted = HooshPay::checkSig($data, $sig);
-hooshpay.php:77: if (!$trusted && HooshPay::secret() !== '') {
-hooshpay.php:98: $res = HooshPay::apply($data, $trusted);
-miniapp/api.php:520: 'hooshpay' => class_exists('HooshPay') ? HooshPay::enabled() : false,
-miniapp/api.php:1485: if (!class_exists('HooshPay') || !HooshPay::enabled()) ma_fail('درگاه هوش‌پی فعال نیست.');
-miniapp/api.php:1486: if (!HooshPay::forUser($isRs)) ma_fail('این درگاه برای حساب شما فعال نیست.');
-miniapp/api.php:1488: $hpMin = HooshPay::minAmount();
-miniapp/api.php:1489: $hpMax = HooshPay::maxAmount();
-miniapp/api.php:1494: $invHp = HooshPay::createInvoice($user, $amount, $txHp);
-miniapp/api.php:1506: $hpFee = (string)(HooshPay::FEE_SHORT[HooshPay::feeMode()] ?? '');
-miniapp/api.php:1557: $hpRes  = HooshPay::poll((array)$hpRow);
----- end grep: HooshPay:: (24) ----
+app/Service/Btn.php:44: 'wal_hp'     => ['🪙', 'شارژ آنی هوش‌پی', 'all', 'کیف پول'],
+app/Service/Btn.php:78: 'wal_hp'     => 'wallet',
+---- end grep: wal_hp (3) ----
+===== cron hooshpay poll =====
+---- dump cron_hp : cron/tasks.php (664 lines) ----
+   92         $pr = NowPay::poll($tx);
+   93         if (!empty($pr['ok'])) {
+   94             $report['nowpay']++;
+   95             cron_say('nowpay tx #' . (int)$tx['id'] . ' => ' . (string)($pr['status'] ?? 'done'));
+   96         }
+   97         usleep(250000);
+   98     }
+   99 }
+  100 
+  101 /* fixed84: استعلام خودکار فاکتورهای هوش‌پی تا صف رسیدهای پنل وب پر نشود */
+  102 if (class_exists('HooshPay') && HooshPay::enabled()) {
+  103     $hpWait = DB::all("SELECT * FROM {p}transactions
+  104                        WHERE method = 'hooshpay' AND status = 'pending'
+  105                          AND created_at > DATE_SUB(NOW(), INTERVAL 2 DAY)
+  106                        ORDER BY id ASC LIMIT 25");
+  107     foreach ($hpWait as $tx) {
+  108         try {
+  109             $pr = HooshPay::poll($tx);
+  110             if (!empty($pr['ok'])) {
+  111                 $report['hooshpay']++;
+  112                 cron_say('hooshpay tx #' . (int)$tx['id'] . ' => ' . (string)($pr['message'] ?? 'done'));
+  113             }
+  114         } catch (Throwable $e) {
+  115             cron_say('hooshpay poll failed: ' . $e->getMessage());
+  116         }
+  117         usleep(250000);
+  118     }
+  119 }
+  120 
+  121 /* fixed84: فاکتورهای درگاه که کاربر هرگز پرداخت نکرده، پس از چند ساعت لغو می‌شوند */
+  122 try {
+---- end dump cron_hp ----
+===== miniapp hooshpay deposit =====
+---- dump ma_hp : miniapp/api.php (2939 lines) ----
+ 1475                 'state' => 'wallet_txid',
+ 1476                 'state_data' => jenc(['amount' => $amount, 'method' => 'crypto']),
+ 1477             ], 'id = :id', [':id' => $UID]);
+ 1478 
+ 1479             ma_out(['ok' => true, 'method' => 'crypto', 'amount' => $amount, 'amount_txt' => ma_money($amount),
+ 1480                 'rate_txt' => class_exists('Rates') ? ma_money((int)Rates::liveRate()) : '',
+ 1481                 'assets' => $assets, 'can_hash' => true,
+ 1482                 'note' => 'مقادیر با نرخ همین لحظه محاسبه شد. پس از واریز، هش تراکنش (TXID) را همین‌جا ارسال کنید.']);
+ 1483         }
+ 1484 
+ 1485         if ($method === 'hooshpay') {
+ 1486             if (!class_exists('HooshPay') || !HooshPay::enabled()) ma_fail('درگاه هوش‌پی فعال نیست.');
+ 1487             if (!HooshPay::forUser($isRs)) ma_fail('این درگاه برای حساب شما فعال نیست.');
+ 1488 
+ 1489             $hpMin = HooshPay::minAmount();
+ 1490             $hpMax = HooshPay::maxAmount();
+ 1491             if ($hpMin > 0 && $amount < $hpMin) ma_fail('حداقل مبلغ این درگاه ' . ma_money($hpMin) . ' است.');
+ 1492             if ($hpMax > 0 && $amount > $hpMax) ma_fail('حداکثر مبلغ این درگاه ' . ma_money($hpMax) . ' است.');
+ 1493 
+ 1494             $txHp  = (int)Wallet::createDeposit($user, $amount, 'hooshpay');
+ 1495             $invHp = HooshPay::createInvoice($user, $amount, $txHp);
+ 1496 
+ 1497             if (empty($invHp['ok'])) {
+ 1498                 try {
+ 1499                     Wallet::reject($txHp, null, 'HooshPay: ' . (string)($invHp['message'] ?? ''), false);
+ 1500                 } catch (Throwable $e) {
+ 1501                 }
+ 1502                 ma_fail((string)($invHp['message'] ?? 'ساخت فاکتور هوش‌پی ناموفق بود.'));
+ 1503             }
+ 1504 
+ 1505             $hpCd  = is_array($invHp['card'] ?? null) ? (array)$invHp['card'] : [];
+ 1506             $hpPay = (int)($invHp['payable'] ?? 0);
+ 1507             $hpFee = (string)(HooshPay::FEE_SHORT[HooshPay::feeMode()] ?? '');
+ 1508 
+ 1509             ma_out(['ok' => true, 'method' => 'hooshpay',
+ 1510                 'amount'      => $amount,
+ 1511                 'amount_txt'  => ma_money($amount),
+ 1512                 'tx'          => $txHp,
+ 1513                 'url'         => (string)($invHp['url'] ?? ''),
+ 1514                 'uid'         => (string)($invHp['uid'] ?? ''),
+ 1515                 'payable'     => $hpPay,
+ 1516                 'payable_txt' => money($hpPay) . ' تومان',
+ 1517                 'fee_txt'     => $hpFee,
+ 1518                 'expires'     => (string)($invHp['expires'] ?? ''),
+ 1519                 'card'        => [
+ 1520                     'number' => (string)($hpCd['card_number'] ?? ''),
+ 1521                     'holder' => (string)($hpCd['holder_name'] ?? ''),
+ 1522                     'bank'   => (string)($hpCd['bank_name'] ?? ''),
+ 1523                 ],
+ 1524                 'note' => 'روی دکمهٔ پرداخت بزنید و «دقیقاً» همان مبلغ قابل پرداخت را واریز کنید؛ بعد دکمهٔ بررسی وضعیت را بزنید.']);
+ 1525         }
+---- end dump ma_hp ----
+===== adminbot method labels =====
+---- dump ab_lbl : app/Bot/AdminBot.php (1311 lines) ----
+  483         foreach (self::adminIds() as $id) self::sendCardRequest($id, $c);
+  484     }
+  485 
+  486     private static function sendPaymentCard($chatId, array $tx, string $note = ''): void
+  487     {
+  488         $mLbl   = ['card' => '💳 کارت به کارت', 'crypto' => '🌐 ارزی', 'wallet' => '👛 کیف پول',
+  489                    'hooshpay' => '🪙 هوش‌پی (خودکار)', 'nowpay' => '🤖 نوپیمنتس (خودکار)'];
+  490         $method = $mLbl[(string)$tx['method']] ?? (string)$tx['method'];
+  491 
+  492         /* کارت احرازشده‌ای که کاربر اعلام کرده با آن واریز می‌کند */
+  493         $cardLine = '';
+  494         if (!empty($tx['card_id']) && class_exists('CardAuth')) {
+  495             $uc = CardAuth::find((int)$tx['card_id']);
+  496             if ($uc) {
+---- end dump ab_lbl ----
 changelog: entry added
-build: fixed157 (was fixed156)
+build: fixed158 (was fixed157)
 exit: 0
 exit: 0

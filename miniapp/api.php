@@ -518,6 +518,7 @@ switch ($action) {
                 'crypto' => ma_pay_on('crypto', $user),
                 'nowpay' => class_exists('NowPay') ? NowPay::enabled() : false,
                 'hooshpay' => class_exists('HooshPay') ? HooshPay::enabled() : false,
+        'zarinpal' => class_exists('Zarinpal') ? Zarinpal::enabled() : false,
                 'reseller' => (class_exists('Reseller') && Reseller::enabled() && Reseller::isReseller($user)),
                 'stock'    => (class_exists('Stock') && Stock::enabled()),
             ],

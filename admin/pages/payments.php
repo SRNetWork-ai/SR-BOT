@@ -110,7 +110,7 @@ $buildWhere = function (bool $onlyPending, string $scope = '') use ($fSt, $fMe, 
         $p[':st'] = $fSt;
     }
     /* fixed84: صف رسیدهای دستی از فاکتورهای درگاه خودکار جدا شد */
-    $autoList = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay'";
+    $autoList = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay','zarinpal'";
     if ($scope === 'manual') $w[] = 't.method NOT IN (' . $autoList . ')';
     if ($scope === 'auto')   $w[] = 't.method IN (' . $autoList . ')';
     if ($fMe !== '') { $w[] = 't.method = :me'; $p[':me'] = $fMe; }
@@ -188,6 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
         $mth = strtolower((string)$tx['method']);
         $pr  = ['ok' => false, 'message' => 'استعلام برای این روش پرداخت ممکن نیست.'];
         if ($mth === 'hooshpay' && class_exists('HooshPay'))   $pr = HooshPay::poll($tx);
+        if ($mth === 'zarinpal' && class_exists('Zarinpal'))   $pr = Zarinpal::poll($tx); /* 0.0.2 #22 */
         elseif ($mth === 'nowpay' && class_exists('NowPay'))   $pr = NowPay::poll($tx);
         flash(!empty($pr['ok']) ? 'ok' : 'err', h((string)($pr['message'] ?? '-')));
         back('payments', $ret);
@@ -290,7 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
 
 /* ==================== آمار ==================== */
 /* fixed84: رسیدهای دستی و فاکتورهای درگاه جدا شمرده می‌شوند */
-$autoIn   = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay'";
+$autoIn   = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay','zarinpal'";
 $cntPend  = (int)DB::val("SELECT COUNT(*) FROM {p}transactions WHERE status = 'pending' AND method NOT IN ($autoIn)", [], 0);
 $sumPend  = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'pending' AND method NOT IN ($autoIn)", [], 0);
 $cntAuto  = (int)DB::val("SELECT COUNT(*) FROM {p}transactions WHERE status = 'pending' AND method IN ($autoIn)", [], 0);

@@ -568,6 +568,7 @@ class Bot
             case 'wal_crypto': self::cryptoAssets($chatId, $msgId); return true;
             case 'wal_np':     self::askAmount($chatId, 'nowpay'); return true;
             case 'wal_hp':     self::askAmount($chatId, 'hooshpay'); return true;
+            case 'wal_zp':     self::askAmount($chatId, 'zarinpal'); return true; /* 0.0.2 #22 */
             case 'wal_hash':   self::askAmount($chatId, 'crypto_hash'); return true;
             case 'wal_hist':   self::walletHistory($chatId, $msgId); return true;
 
@@ -1085,6 +1086,7 @@ class Bot
                 elseif ($arg === 'np') self::askAmount($chatId, 'nowpay');
                 elseif ($arg === 'chk') self::checkNowPay($chatId, (int)$arg2);
                 elseif ($arg === 'hp') self::askAmount($chatId, 'hooshpay');
+            elseif ($arg === 'zp') self::askAmount($chatId, 'zarinpal');
                 elseif ($arg === 'hpchk') self::checkHooshPay($chatId, (int)$arg2);
                 elseif ($arg === 'hist')  self::walletHistory($chatId, $msgId);
                 return;
