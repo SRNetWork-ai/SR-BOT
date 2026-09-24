@@ -1,527 +1,185 @@
 Python 3.12.3
-Thu Sep 24 13:16:31 UTC 2026
-===== HooshPay driver =====
----- funcs app/Service/HooshPay.php ----
-   62 public static function enabled(): bool
-   67 public static function key(): string    { return trim((string)DB::setting('hp_api_key', '')); }
-   68 public static function secret(): string { return trim((string)DB::setting('hp_secret', '')); }
-   69 public static function desc(): string   { return trim((string)DB::setting('hp_desc', '')); }
-   71 public static function label(): string
-   77 public static function icon(): string
-   83 public static function feeMode(): string
-   90 public static function unit(): string
-   96 public static function minAmount(): int { return max(0, (int)DB::setting('hp_min', '0')); }
-   97 public static function maxAmount(): int { return max(0, (int)DB::setting('hp_max', '0')); }
-  100 public static function feePercent(): float { return max(0, (float)DB::setting('hp_fee_percent', '20')); }
-  102 public static function audience(): string
-  108 public static function callbackUrl(): string { return (string)app_url('/hooshpay.php'); }
-  110 public static function returnUrl(): string
-  117 public static function forUser(bool $isReseller = false): bool
-  127 public static function btnLabel(): string
-  132 public static function maskKey(): string
-  143 public static function toToman(int $amount): int
-  150 public static function fromToman(int $toman): int
-  158 public static function api(string $path, array $body = [], string $method = 'GET'): array
-  165 public static function errFa(int $code, array $j = []): string
-  175 public static function statusFa(string $s): string
-  183 public static function health(): array
-  202 public static function balance(): array
-  217 public static function createInvoice(array $user, int $amount, int $txId): array
-  291 public static function status(string $uid): array
-  308 public static function verifyInvoice(string $uid): array
-  334 public static function cancel(string $uid): array
-  354 public static function sortedJson(array $data, bool $deep = false): string
-  357 $sort = function (array $a) use (&$sort) {
-  372 public static function checkSig(array $data, string $sig): bool
-  392 public static function apply(array $d, bool $trusted = false): array
-  514 public static function poll(array $tx): array
-  525 public static function summary(): array
----- end funcs app/Service/HooshPay.php (540 lines) ----
----- dump hp_head : app/Service/HooshPay.php (540 lines) ----
-    1 <?php
-    2 declare(strict_types=1);
-    3 
-    4 /**
-    5  * درگاه هوش‌پی (HooshPay) — کارت به کارت با تایید آنی
-    6  *
-    7  * مستندات: https://hooshpay.xyz/api/v1
-    8  * جریان کار:
-    9  *   ۱) ساخت فاکتور  → POST /invoices
-   10  *   ۲) کاربر روی لینک payment_url پرداخت می‌کند
-   11  *   ۳) هوش‌پی به /hooshpay.php کال‌بک می‌زند
-   12  *   ۴) ما همیشه با POST /invoices/{uid}/verify پرداخت را دوباره استعلام می‌کنیم
-   13  *      و تنها در صورت paid=true کیف پول را شارژ می‌کنیم.
-   14  *
-   15  * نکته: مبالغ هوش‌پی همیشه «تومان» است. اگر واحد فروشگاه ریال باشد،
-   16  * تنظیم hp_unit را روی rial بگذارید تا تبدیل خودکار انجام شود.
-   17  */
-   18 class HooshPay
-   19 {
-   20     public const BASE = 'https://hooshpay.xyz/api/v1';
-   21 
-   22     /** روش تقسیم کارمزد درگاه */
-   23     public const FEE_MODES = [
-   24         'seller' => '🏪 کارمزد از فروشنده — خریدار دقیقاً مبلغ فاکتور را می‌پردازد',
-   25         'buyer'  => '🙋 کارمزد از خریدار — شما کل مبلغ را دریافت می‌کنید',
-   26         'split'  => '🤝 نصف‌نصف — کارمزد بین شما و خریدار تقسیم می‌شود',
-   27     ];
-   28 
-   29     public const FEE_SHORT = [
-   30         'seller' => 'از فروشنده',
-   31         'buyer'  => 'از خریدار',
-   32         'split'  => 'نصف‌نصف',
-   33     ];
-   34 
-   35     public const UNITS = [
-   36         'toman' => 'تومان — مبالغ فروشگاه تومان است',
-   37         'rial'  => 'ریال — مبالغ فروشگاه ریال است (تقسیم بر ۱۰ می‌شود)',
-   38     ];
-   39 
-   40     public const STATUS_FA = [
-   41         'pending'   => 'در انتظار پرداخت',
-   42         'paid'      => 'پرداخت‌شده و تاییدشده',
-   43         'expired'   => 'مهلت پرداخت تمام شد',
-   44         'cancelled' => 'لغو شد',
-   45         'canceled'  => 'لغو شد',
-   46         'failed'    => 'ناموفق',
-   47     ];
-   48 
-   49     public const PAID = ['paid'];
-   50     public const DEAD = ['expired', 'cancelled', 'canceled', 'failed'];
-   51 
-   52     public const ERRORS = [
-   53         400 => 'ورودی نامعتبر — مبلغ خارج از محدودهٔ مجاز است',
-   54         401 => 'کلید API نامعتبر است یا ارسال نشده',
-   55         403 => 'حساب شما در هوش‌پی مسدود است',
-   56         404 => 'فاکتور یافت نشد',
-   57         503 => 'درگاه غیرفعال است یا کارتی برای دریافت موجود نیست',
-   58     ];
-   59 
-   60     /* ==================== تنظیمات ==================== */
-   61 
-   62     public static function enabled(): bool
-   63     {
-   64         return (string)DB::setting('hp_enabled', '0') === '1' && self::key() !== '';
-   65     }
-   66 
-   67     public static function key(): string    { return trim((string)DB::setting('hp_api_key', '')); }
-   68     public static function secret(): string { return trim((string)DB::setting('hp_secret', '')); }
-   69     public static function desc(): string   { return trim((string)DB::setting('hp_desc', '')); }
-   70 
-   71     public static function label(): string
-   72     {
-   73         $l = trim((string)DB::setting('hp_label', ''));
-   74         return $l !== '' ? $l : 'پرداخت آنی کارت به کارت';
-   75     }
-   76 
-   77     public static function icon(): string
-   78     {
-   79         $i = trim((string)DB::setting('hp_icon', ''));
-   80         return $i !== '' ? $i : '🪙';
-   81     }
-   82 
-   83     public static function feeMode(): string
-   84     {
-   85         $m = trim((string)DB::setting('hp_fee_mode', 'seller'));
-   86         return isset(self::FEE_MODES[$m]) ? $m : 'seller';
-   87     }
-   88 
-   89     /** واحد مبلغ فروشگاه: toman یا rial */
-   90     public static function unit(): string
----- end dump hp_head ----
-===== root callback file =====
----- dump hp_root : hooshpay.php (116 lines) ----
-    1 <?php
-    2 declare(strict_types=1);
-    3 
-    4 /**
-    5  * دریافت کال‌بک پرداخت موفق از هوش‌پی (HooshPay)
-    6  *
-    7  * این آدرس را در تنظیمات درگاه هوش‌پی به عنوان callback_url بگذارید:
-    8  *   https://دامنه-شما/hooshpay.php
-    9  *
-   10  * همین فایل با ?done=1 صفحهٔ بازگشت کاربر پس از پرداخت را هم نشان می‌دهد.
-   11  */
-   12 
-   13 require __DIR__ . '/app/bootstrap.php';
-   14 
-   15 if (!app_installed()) {
-   16     http_response_code(503);
-   17     echo 'not installed';
-   18     exit;
-   19 }
-   20 
-   21 boot();
-   22 
-   23 /* ---------------- صفحهٔ بازگشت کاربر ---------------- */
-   24 if (isset($_GET['done'])) {
-   25     header('Content-Type: text/html; charset=utf-8');
-   26     $brand = defined('APP_BRAND') ? (string)APP_BRAND : 'فروشگاه';
-   27     echo '<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">'
-   28         . '<meta name="viewport" content="width=device-width,initial-scale=1">'
-   29         . '<title>بازگشت از پرداخت</title><style>'
-   30         . 'body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;'
-   31         . 'background:#0B0E14;color:#E6EAF2;font-family:"Vazirmatn",system-ui,sans-serif;padding:20px}'
-   32         . '.b{max-width:420px;width:100%;background:#141A26;border:1px solid #28324a;border-radius:20px;'
-   33         . 'padding:28px 22px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.45)}'
-   34         . '.i{font-size:52px;line-height:1;margin-bottom:14px}'
-   35         . 'h1{font-size:19px;margin:0 0 10px}'
-   36         . 'p{font-size:14px;line-height:1.9;color:#9AA6BA;margin:0 0 8px}'
-   37         . '.k{display:inline-block;margin-top:16px;background:rgba(47,212,143,.13);color:#2FD48F;'
-   38         . 'border:1px solid rgba(47,212,143,.35);border-radius:999px;padding:9px 18px;font-size:13px}'
-   39         . '</style></head><body><div class="b">'
-   40         . '<div class="i">🪙</div>'
-   41         . '<h1>پرداخت شما ثبت شد</h1>'
-   42         . '<p>نتیجهٔ نهایی به‌صورت خودکار بررسی می‌شود و به‌محض تایید، کیف پول شما شارژ خواهد شد.</p>'
-   43         . '<p>می‌توانید به ربات ' . h($brand) . ' برگردید؛ پیام تایید همان‌جا برایتان ارسال می‌شود.</p>'
-   44         . '<div class="k">می‌توانید این صفحه را ببندید</div>'
-   45         . '</div></body></html>';
-   46     exit;
-   47 }
-   48 
-   49 header('Content-Type: text/plain; charset=utf-8');
-   50 
-   51 if (!class_exists('HooshPay')) {
-   52     http_response_code(500);
-   53     echo 'hooshpay class missing';
-   54     exit;
-   55 }
-   56 
-   57 $raw = (string)file_get_contents('php://input');
-   58 $sig = (string)($_SERVER['HTTP_X_HOOSHPAY_SIGNATURE'] ?? '');
-   59 
-   60 /* درخواست خالی (بازدید مرورگر) — فقط وضعیت را نشان می‌دهیم */
-   61 if (trim($raw) === '') {
-   62     echo HooshPay::enabled() ? 'hooshpay callback ready' : 'hooshpay disabled';
-   63     exit;
-   64 }
-   65 
-   66 $data = json_decode($raw, true);
-   67 if (!is_array($data)) {
-   68     http_response_code(400);
-   69     echo 'bad json';
-   70     app_log('hooshpay', 'bad json callback', ['len' => strlen($raw)]);
-   71     exit;
-   72 }
-   73 
-   74 /* بررسی امضای HMAC-SHA256 (اگر Secret ثبت شده باشد) */
-   75 $trusted = HooshPay::checkSig($data, $sig);
-   76 
-   77 if (!$trusted && HooshPay::secret() !== '') {
-   78     app_log('hooshpay', 'signature mismatch', [
-   79         'order'   => (string)($data['order_id'] ?? ''),
-   80         'invoice' => (string)($data['invoice'] ?? ''),
-   81     ]);
-   82     try {
-   83         Logs::send('errors', Logs::fmt('⛔ امضای کال‌بک هوش‌پی نامعتبر بود', [
-   84             'فاکتور' => (string)($data['invoice'] ?? '-'),
-   85             'سفارش'  => (string)($data['order_id'] ?? '-'),
-   86             'راهنما' => 'کلید Secret را در پنل مدیریت با هوش‌پی یکسان کنید',
-   87         ]));
-   88     } catch (Throwable $e) {
-   89         /* لاگ نباید مانع پردازش شود */
-   90     }
-   91 }
-   92 
-   93 /*
-   94  * حتی وقتی امضا معتبر نباشد، پرداخت را دور نمی‌ریزیم؛
-   95  * چون apply() خودش مستقیماً از هوش‌پی استعلام می‌گیرد و تنها
-   96  * در صورت paid=true کیف پول را شارژ می‌کند.
-   97  */
-   98 $res = HooshPay::apply($data, $trusted);
-   99 
-  100 app_log('hooshpay', 'callback processed', [
-  101     'order'   => (string)($data['order_id'] ?? ''),
-  102     'invoice' => (string)($data['invoice'] ?? ''),
-  103     'status'  => (string)($data['status'] ?? ''),
-  104     'trusted' => $trusted ? 1 : 0,
-  105     'result'  => (string)($res['message'] ?? ''),
-  106 ]);
-  107 
-  108 if (!empty($res['ok'])) {
-  109     echo 'OK';
-  110     exit;
-  111 }
-  112 
-  113 /* خطا → هوش‌پی چند بار دیگر تلاش می‌کند */
-  114 http_response_code(500);
-  115 echo 'ERR ' . (string)($res['message'] ?? 'unknown');
-  116 
----- end dump hp_root ----
-===== Gateway: normalize + kind filters =====
----- dump gw_norm : app/Service/Gateway.php (679 lines) ----
-  133     public static function normalize(array $r): array
-  134     {
-  135         $kind  = (string)($r['kind'] ?? 'crypto');
-  136         if (!isset(self::KINDS[$kind])) $kind = 'crypto';
-  137         $asset = strtoupper(trim((string)($r['asset'] ?? 'USDT')));
-  138         $aud   = (string)($r['audience'] ?? 'all');
-  139         $icon  = trim((string)($r['icon'] ?? ''));
-  140         if ($icon === '') {
-  141             if ($kind === 'card') {
-  142                 $icon = '💳';
-  143             } elseif ($kind === 'nowpay') {
-  144                 $icon = '⚡️';
-  145             } elseif ($kind === 'hooshpay') {
-  146                 $icon = '🪙';
-  147             } else {
-  148                 $icon = self::ICONS[$asset] ?? '🌐';
-  149             }
-  150         }
-  151 
-  152         return [
-  153             'id'       => (string)($r['id'] ?? rnd(8)),
-  154             'kind'     => $kind,
-  155             'enabled'  => (int)($r['enabled'] ?? 1) === 1,
-  156             'audience' => isset(self::AUDIENCE[$aud]) ? $aud : 'all',
-  157             'label'    => trim((string)($r['label'] ?? '')),
-  158             'icon'     => $icon,
-  159             'asset'    => $asset,
-  160             'network'  => strtoupper(trim((string)($r['network'] ?? ''))),
-  161             'address'  => trim((string)($r['address'] ?? '')),
-  162             'memo'     => trim((string)($r['memo'] ?? '')),
-  163             'number'   => trim((string)($r['number'] ?? '')),
-  164             'holder'   => trim((string)($r['holder'] ?? '')),
-  165             'bank'     => trim((string)($r['bank'] ?? '')),
-  166             'note'     => trim((string)($r['note'] ?? '')),
-  167             'sheba'    => (string)preg_replace('/[^0-9A-Z]/', '', strtoupper(trim((string)($r['sheba'] ?? '')))),
-  168             'min'      => max(0, (int)($r['min'] ?? 0)),
-  169             'max'      => max(0, (int)($r['max'] ?? 0)),
-  170             'fee'      => round((float)($r['fee'] ?? 0), 2),
-  171             'sort'     => (int)($r['sort'] ?? 0),
-  172         ];
-  173     }
-  174 
-  175     /** همهٔ درگاه‌ها (با انتقال خودکار تنظیمات قدیمی در اولین اجرا) */
-  176     public static function all(): array
-  177     {
-  178         $rows = self::raw();
-  179         if ($rows === [] && (string)DB::setting('pay_gw_migrated', '0') !== '1') {
-  180             $rows = self::importLegacy();
-  181         }
-  182         usort($rows, function (array $a, array $b) {
-  183             return ((int)($a['sort'] ?? 0)) <=> ((int)($b['sort'] ?? 0));
-  184         });
-  185         $out = [];
-  186         foreach ($rows as $r) {
-  187             if (is_array($r)) $out[] = self::normalize($r);
-  188         }
-  189         return $out;
-  190     }
-  191 
-  192     /** انتقال تنظیمات تک‌آدرسی قدیمی به ساختار چند‌درگاهی */
-  193     public static function importLegacy(): array
-  194     {
-  195         $rows = [];
-  196 
-  197         $card = trim((string)DB::setting('card_number', ''));
-  198         if ($card !== '') {
-  199             $rows[] = [
-  200                 'id' => rnd(8), 'kind' => 'card', 'enabled' => 1, 'audience' => 'all',
----- end dump gw_norm ----
----- dump gw_hp : app/Service/Gateway.php (679 lines) ----
-  338     public static function hooshpay(bool $isReseller = false): array
-  339     {
-  340         return self::forUser('hooshpay', $isReseller);
-  341     }
-  342 
-  343     /** آیا درگاه هوش‌پی برای این کاربر فعال است؟ */
-  344     public static function hooshpayOn(bool $isReseller = false): bool
-  345     {
-  346         if (!class_exists('HooshPay') || !HooshPay::enabled()) return false;
-  347         if (!HooshPay::forUser($isReseller)) return false;
-  348 
-  349         $has = false;
-  350         foreach (self::all() as $g) {
-  351             if ($g['kind'] === 'hooshpay') { $has = true; break; }
-  352         }
-  353         /* اگر هیچ ردیف هوش‌پی ثبت نشده باشد، فقط تنطیمات کلی حاکم است */
-  354         if (!$has) return true;
-  355 
-  356         return self::hooshpay($isReseller) !== [];
-  357     }
-  358 
-  359     /** برچسب دکمهٔ هوش‌پی در منوی ربات */
-  360     public static function hooshpayLabel(bool $isReseller = false): string
-  361     {
-  362         $rows = self::hooshpay($isReseller);
-  363         if ($rows === []) {
-  364             return class_exists('HooshPay') ? HooshPay::btnLabel() : '🪙 پرداخت آنی کارت به کارت';
-  365         }
-  366         $g  = $rows[0];
-  367         $ic = (string)$g['icon'] !== '' ? (string)$g['icon'] : '🪙';
-  368         $lb = (string)$g['label'] !== '' ? (string)$g['label'] : 'پرداخت آنی کارت به کارت';
-  369         return trim($ic . ' ' . $lb);
-  370     }
-  371 
-  372     /** درگاه‌های ارزی گروه‌بندی‌شده بر اساس ارز */
-  373     public static function grouped(bool $isReseller = false): array
-  374     {
-  375         $out = [];
-  376         foreach (self::crypto($isReseller) as $g) {
-  377             $a = $g['asset'];
-  378             if (!isset($out[$a])) {
-  379                 $out[$a] = [
-  380                     'asset' => $a,
-  381                     'icon'  => $g['icon'],
-  382                     'label' => self::assetLabel($a),
-  383                     'items' => [],
-  384                 ];
-  385             }
-  386             $out[$a]['items'][] = $g;
-  387         }
-  388         return $out;
-  389     }
-  390 
-  391     /* ==================== ویرایش ==================== */
-  392 
-  393     /** افزودن یا ویرایش یک درگاه */
-  394     public static function upsert(array $in): array
-  395     {
-  396         $kind = (string)($in['kind'] ?? 'crypto');
-  397         if (!isset(self::KINDS[$kind])) $kind = 'crypto';
-  398 
-  399         if ($kind === 'crypto' && trim((string)($in['address'] ?? '')) === '') {
-  400             return ['ok' => false, 'message' => 'آدرس کیف پول را وارد کنید.'];
----- end dump gw_hp ----
-===== Wallet deposit API =====
----- funcs app/Service/Wallet.php ----
-   13 public static function isAuto(?string $method): bool
-   19 public static function autoSqlList(): string
-   24 public static function balance(int $userId): int
-   29 public static function credit(int $userId, int $amount, string $type = 'deposit', string $method = 'admin', string $note = '', ?int $adminId = null):  ...
-   57 public static function debit(int $userId, int $amount, string $note = '', string $type = 'purchase'): bool
-   89 public static function createDeposit(array $user, int $amount, string $method, array $extra = []): int
-  104 public static function pending(int $limit = 50): array
-  114 public static function approve(int $txId, $adminId = null, bool $notify = true): array
-  201 public static function reject(int $txId, $adminId = null, string $reason = '', bool $notify = true): array
-  222 public static function txButtons(array $tx, string $action): array
-  242 public static function logDecision(array $tx, string $action, $adminId = null, string $reason = ''): void
-  291 public static function undo(int $txId, $adminId = null): array
-  352 public static function rate(bool $fresh = false): int
-  359 public static function toUsd(int $amount, bool $fresh = false): float
-  364 public static function fromUsd(float $usd): int
-  371 public static function rememberAdminCard(int $txId, $chatId, $msgId): void
-  395 public static function stampAdminCards(array $tx, string $action, $adminId = null, string $reason = ''): int
-  447 public static function notifyDecision(array $tx, string $action, string $reason = ''): void
----- end funcs app/Service/Wallet.php (468 lines) ----
----- dump wal_dep : app/Service/Wallet.php (468 lines) ----
-   89     public static function createDeposit(array $user, int $amount, string $method, array $extra = []): int
-   90     {
-   91         return DB::insert('transactions', [
-   92             'user_id' => (int)$user['id'], 'tg_id' => (int)$user['tg_id'], 'type' => 'deposit',
-   93             'method' => $method, 'amount' => $amount, 'status' => 'pending',
-   94             'ref' => strtoupper(($method === 'nowpay' ? 'NP-' : ($method === 'crypto' ? 'CX-' : 'CA-')) . rnd(8)),
-   95             'txid' => $extra['txid'] ?? null,
-   96             'receipt_file' => $extra['receipt_file'] ?? null,
-   97             'note' => $extra['note'] ?? null,
-   98             /* کارت احرازشده‌ای که واریز با آن انجام شده */
-   99             'card_id' => ((int)($extra['card_id'] ?? 0)) ?: null,
-  100             'created_at' => now(),
-  101         ]);
-  102     }
-  103 
-  104     public static function pending(int $limit = 50): array
-  105     {
-  106         return DB::all('SELECT t.*, u.tg_id, u.first_name, u.username FROM {p}transactions t
-  107             JOIN {p}users u ON u.id = t.user_id
-  108             WHERE t.status = :s AND t.type = :t
-  109               AND t.method NOT IN (' . self::autoSqlList() . ')
-  110             ORDER BY t.id DESC LIMIT ' . (int)$limit,
-  111             [':s' => 'pending', ':t' => 'deposit']);
-  112     }
-  113 
-  114     public static function approve(int $txId, $adminId = null, bool $notify = true): array
-  115     {
-  116         /* آیدی عددی تلگرامِ مدیر ممکن است از ظرفیت ستون INT در دیتابیس‌های قدیمی بزرگ‌تر باشد؛
-  117            در آن حالت UPDATE با خطای Out of range برمی‌گشت و تراکنش «در انتظار» می‌ماند. */
-  118         if (is_numeric($adminId) && (float)$adminId > 2147483647) $adminId = 0;
-  119 
-  120         $tx = DB::one('SELECT * FROM {p}transactions WHERE id = :id', [':id' => $txId]);
-  121         if (!$tx) return ['ok' => false, 'message' => 'تراکنش یافت نشد.'];
-  122         if ($tx['status'] !== 'pending') return ['ok' => false, 'message' => 'این تراکنش قبلاً بررسی شده است.'];
-  123 
-  124         // تغییر وضعیت و شارژ کیف پول داخل «یک تراکنش دیتابیس» انجام می‌شود تا اگر
-  125         // اجرا وسط کار قطع شود، تراکنشِ «تاییدشده ولی شارژنشده» باقی نماند.
-  126         $pdo = DB::pdo();
-  127         $own = !$pdo->inTransaction();
-  128         if ($own) $pdo->beginTransaction();
-  129         try {
-  130             // تغییر وضعیت به‌صورت اتمیک: اگر مدیر دیگری هم‌زمان همین تراکنش را تایید کند،
-  131             // rowCount صفر می‌شود و کیف پول دوبار شارژ نمی‌گردد.
-  132             try {
-  133                 $n = DB::q("UPDATE {p}transactions SET `status` = 'approved', `admin_id` = :ad, `decided_at` = :dt
-  134                             WHERE `id` = :id AND `status` = 'pending'",
-  135                     [':ad' => $adminId, ':dt' => now(), ':id' => $txId])->rowCount();
-  136             } catch (Throwable $eAd) {
-  137                 /* fixed84: اگر ستون admin_id قدیمی (INT) باشد، تایید نباید شکست بخورد
-  138                    و رسید در پنل وب «در انتظار» بماند */
-  139                 app_log('wallet', 'approve admin_id fallback: ' . $eAd->getMessage());
-  140                 $n = DB::q("UPDATE {p}transactions SET `status` = 'approved', `admin_id` = NULL, `decided_at` = :dt
----- end dump wal_dep ----
----- grep: autoSqlList ----
-admin/pages/payments.php:111: $autoList = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay'";
-admin/pages/payments.php:291: $autoIn   = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay'";
-app/Service/Wallet.php:19: public static function autoSqlList(): string
-app/Service/Wallet.php:109: AND t.method NOT IN (' . self::autoSqlList() . ')
-cron/tasks.php:124: $gwAuto  = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay'";
----- end grep: autoSqlList (5) ----
-===== bot deposit flow =====
----- dump bot_wal : app/Bot/Bot.php (3062 lines) ----
-  556             case 'orders':   self::sectionOrders($chatId); return true; /* fixed79 */
-  557             case 'reseller': self::sectionReseller($chatId); return true;
-  558             case 'rsreq':    self::resellerRequest($chatId); return true;
-  559             case 'rssvcs':
-  560                 if (self::isRs()) self::sectionResellerServices($chatId, $msgId);
-  561                 else self::sectionServices($chatId, $msgId);
-  562                 return true;
-  563             case 'referral': self::sectionReferral($chatId, $msgId); return true;
-  564             case 'stock':    self::sectionStock($chatId, $msgId); return true;
-  565 
-  566             /* ---------- دکمه‌های کیف پول ---------- */
-  567             case 'wal_card':   self::walletCardMenu($chatId); return true;
-  568             case 'wal_crypto': self::cryptoAssets($chatId, $msgId); return true;
-  569             case 'wal_np':     self::askAmount($chatId, 'nowpay'); return true;
-  570             case 'wal_hp':     self::askAmount($chatId, 'hooshpay'); return true;
-  571             case 'wal_hash':   self::askAmount($chatId, 'crypto_hash'); return true;
-  572             case 'wal_hist':   self::walletHistory($chatId, $msgId); return true;
-  573 
-  574             /* ---------- حساب کاربری ---------- */
-  575             case 'acc_phone':
-  576                 self::setState('set_phone');
-  577                 Tg::send($chatId, '📱 شماره تماس خود را ارسال کنید:', Kb::cancel());
-  578                 return true;
-  579             case 'acc_email':
-  580                 self::setState('set_email');
-  581                 Tg::send($chatId, '✉️ ایمیل خود را ارسال کنید:', Kb::cancel());
-  582                 return true;
-  583             case 'acc_name':
-  584                 self::setState('set_name');
-  585                 Tg::send($chatId, '👤 نام و نام خانوادگی خود را ارسال کنید:', Kb::cancel());
-  586                 return true;
-  587             case 'verify': self::verifyMenu($chatId, $msgId); return true;
-  588             case 'refs':   self::referralList($chatId, $msgId); return true;
-  589 
-  590             /* ---------- نمایندگی ---------- */
-  591             case 'rspay':
-  592                 if (self::isRs()) self::resellerPay($chatId);
-  593                 else self::sectionAccount($chatId);
-  594                 return true;
-  595             case 'rsapp': {
-  596                 $u = self::resellerAppUrl();
----- end dump bot_wal ----
----- grep: askAmount ----
-app/Bot/Bot.php:569: case 'wal_np':     self::askAmount($chatId, 'nowpay'); return true;
+Thu Sep 24 13:24:10 UTC 2026
+new file: app/Service/Zarinpal.php (15660 bytes)
+new file: zarinpal.php (3336 bytes)
+patched: app/Service/Gateway.php ($kind === 'zarinpal')
+patched: app/Service/Gateway.php (function zarinpalOn()
+wrote app/Service/Gateway.php
+wrote app/Service/Zarinpal.php
+wrote zarinpal.php
+changed files: 3
+sanity app/Service/Zarinpal.php / class Zarinpal : ok
+sanity app/Service/Zarinpal.php / public const START     = 'https://payment.zari : ok
+sanity app/Service/Zarinpal.php / public static function createInvoice( : ok
+sanity zarinpal.php / Zarinpal::apply($authority : ok
+sanity app/Service/Gateway.php / public static function zarinpalOn( : ok
+sanity app/Service/Gateway.php / $kind === 'zarinpal' : ok
+sanity: 6/6
+===== autoloader =====
+---- grep: spl_autoload_register ----
+app/bootstrap.php:28: spl_autoload_register(function (string $class): void {
+---- end grep: spl_autoload_register (1) ----
+===== Wallet auto-method list =====
+---- dump wal_auto : app/Service/Wallet.php (468 lines) ----
+   10     public const AUTO_METHODS = ['hooshpay', 'nowpay'];
+   11 
+   12     /** آیا این روش پرداخت، درگاه خودکار است؟ */
+   13     public static function isAuto(?string $method): bool
+   14     {
+   15         return in_array(strtolower(trim((string)$method)), self::AUTO_METHODS, true);
+   16     }
+   17 
+   18     /** لیست روش‌های خودکار برای شرط‌های SQL */
+   19     public static function autoSqlList(): string
+   20     {
+   21         return "'" . implode("','", self::AUTO_METHODS) . "'";
+   22     }
+   23 
+   24     public static function balance(int $userId): int
+   25     {
+   26         return (int)DB::val('SELECT balance FROM {p}users WHERE id = :id', [':id' => $userId], 0);
+---- end dump wal_auto ----
+===== bot ask amount flow =====
+---- dump bot_ask : needle not found (function askAmount) ----
+---- grep: wal_hp ----
 app/Bot/Bot.php:570: case 'wal_hp':     self::askAmount($chatId, 'hooshpay'); return true;
-app/Bot/Bot.php:571: case 'wal_hash':   self::askAmount($chatId, 'crypto_hash'); return true;
-app/Bot/Bot.php:652: self::askAmount($chatId, 'crypto');
-app/Bot/Bot.php:678: if (!class_exists('Gateway')) { self::askAmount($chatId, 'crypto'); return; }
-app/Bot/Bot.php:1084: elseif ($arg === 'hash') self::askAmount($chatId, 'crypto_hash');
-app/Bot/Bot.php:1085: elseif ($arg === 'np') self::askAmount($chatId, 'nowpay');
-app/Bot/Bot.php:1087: elseif ($arg === 'hp') self::askAmount($chatId, 'hooshpay');
-app/Bot/Bot.php:1099: elseif ($arg === 'pick')  self::askAmount($chatId, 'card', (int)$arg2);
----- end grep: askAmount (9) ----
-changed files: 0 (recon)
-build: fixed154 (was fixed153)
+app/Service/Btn.php:44: 'wal_hp'     => ['🪙', 'شارژ آنی هوش‌پی', 'all', 'کیف پول'],
+app/Service/Btn.php:77: 'wal_hp'     => 'wallet',
+---- end grep: wal_hp (3) ----
+===== admin gateways: kind select + hooshpay fields =====
+---- dump gw_kind : admin/pages/gateways.php (918 lines) ----
+  570                   $ic = '🌐';
+  571                   if ($kk === 'card')          $ic = '💳';
+  572                   elseif ($kk === 'nowpay')    $ic = '⚡️';
+  573                   elseif ($kk === 'hooshpay')  $ic = '🪙';
+  574               ?>
+  575                 <label class="gw-kind<?= $curKind === $kk ? ' on' : '' ?>" data-k="<?= h($kk) ?>">
+  576                   <input type="radio" name="kind" value="<?= h($kk) ?>" <?= $curKind === $kk ? 'checked' : '' ?>>
+  577                   <span class="i"><?= $ic ?></span>
+  578                   <span class="t"><?= h(Gateway::kindLabel($kk)) ?></span>
+  579                   <span class="d"><?= h($kindDesc[$kk] ?? '') ?></span>
+  580                 </label>
+  581               <?php endforeach; ?>
+  582             </div>
+  583           </div>
+  584 
+  585           <div class="fieldset">
+  586             <div class="lg"><span class="n">🏷</span> نمایش و محدودیت‌ها</div>
+  587             <div class="form-grid g2">
+  588               <div class="field"><label>نمایش برای</label>
+  589                 <select name="audience">
+  590                   <?php foreach (Gateway::AUDIENCE as $k => $lb): ?>
+  591                     <option value="<?= h($k) ?>" <?= (string)$v('audience', 'all') === $k ? 'selected' : '' ?>><?= h($lb) ?></option>
+  592                   <?php endforeach; ?>
+  593                 </select>
+  594                 <div class="hint">با «فقط نمایندگان» این درگاه از دید کاربران عادی پنهان می‌شود.</div>
+  595               </div>
+  596 
+  597               <div class="field"><label>وضعیت</label>
+  598                 <label class="pick"><input type="checkbox" name="enabled" value="1" <?= !$e || !empty($v('enabled')) ? 'checked' : '' ?>> فعال باشد</label></div>
+  599 
+  600               <div class="field"><label>برچسب دلخواه (اختیاری)</label>
+  601                 <input type="text" name="label" id="gwLabel" value="<?= h((string)$v('label')) ?>" placeholder="مثلاً تتر روی ترون"></div>
+  602 
+---- end dump gw_kind ----
+---- dump gw_hpui : admin/pages/gateways.php (918 lines) ----
+  690                 <div class="hint">خالی = کاربر خودش ارز را انتخاب می‌کند.</div></div>
+  691 
+  692               <div class="field" style="grid-column:1/-1">
+  693                 <div class="hint">آدرس کال‌بک (IPN): <b class="mono ltr"><?= h($cbUrl) ?></b></div>
+  694               </div>
+  695             </div>
+  696           </div>
+  697 
+  698           <?php if (class_exists('HooshPay')): ?>
+  699           <div class="fieldset accent" id="gwHp">
+  700             <div class="lg"><span class="n">🪙</span> تنطیمات هوش‌پی (HooshPay)</div>
+  701             <div class="fs-hint">کلید API را از اپلیکیشن هوش‌پی ← بخش «توسعه» بگیرید. با ذخیره، درگاه فعال می‌شود.</div>
+  702             <div class="form-grid g2">
+  703               <div class="field" style="grid-column:1/-1"><label>کلید API <span style="color:var(--red)">*</span></label>
+  704                 <input class="mono ltr" type="text" name="hp_key" autocomplete="off"
+  705                   value="<?= h((string)DB::setting('hp_api_key', '')) ?>" placeholder="hp_live_…"></div>
+  706 
+  707               <div class="field" style="grid-column:1/-1"><label>کلید Secret (برای اعتبارسنجی کال‌بک)</label>
+  708                 <input class="mono ltr" type="text" name="hp_secret" autocomplete="off"
+  709                   value="<?= h((string)DB::setting('hp_secret', '')) ?>" placeholder="از همان بخش «توسعه»">
+  710                 <div class="hint">خالی هم کار می‌کند؛ چون هر پرداخت مستقیماً از هوش‌پی استعلام می‌شود.</div></div>
+  711 
+  712               <div class="field"><label>تقسیم کارمزد</label>
+  713                 <select name="hp_fee_mode">
+  714                   <?php $hpFm = (string)DB::setting('hp_fee_mode', 'seller'); ?>
+  715                   <?php foreach (HooshPay::FEE_MODES as $fk => $fv): ?>
+  716                     <option value="<?= h((string)$fk) ?>" <?= $hpFm === (string)$fk ? 'selected' : '' ?>><?= h((string)$fv) ?></option>
+  717                   <?php endforeach; ?>
+  718                 </select></div>
+  719 
+  720               <div class="field"><label>واحد مبلغ فروشگاه</label>
+  721                 <select name="hp_unit">
+  722                   <?php $hpU = (string)DB::setting('hp_unit', 'toman'); ?>
+  723                   <?php foreach (HooshPay::UNITS as $uk => $uv): ?>
+  724                     <option value="<?= h((string)$uk) ?>" <?= $hpU === (string)$uk ? 'selected' : '' ?>><?= h((string)$uv) ?></option>
+  725                   <?php endforeach; ?>
+  726                 </select>
+  727                 <div class="hint">هوش‌پی همیشه تومان می‌گیرد؛ اگر مبالغ فروشگاه ریال است، این را روی ریال بگذارید.</div></div>
+  728 
+  729               <div class="field"><label>حداقل مبلغ</label>
+  730                 <input type="number" name="hp_min" min="0" value="<?= (int)DB::setting('hp_min', 0) ?>" placeholder="0 = بدون محدودیت"></div>
+  731 
+  732               <div class="field"><label>حداکثر مبلغ</label>
+  733                 <input type="number" name="hp_max" min="0" value="<?= (int)DB::setting('hp_max', 0) ?>" placeholder="0 = بدون محدودیت"></div>
+  734 
+  735               <div class="field"><label>مخاطب درگاه</label>
+  736                 <select name="hp_audience">
+  737                   <?php $hpA = (string)DB::setting('hp_audience', 'all'); ?>
+  738                   <?php foreach (Gateway::AUDIENCE as $ak => $av): ?>
+---- end dump gw_hpui ----
+===== payments labels =====
+---- dump pay_lbl : admin/pages/payments.php (1089 lines) ----
+   10     'purchase' => ['خرید سرویس', '🛒'],
+   11     'refund'   => ['بازگشت وجه', '↩️'],
+   12     'gift'     => ['کد هدیه', '🎁'],
+   13     'admin'    => ['دستی مدیر', '🛠'],
+   14     'referral' => ['پاداش زیرمجموعه', '🤝'],
+   15 ];
+   16 $METHODS = [
+   17     /* fixed84: درگاه‌های خودکار هم برچسب درست داشته باشند */
+   18     'hooshpay' => ['هوش‌پی (خودکار)', '🪙'],
+   19     'nowpay'   => ['نوپیمنتس (خودکار)', '🤖'],
+   20     'card'   => ['کارت به کارت', '💳'],
+   21     'crypto' => ['پرداخت ارزی', '🌐'],
+   22     'wallet' => ['کیف پول', '👛'],
+   23     'gift'   => ['کد هدیه', '🎁'],
+   24     'admin'  => ['مدیر', '🛠'],
+   25 ];
+   26 $ST_LBL = ['pending' => 'در انتظار', 'approved' => 'تایید شده', 'rejected' => 'رد شده', 'canceled' => 'لغو شده'];
+   27 
+   28 $typeLabel = function (string $k) use ($TYPES): string {
+   29     return isset($TYPES[$k]) ? ($TYPES[$k][1] . ' ' . $TYPES[$k][0]) : $k;
+   30 };
+---- end dump pay_lbl ----
+===== cron auto list =====
+---- dump cron_auto : cron/tasks.php (664 lines) ----
+  116         }
+  117         usleep(250000);
+  118     }
+  119 }
+  120 
+  121 /* fixed84: فاکتورهای درگاه که کاربر هرگز پرداخت نکرده، پس از چند ساعت لغو می‌شوند */
+  122 try {
+  123     $gwHours = max(1, (int)DB::setting('gw_stale_hours', '6'));
+  124     $gwAuto  = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay'";
+  125     $gwStale = DB::all("SELECT id FROM {p}transactions
+  126                         WHERE status = 'pending' AND type = 'deposit' AND method IN ($gwAuto)
+  127                           AND created_at < DATE_SUB(NOW(), INTERVAL $gwHours HOUR)
+  128                         ORDER BY id ASC LIMIT 200");
+  129     foreach ($gwStale as $g) {
+  130         $rj = Wallet::reject((int)$g['id'], null, 'فاکتور درگاه بدون پرداخت منقضی شد', false);
+  131         if (!empty($rj['ok'])) $report['gw_expired']++;
+  132     }
+  133     if ($report['gw_expired'] > 0) cron_say('gateway invoices canceled: ' . (int)$report['gw_expired']);
+  134 } catch (Throwable $e) {
+---- end dump cron_auto ----
+changelog: entry added
+build: fixed155 (was fixed154)
 exit: 0
 exit: 0

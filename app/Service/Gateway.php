@@ -142,6 +142,8 @@ class Gateway
                 $icon = '💳';
             } elseif ($kind === 'nowpay') {
                 $icon = '⚡️';
+            } elseif ($kind === 'zarinpal') {
+                $icon = "\u{1F3E6}";
             } elseif ($kind === 'hooshpay') {
                 $icon = '🪙';
             } else {
@@ -386,6 +388,43 @@ class Gateway
             $out[$a]['items'][] = $g;
         }
         return $out;
+    }
+
+    /* ==================== زرین‌پال (0.0.2 #22) ==================== */
+
+    /** ردیف‌های درگاه زرین‌پال برای این کاربر */
+    public static function zarinpal(bool $isReseller = false): array
+    {
+        return self::forUser('zarinpal', $isReseller);
+    }
+
+    /** آیا درگاه زرین‌پال برای این کاربر فعال است؟ */
+    public static function zarinpalOn(bool $isReseller = false): bool
+    {
+        if (!class_exists('Zarinpal') || !Zarinpal::enabled()) return false;
+        if (!Zarinpal::forUser($isReseller)) return false;
+
+        $has = false;
+        foreach (self::all() as $g) {
+            if ($g['kind'] === 'zarinpal') { $has = true; break; }
+        }
+        /* اگر هیچ ردیفی ثبت نشده باشد، فقط تنظیمات کلی حاکم است */
+        if (!$has) return true;
+
+        return self::zarinpal($isReseller) !== [];
+    }
+
+    /** برچسب دکمهٔ زرین‌پال در منوی ربات */
+    public static function zarinpalLabel(bool $isReseller = false): string
+    {
+        $rows = self::zarinpal($isReseller);
+        if ($rows === []) {
+            return class_exists('Zarinpal') ? Zarinpal::btnLabel() : "\u{1F3E6} پرداخت آنلاین";
+        }
+        $g  = $rows[0];
+        $ic = (string)$g['icon'] !== '' ? (string)$g['icon'] : "\u{1F3E6}";
+        $lb = (string)$g['label'] !== '' ? (string)$g['label'] : 'پرداخت آنلاین با زرین‌پال';
+        return trim($ic . ' ' . $lb);
     }
 
     /* ==================== ویرایش ==================== */
