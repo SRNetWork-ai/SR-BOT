@@ -1,95 +1,163 @@
 Python 3.12.3
-Thu Sep 24 23:02:52 UTC 2026
-current app/Bot/Bot.php: 3104 lines, 165272 bytes
-===== history probe =====
-2026-09-11 upload    02d49e6b     4727 lines    245620 B  sectionWallet=YES
-2026-09-12 fixed83   1b73ed1a     4852 lines    252732 B  sectionWallet=YES
-2026-09-12 fixed84   ed9f457a     4852 lines    252746 B  sectionWallet=YES
-2026-09-20 a         767d1bf0     4931 lines    256432 B  sectionWallet=YES
-2026-09-20 b         d01982d4     4977 lines    258587 B  sectionWallet=YES
-2026-09-23 a         97ffa749     4991 lines    259671 B  sectionWallet=YES
-2026-09-23 b         c67bd4be     5005 lines    260424 B  sectionWallet=YES
-2026-09-23 c         27cd62c9     5020 lines    261841 B  sectionWallet=YES
-2026-09-23 d         2a2603ce     5036 lines    262524 B  sectionWallet=YES
-2026-09-24 a         e60553e1     3062 lines    162504 B  sectionWallet=no
-2026-09-24 b         e3e68241     3064 lines    162675 B  sectionWallet=no
-2026-09-24 c         1ac3677f     3104 lines    165272 B  sectionWallet=no
-reference chosen: 2026-09-23 d (2a2603ce)
-members: reference=133 current=68
-===== members to restore (65) =====
-  + devicesView
-  + deviceDel
-  + deviceClear
-  + sendSub
-  + sendConfig
-  + sendSpec
-  + syncService
-  + delOptions
-  + doDelete
-  + purgeDeadView
-  + doPurgeDead
-  + renewOptions
-  + doRenew
-  + sectionTest
-  + testPanelMenu
-  + sectionAccount
-  + sectionWallet
-  + walletCardMenu
-  + walletCardStart
-  + cardMenu
-  + cardAskPan
-  + cardAskPanText
-  + cardDelete
-  + cardSave
-  + askAmount
-  + checkNowPay
-  + payMethodOn
-  + walletMissingRows
-  + checkHooshPay
-  + walletHistory
-  + sectionTutorials
-  + showTutorials
-  + showTutorial
-  + sectionSupport
-  + showTicket
-  + verifyMenu
-  + verifyLink
-  + verifyResend
-  + resellerRequest
-  + sectionReseller
-  + miniappLabel
-  + miniappUrl
-  + rsAppUrl
-  + cardAppUrl
-  + miniappOn
-  + muteStart
-  + muteRows
-  + dropReplyKb
-  + muteRoute
-  + resellerAppUrl
-  + miniappBtn
-  + miniappSectionBtn
-  + setMenuButton
-  + sectionStock
-  + stockCat
-  + stockBuy
-  + stockMine
-  + stockResend
-  + stockCb
-  + sectionReferral
-  + referralList
-  + gauge
-  + resellerService
-  + sectionResellerServices
-  + showResellerService
-missing consts/props: none
-wrote app/Bot/Bot.php -> 5031 lines, 263711 bytes
-changed files: 1
-members after merge: 133
-unresolved self:: calls: isAdmin, onMessage
-unresolved Kb:: constants: none
-duplicate members: none
-changelog: entry added
-build: fixed166 (was fixed162)
+Thu Sep 24 23:06:28 UTC 2026
+app/Bot/Bot.php: 5031 lines, 263711 bytes
+version.json build: fixed166
+===== method existence in app/Bot/Bot.php =====
+  sectionWallet              OK
+  sectionAccount             OK
+  sectionTest                OK
+  sectionTutorials           OK
+  sectionSupport             OK
+  sectionReseller            OK
+  sectionReferral            OK
+  sectionStock               OK
+  sectionResellerServices    OK
+  walletCardMenu             OK
+  walletHistory              OK
+  askAmount                  OK
+  verifyMenu                 OK
+  referralList               OK
+  resellerRequest            OK
+  miniappBtn                 OK
+  sectionProducts            OK
+  sectionServices            OK
+  sectionOrders              OK
+  sectionCampaign            OK
+  cusMenu                    OK
+  runButton                  OK
+  handleState                OK
+  isAdmin                    OK
+  onMessage                  OK
+  checkHooshPay              OK
+  checkNowPay                OK
+  sendSub                    OK
+  doRenew                    OK
+  doDelete                   OK
+  setMenuButton              OK
+missing count: 0
+functions: good-commit=135 current=135
+still missing vs good commit: none
+added since good commit: none
+===== truncation audit vs 2a2603ce =====
+  app/Service/Zarinpal.php                     current=  350 lines   (ref fetch: HTTP Error 404: Not Found)
+checked 69 large files, shrunk=0
+  ok admin/index.php                            good=  638  now=  639
+  ok admin/pages/admins.php                     good=  850  now=  850
+  ok admin/pages/backup.php                     good=  679  now=  679
+  ok admin/pages/botbuttons.php                 good=  829  now=  829
+  ok admin/pages/bottexts.php                   good=  645  now=  645
+  ok admin/pages/cards.php                      good=  742  now=  742
+  ok admin/pages/codes.php                      good= 1002  now= 1002
+  ok admin/pages/dashboard.php                  good=  899  now=  899
+  ok admin/pages/gateways.php                   good=  918  now=  987
+  ok admin/pages/health.php                     good=  433  now=  433
+  ok admin/pages/panels.php                     good= 1262  now= 1262
+  ok admin/pages/payments.php                   good= 1089  now= 1092
+  ok admin/pages/products.php                   good= 1234  now= 1234
+  ok admin/pages/resellers.php                  good= 2689  now= 2689
+  ok admin/pages/services.php                   good= 1033  now= 1033
+  ok admin/pages/settings.php                   good= 3091  now= 3098
+  ok admin/pages/stock.php                      good=  961  now=  961
+  ok admin/pages/subs.php                       good= 1400  now= 1400
+  ok admin/pages/tickets.php                    good=  767  now=  827
+  ok admin/pages/tutorials.php                  good=  790  now=  790
+  ok admin/pages/update.php                     good=  516  now=  516
+  ok admin/pages/users.php                      good= 1358  now= 1358
+  ok app/Bot/AdminBot.php                       good= 1311  now= 1311
+  ok app/Bot/AdminHub.php                       good= 1710  now= 1710
+  ok app/Bot/Bot.php                            good= 5036  now= 5031
+  ok app/DB.php                                 good=  300  now=  300
+  ok app/Helpers.php                            good=  358  now=  358
+  ok app/Panel/Hiddify.php                      good=  572  now=  572
+  ok app/Panel/Marzban.php                      good=  611  now=  611
+  ok app/Panel/Marzneshin.php                   good=  615  now=  615
+  ok app/Panel/PasarGuard.php                   good=  844  now=  844
+  ok app/Panel/Xui.php                          good= 1157  now= 1157
+  ok app/Panel/Xui3.php                         good= 1079  now= 1115
+  ok app/Service/AutoRenew.php                  good=  263  now=  263
+  ok app/Service/Backup.php                     good=  583  now=  583
+  ok app/Service/Broadcast.php                  good=  321  now=  321
+  ok app/Service/Btn.php                        good= 1677  now= 1679
+  ok app/Service/CardAuth.php                   good=  739  now=  739
+  ok app/Service/Gateway.php                    good=  679  now=  719
+  ok app/Service/Health.php                     good=  518  now=  518
+  ok app/Service/HooshPay.php                   good=  540  now=  540
+  ok app/Service/Logs.php                       good=  727  now=  727
+  ok app/Service/Migrate.php                    good=  538  now=  614
+  ok app/Service/Perm.php                       good=  413  now=  414
+  ok app/Service/Rates.php                      good=  435  now=  435
+  ok app/Service/Referral.php                   good=  331  now=  331
+  ok app/Service/Release.php                    good=  680  now=  680
+  ok app/Service/Reseller.php                   good= 2244  now= 2244
+  ok app/Service/RsBot.php                      good=  478  now=  478
+  ok app/Service/Security.php                   good=  504  now=  504
+  ok app/Service/Stock.php                      good= 1015  now= 1015
+  ok app/Service/Svc.php                        good= 2134  now= 2196
+  ok app/Service/TxCheck.php                    good=  497  now=  497
+  ok app/Service/Txt.php                        good=  354  now=  354
+  ok app/Service/Updater.php                    good=  592  now=  592
+  ok app/Service/Wallet.php                     good=  468  now=  468
+  ok app/Tg.php                                 good=  283  now=  283
+  ok assets/app.js                              good=  792  now=  792
+  ok cron/tasks.php                             good=  664  now=  684
+  ok database/schema.sql                        good=  546  now=  551
+  ok install/index.php                          good=  594  now=  594
+  ok miniapp/api.php                            good= 2932  now= 2962
+  ok miniapp/card.php                           good= 1058  now= 1058
+  ok miniapp/index.php                          good= 4232  now= 4234
+  ok miniapp/reseller.php                       good= 3129  now= 3129
+  ok sub.php                                    good=  872  now=  872
+  ok tools/botcheck.php                         good=  339  now=  339
+  ok verify.php                                 good=  303  now=  303
+  ok version.json                               good=   72  now=   72
+===== dump Bot.php 165-210 =====
+ 165|         */
+ 166|        if ($state === '' && (string)DB::setting('wallet_receipt_any', '1') === '1') {
+ 167|            if (self::attachLooseReceipt($chatId, $msg)) return;
+ 168|        }
+ 169|
+ 170|        /* تا وقتی حساب تایید نشده، هیچ بخشی از ربات کار نمی‌کند */
+ 171|        if (self::verifyGate($chatId)) return;
+ 172|
+ 173|        /* دکمه‌های تعریف‌شده در پنل مدیریت */
+ 174|        if (class_exists('Btn')) {
+ 175|            try {
+ 176|                $bm = Btn::match($text);
+ 177|                if ($bm !== null && self::runButton($chatId, null, $bm)) return;
+ 178|            } catch (Throwable $e) {
+ 179|            }
+ 180|        }
+ 181|
+ 182|        switch ($text) {
+ 183|            case Kb::PRODUCTS: self::sectionProducts($chatId); return;
+ 184|            case Kb::CUSTOM:   self::cusMenu($chatId); return;
+ 185|            case Kb::SERVICES: self::sectionServices($chatId); return;
+ 186|            case Kb::WALLET:   self::sectionWallet($chatId); return;
+ 187|            case Kb::ACCOUNT:  self::sectionAccount($chatId); return;
+ 188|            case Kb::TEST:     self::sectionTest($chatId); return;
+ 189|            case Kb::GIFT:
+ 190|                self::setState('gift_code');
+ 191|                Tg::send($chatId, '🎁 کد هدیه خود را ارسال کنید:', Kb::cancel());
+ 192|                return;
+ 193|            case Kb::TUTORIAL: self::sectionTutorials($chatId); return;
+ 194|            case Kb::SUPPORT:  self::sectionSupport($chatId); return;
+ 195|            case Kb::RESELLER: self::sectionReseller($chatId); return;
+ 196|            case Kb::ADMIN:
+ 197|                if (self::isAdmin()) AdminBot::home($chatId);
+ 198|                else self::mainMenu($chatId);
+ 199|                return;
+ 200|        }
+ 201|
+ 202|        self::mainMenu($chatId, 'یکی از گزینه‌های منو را انتخاب کنید 👇');
+ 203|    }
+ 204|
+ 205|    /* ================= جوین اجباری ================= */
+ 206|
+ 207|    /** سازگاری با گذشته: بررسی عضویت روی هر پیام از سیستم جدید استفاده می‌کند */
+ 208|    private static function checkChannel($chatId): bool
+ 209|    {
+ 210|        return self::fjGate($chatId, 'msg');
+changed files: 0
+build stays: fixed166
 exit: 0
 exit: 0
