@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-# fixed158 - 0.0.2 #22: wire Zarinpal into bot buttons, deep links, pollers and miniapp flags.
+# fixed159 - 0.0.2 #22: cron auto-poll for Zarinpal + admin bot label; recon of driver signatures.
 import io, os, sys, json
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed158').strip() or 'fixed158'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed159').strip() or 'fixed159'
 
 CACHE = {}
 NEW = set()
@@ -12,11 +12,11 @@ WARN = []
 SKIP_DIRS = {'.git', 'node_modules', 'vendor', 'storage', 'uploads', 'backups'}
 EXT = ('.php', '.sql', '.js', '.html', '.json')
 
-BTN = 'app/Service/Btn.php'
-BOT = 'app/Bot/Bot.php'
-PAY = 'admin/pages/payments.php'
-API = 'miniapp/api.php'
 CRON = 'cron/tasks.php'
+AB = 'app/Bot/AdminBot.php'
+ZP = 'app/Service/Zarinpal.php'
+BOT = 'app/Bot/Bot.php'
+API = 'miniapp/api.php'
 
 
 def load(path):
@@ -44,25 +44,6 @@ def rep_lit(path, old, new, marker, optional=False):
     CACHE[path] = src.replace(old, new)
     NEW.add(path)
     print('patched: %s (%s)' % (path, marker))
-
-
-def rep_all(path, old, new, marker, optional=True):
-    src = load(path)
-    if marker in src:
-        print('skip (already applied): %s' % marker)
-        return
-    n = src.count(old)
-    if n < 1:
-        msg = '%s: anchor for %s matched 0 times' % (path, marker)
-        if optional:
-            WARN.append(msg)
-            print('SKIP optional: ' + msg)
-        else:
-            ERRORS.append(msg)
-        return
-    CACHE[path] = src.replace(old, new)
-    NEW.add(path)
-    print('patched: %s (%s x%d)' % (path, marker, n))
 
 
 def dump(tag, path, start, end):
@@ -131,75 +112,71 @@ def grep_all(needle, limit=20, only=None):
     print('---- end grep: %s (%d) ----' % (needle, n))
 
 
-ZPICON = '\\u{1F3E6}'
-ZPLBL = '\u0634\u0627\u0631\u0698 \u0622\u0646\u06cc \u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644'
-WALGRP = '\u06a9\u06cc\u0641 \u067e\u0648\u0644'
+def funcs(path, limit=200):
+    print('---- funcs: %s ----' % path)
+    n = 0
+    try:
+        lines = load(path).split(chr(10))
+    except Exception as e:
+        print('failed: %s' % e)
+        return
+    for i, ln in enumerate(lines, 1):
+        s = ln.strip()
+        if s.startswith('public ') or s.startswith('private ') or s.startswith('protected ') or s.startswith('const ') or s.startswith('function '):
+            if len(s) > 150:
+                s = s[:150] + ' ...'
+            print('%5d %s' % (i, s))
+            n += 1
+            if n >= limit:
+                break
+    print('---- end funcs: %s ----' % path)
+
 
 # ==================================================================
-# 1) bot button registry
+# 1) cron poller
 # ==================================================================
-rep_lit(
-    BTN,
-    "        'wal_hash'   => ['",
-    "        'wal_zp'     => [\"" + ZPICON + "\", '" + ZPLBL + "', 'all', '" + WALGRP + "'], /* 0.0.2 #22 */\n"
-    "        'wal_hash'   => ['",
-    "'wal_zp'     => [",
+HP_CRON_TAIL = (
+    "        } catch (Throwable $e) {\n"
+    "            cron_say('hooshpay poll failed: ' . $e->getMessage());\n"
+    "        }\n"
+    "        usleep(250000);\n"
+    "    }\n"
+    "}\n"
 )
 
-rep_lit(
-    BTN,
-    "        'wal_hash'   => 'wallet',",
-    "        'wal_zp'     => 'wallet',\n"
-    "        'wal_hash'   => 'wallet',",
-    "'wal_zp'     => 'wallet'",
-)
+ZP_CRON = """
+/* 0.0.2 #22: auto-poll pending Zarinpal transactions */
+if (class_exists('Zarinpal') && Zarinpal::enabled()) {
+    $zpWait = DB::all("SELECT * FROM {p}transactions
+                       WHERE method = 'zarinpal' AND status = 'pending'
+                         AND created_at > DATE_SUB(NOW(), INTERVAL 2 DAY)
+                       ORDER BY id ASC LIMIT 25");
+    foreach ($zpWait as $tx) {
+        try {
+            $pr = Zarinpal::poll($tx);
+            if (!empty($pr['ok'])) {
+                $report['zarinpal'] = ($report['zarinpal'] ?? 0) + 1;
+                cron_say('zarinpal tx #' . (int)$tx['id'] . ' => ' . (string)($pr['message'] ?? 'done'));
+            }
+        } catch (Throwable $e) {
+            cron_say('zarinpal poll failed: ' . $e->getMessage());
+        }
+        usleep(250000);
+    }
+}
+"""
+
+rep_lit(CRON, HP_CRON_TAIL, HP_CRON_TAIL + ZP_CRON, "zarinpal poll failed")
 
 # ==================================================================
-# 2) bot callbacks / deep links
+# 2) admin bot payment card label
 # ==================================================================
 rep_lit(
-    BOT,
-    "case 'wal_hash':   self::askAmount($chatId, 'crypto_hash'); return true;",
-    "case 'wal_zp':     self::askAmount($chatId, 'zarinpal'); return true; /* 0.0.2 #22 */\n"
-    "            case 'wal_hash':   self::askAmount($chatId, 'crypto_hash'); return true;",
-    "case 'wal_zp':",
+    AB,
+    "$mLbl   = ['card' => '",
+    "$mLbl   = ['zarinpal' => \"\\u{1F3E6} \u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644 (\u062e\u0648\u062f\u06a9\u0627\u0631)\", 'card' => '",
+    "'zarinpal' => \"",
 )
-
-rep_lit(
-    BOT,
-    "elseif ($arg === 'hp') self::askAmount($chatId, 'hooshpay');",
-    "elseif ($arg === 'hp') self::askAmount($chatId, 'hooshpay');\n"
-    "            elseif ($arg === 'zp') self::askAmount($chatId, 'zarinpal');",
-    "$arg === 'zp')",
-)
-
-# ==================================================================
-# 3) admin payments poller
-# ==================================================================
-rep_lit(
-    PAY,
-    "if ($mth === 'hooshpay' && class_exists('HooshPay'))   $pr = HooshPay::poll($tx);",
-    "if ($mth === 'hooshpay' && class_exists('HooshPay'))   $pr = HooshPay::poll($tx);\n"
-    "        if ($mth === 'zarinpal' && class_exists('Zarinpal'))   $pr = Zarinpal::poll($tx); /* 0.0.2 #22 */",
-    'Zarinpal::poll($tx)',
-)
-
-# ==================================================================
-# 4) miniapp gateway availability flag
-# ==================================================================
-rep_lit(
-    API,
-    "'hooshpay' => class_exists('HooshPay') ? HooshPay::enabled() : false,",
-    "'hooshpay' => class_exists('HooshPay') ? HooshPay::enabled() : false,\n"
-    "        'zarinpal' => class_exists('Zarinpal') ? Zarinpal::enabled() : false,",
-    "'zarinpal' => class_exists('Zarinpal')",
-)
-
-# ==================================================================
-# 5) auto-method fallback lists
-# ==================================================================
-rep_all(PAY, '"\'hooshpay\',\'nowpay\'"', '"\'hooshpay\',\'nowpay\',\'zarinpal\'"', "nowpay','zarinpal'")
-rep_all(CRON, '"\'hooshpay\',\'nowpay\'"', '"\'hooshpay\',\'nowpay\',\'zarinpal\'"', "nowpay','zarinpal'")
 
 # ---------------- write ----------------
 if ERRORS:
@@ -221,12 +198,9 @@ for p in sorted(NEW):
 print('changed files: %d' % len(NEW))
 
 SANITY = [
-    (BTN, "'wal_zp'     => ["),
-    (BTN, "'wal_zp'     => 'wallet'"),
-    (BOT, "case 'wal_zp':"),
-    (BOT, "$arg === 'zp')"),
-    (PAY, 'Zarinpal::poll($tx)'),
-    (API, "'zarinpal' => class_exists('Zarinpal')"),
+    (CRON, "zarinpal poll failed"),
+    (CRON, "method = 'zarinpal' AND status = 'pending'"),
+    (AB, "'zarinpal' => \""),
 ]
 ok = 0
 for p, needle in SANITY:
@@ -236,18 +210,21 @@ for p, needle in SANITY:
         ok += 1
 print('sanity: %d/%d' % (ok, len(SANITY)))
 
-# ---------------- recon for the deposit flow ----------------
-print('===== bot deposit branch =====')
-dump(BOT, BOT, 1400, 1476)
-print('===== bot askAmount definition hunt =====')
-grep_all('function ask', 20, only='app/Bot')
-grep_all('wal_hp', 20)
-print('===== cron hooshpay poll =====')
-dump('cron_hp', CRON, 92, 122)
-print('===== miniapp hooshpay deposit =====')
-dump('ma_hp', API, 1475, 1525)
-print('===== adminbot method labels =====')
-dump('ab_lbl', 'app/Bot/AdminBot.php', 483, 496)
+# ---------------- recon: driver signatures ----------------
+print('===== Zarinpal map =====')
+funcs(ZP, 80)
+print('===== Zarinpal consts head =====')
+dump('zp_head', ZP, 1, 60)
+print('===== createInvoice =====')
+dump_find('zp_inv', ZP, 'function createInvoice', 2, 62)
+print('===== poll =====')
+dump_find('zp_poll', ZP, 'function poll', 2, 26)
+print('===== status check callbacks =====')
+grep_all('hpchk', 20)
+grep_all("'wal:chk", 10)
+print('===== wallet menu builder =====')
+grep_all('walletMenu', 12)
+grep_all('hooshpayOn', 12)
 
 # ---------------- version bump ----------------
 vpath = os.path.join(ROOT, 'version.json')
@@ -255,7 +232,7 @@ with io.open(vpath, 'r', encoding='utf-8') as fh:
     vj = json.load(fh)
 old_build = vj.get('build')
 vj['build'] = BUILD
-note = '0.0.2 #22: \u062f\u06a9\u0645\u0647\u0654 \u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644 \u062f\u0631 \u0631\u0628\u0627\u062a \u0648 \u067e\u06cc\u06af\u06cc\u0631\u06cc \u062e\u0648\u062f\u06a9\u0627\u0631 \u062a\u0631\u0627\u06a9\u0646\u0634'
+note = '0.0.2 #22: \u067e\u06cc\u06af\u06cc\u0631\u06cc \u062e\u0648\u062f\u06a9\u0627\u0631 \u062a\u0631\u0627\u06a9\u0646\u0634\u200c\u0647\u0627\u06cc \u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644 \u062f\u0631 \u06a9\u0631\u0627\u0646'
 cl = vj.get('changelog')
 if isinstance(cl, list):
     vj['changelog'] = ([note] + cl)[:60]
