@@ -190,13 +190,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
 $fStatus = (string)($_GET['status'] ?? '');
 $viewId  = (int)($_GET['t'] ?? 0);
 
-$w = $fStatus !== '' ? 'WHERE t.status = :st' : '';
+/* 0.0.2 #21: فیلتر اولویت و دسته */
+$tkHasPrio   = !class_exists('Migrate') || Migrate::hasColumn('tickets', 'priority');
+$tkPrioLabel = ['urgent' => 'فوری', 'high' => 'زیاد', 'normal' => 'عادی', 'low' => 'کم'];
+$fPrio = $tkHasPrio ? (string)($_GET['prio'] ?? '') : '';
+if (!isset($tkPrioLabel[$fPrio])) $fPrio = '';
+
+$wh = [];
+$pw = [];
+if ($fStatus !== '') { $wh[] = 't.status = :st';   $pw[':st'] = $fStatus; }
+if ($fPrio   !== '') { $wh[] = 't.priority = :pr'; $pw[':pr'] = $fPrio; }
+$w = $wh ? ('WHERE ' . implode(' AND ', $wh)) : '';
+$ordPrio = $tkHasPrio ? "CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'low' THEN 3 ELSE 2 END," : '';
+$cUrg  = $tkHasPrio ? (int)DB::val("SELECT COUNT(*) FROM {p}tickets WHERE priority = 'urgent' AND status <> 'closed'", [], 0) : 0;
+$cHigh = $tkHasPrio ? (int)DB::val("SELECT COUNT(*) FROM {p}tickets WHERE priority = 'high' AND status <> 'closed'", [], 0) : 0;
 $rows = DB::all("SELECT t.*, u.first_name, u.username, u.tg_id AS utg, u.id AS uid,
                         (SELECT COUNT(*) FROM {p}ticket_messages m WHERE m.ticket_id = t.id) AS msgs,
                         (SELECT COUNT(*) FROM {p}ticket_messages m2 WHERE m2.ticket_id = t.id AND m2.file_id IS NOT NULL AND m2.file_id <> '') AS atts
                  FROM {p}tickets t LEFT JOIN {p}users u ON u.id = t.user_id
-                 $w ORDER BY (t.status = 'open') DESC, t.updated_at DESC LIMIT 200",
-                 $fStatus !== '' ? [':st' => $fStatus] : []);
+                 $w ORDER BY (t.status = 'open') DESC, $ordPrio t.updated_at DESC LIMIT 200",
+                 $pw);
 
 $T = $viewId ? DB::one('SELECT t.*, u.first_name, u.username, u.tg_id AS utg, u.id AS uid
                         FROM {p}tickets t LEFT JOIN {p}users u ON u.id = t.user_id WHERE t.id = :id', [':id' => $viewId]) : null;
@@ -547,6 +560,18 @@ $imgTypes = ['photo', 'image'];
 
     <div class="tk-reply" style="border-top:1px solid var(--border-soft);background:var(--surface-2)">
       <div class="row" style="flex-wrap:wrap;gap:6px">
+        <?php if ($tkHasPrio && can('tickets.reply')): ?>
+          <form method="post" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0"><?= csrf_field() ?>
+            <input type="hidden" name="act" value="tkmeta"><input type="hidden" name="id" value="<?= (int)$T['id'] ?>">
+            <select name="priority" style="padding:6px 8px;border-radius:8px;border:1px solid var(--border-soft);background:var(--surface-1)">
+              <?php foreach ($tkPrioLabel as $pk => $plb): ?>
+                <option value="<?= h($pk) ?>"<?= (string)($T['priority'] ?? 'normal') === $pk ? ' selected' : '' ?>>اولویت: <?= h($plb) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <input type="text" name="category" maxlength="32" placeholder="دسته (اختیاری)" value="<?= h((string)($T['category'] ?? '')) ?>" style="padding:6px 8px;border-radius:8px;border:1px solid var(--border-soft);background:var(--surface-1);max-width:150px">
+            <button class="btn btn-sm">ثبت اولویت</button>
+          </form>
+        <?php endif; ?>
         <?php if (can('tickets.close')): ?>
           <?php if ((string)$T['status'] !== 'closed'): ?>
             <form method="post" style="display:inline"><?= csrf_field() ?>
@@ -567,6 +592,16 @@ $imgTypes = ['photo', 'image'];
       </div>
     </div>
   </div>
+<?php endif; ?>
+
+<?php if ($tkHasPrio): $tkQs = 'index.php?p=tickets' . ($fStatus !== '' ? '&amp;status=' . urlencode($fStatus) : ''); ?>
+<div class="tk-nav">
+  <a class="tk-nv <?= $fPrio === '' ? 'on' : '' ?>" href="<?= $tkQs ?>">⚑ همهٔ اولویت‌ها</a>
+  <a class="tk-nv <?= $fPrio === 'urgent' ? 'on' : '' ?>" href="<?= $tkQs ?>&amp;prio=urgent">⚡ فوری <span class="n"><?= fa_num($cUrg) ?></span></a>
+  <a class="tk-nv <?= $fPrio === 'high' ? 'on' : '' ?>" href="<?= $tkQs ?>&amp;prio=high">▲ زیاد <span class="n"><?= fa_num($cHigh) ?></span></a>
+  <a class="tk-nv <?= $fPrio === 'normal' ? 'on' : '' ?>" href="<?= $tkQs ?>&amp;prio=normal">عادی</a>
+  <a class="tk-nv <?= $fPrio === 'low' ? 'on' : '' ?>" href="<?= $tkQs ?>&amp;prio=low">کم</a>
+</div>
 <?php endif; ?>
 
 <div class="tk-nav">
@@ -632,6 +667,10 @@ $imgTypes = ['photo', 'image'];
         </div>
 
         <div class="tk-tags">
+          <?php $pr = (string)($t['priority'] ?? 'normal'); if ($pr !== '' && $pr !== 'normal' && isset($tkPrioLabel[$pr])): ?>
+            <span class="tk-tag" style="<?= $pr === 'urgent' ? 'background:#fee2e2;color:#b91c1c' : ($pr === 'high' ? 'background:#ffedd5;color:#c2410c' : '') ?>">⚡ <?= h($tkPrioLabel[$pr]) ?></span>
+          <?php endif; ?>
+          <?php $ct = trim((string)($t['category'] ?? '')); if ($ct !== ''): ?><span class="tk-tag">▦ <?= h($ct) ?></span><?php endif; ?>
           <span class="tk-tag">💬 <?= fa_num((int)$t['msgs']) ?> پیام</span>
           <?php if ((int)$t['atts'] > 0): ?><span class="tk-tag">📎 <?= fa_num((int)$t['atts']) ?> پیوست</span><?php endif; ?>
           <span class="tk-age <?= h($aCls) ?>">⏱ <?= $aTxt ?></span>

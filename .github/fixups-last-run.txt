@@ -1,288 +1,63 @@
 Python 3.12.3
-Thu Sep 24 12:46:43 UTC 2026
-patched: admin/pages/tickets.php ($act === 'tkmeta')
+Thu Sep 24 12:51:45 UTC 2026
+patched: admin/pages/tickets.php ($tkPrioLabel = [)
+patched: admin/pages/tickets.php ($pw);)
+patched: admin/pages/tickets.php (DESC, $ordPrio t.updated_at)
+patched: admin/pages/tickets.php (prio=urgent)
+patched: admin/pages/tickets.php ($t['priority'] ?? 'normal')
+patched: admin/pages/tickets.php (name="act" value="tkmeta"><input)
 wrote admin/pages/tickets.php
 changed files: 1
-sanity admin/pages/tickets.php / $act === 'tkmeta' : ok
-sanity admin/pages/tickets.php / 'low', 'normal', 'high', 'urgent' : ok
-sanity: 2/2
----- dump tk_filters : admin/pages/tickets.php (788 lines) ----
-  160             back('tickets');
-  161         }
-  162 
-  163         $n = 0;
-  164         if ($m === 'close') { need('tickets.close', 'tickets');
-  165             foreach ($ids as $tid) {
-  166                 DB::update('tickets', ['status' => 'closed', 'updated_at' => now()], 'id = :id', [':id' => $tid]);
-  167                 $n++;
-  168             }
-  169             flash('ok', fa_num($n) . ' تیکت بسته شد.');
-  170         } elseif ($m === 'open') { need('tickets.close', 'tickets');
-  171             foreach ($ids as $tid) {
-  172                 DB::update('tickets', ['status' => 'open', 'updated_at' => now()], 'id = :id', [':id' => $tid]);
-  173                 $n++;
-  174             }
-  175             flash('ok', fa_num($n) . ' تیکت باز شد.');
-  176         } elseif ($m === 'del') { need('tickets.delete', 'tickets');
-  177             foreach ($ids as $tid) {
-  178                 DB::delete('ticket_messages', 'ticket_id = :id', [':id' => $tid]);
-  179                 DB::delete('tickets', 'id = :id', [':id' => $tid]);
-  180                 $n++;
-  181             }
-  182             flash('ok', fa_num($n) . ' تیکت حذف شد.');
-  183         } else {
-  184             flash('err', 'عملیات نامعتبر است.');
-  185         }
-  186         back('tickets');
-  187     }
-  188 }
-  189 
-  190 $fStatus = (string)($_GET['status'] ?? '');
-  191 $viewId  = (int)($_GET['t'] ?? 0);
-  192 
-  193 $w = $fStatus !== '' ? 'WHERE t.status = :st' : '';
-  194 $rows = DB::all("SELECT t.*, u.first_name, u.username, u.tg_id AS utg, u.id AS uid,
-  195                         (SELECT COUNT(*) FROM {p}ticket_messages m WHERE m.ticket_id = t.id) AS msgs,
-  196                         (SELECT COUNT(*) FROM {p}ticket_messages m2 WHERE m2.ticket_id = t.id AND m2.file_id IS NOT NULL AND m2.file_id <> '') AS atts
-  197                  FROM {p}tickets t LEFT JOIN {p}users u ON u.id = t.user_id
-  198                  $w ORDER BY (t.status = 'open') DESC, t.updated_at DESC LIMIT 200",
-  199                  $fStatus !== '' ? [':st' => $fStatus] : []);
-  200 
-  201 $T = $viewId ? DB::one('SELECT t.*, u.first_name, u.username, u.tg_id AS utg, u.id AS uid
-  202                         FROM {p}tickets t LEFT JOIN {p}users u ON u.id = t.user_id WHERE t.id = :id', [':id' => $viewId]) : null;
-  203 $msgs = $T ? DB::all('SELECT * FROM {p}ticket_messages WHERE ticket_id = :id ORDER BY id ASC', [':id' => $viewId]) : [];
-  204 
-  205 /* آمار */
-  206 $cOpen = (int)DB::val("SELECT COUNT(*) FROM {p}tickets WHERE status = 'open'", [], 0);
-  207 $cAns  = (int)DB::val("SELECT COUNT(*) FROM {p}tickets WHERE status = 'answered'", [], 0);
-  208 $cCls  = (int)DB::val("SELECT COUNT(*) FROM {p}tickets WHERE status = 'closed'", [], 0);
-  209 $cAll  = $cOpen + $cAns + $cCls;
-  210 
-  211 $cToday = (int)DB::val('SELECT COUNT(*) FROM {p}tickets WHERE DATE(created_at) = CURDATE()', [], 0);
-  212 $cMsgs  = (int)DB::val('SELECT COUNT(*) FROM {p}ticket_messages', [], 0);
-  213 $cAtts  = (int)DB::val("SELECT COUNT(*) FROM {p}ticket_messages WHERE file_id IS NOT NULL AND file_id <> ''", [], 0);
-  214 $avgMsg = $cAll > 0 ? round($cMsgs / $cAll, 1) : 0;
-  215 
----- end dump tk_filters ----
----- dump tk_head_view : admin/pages/tickets.php (788 lines) ----
-  440   </div>
-  441 
-  442   <div class="tk-rate">
-  443     <div class="tk-rate-t">
-  444       <span>نرخ رسیدگی به تیکت‌ها</span>
-  445       <b><?= fa_num($closedPct) ?>٪ · <?= fa_num($cAns + $cCls) ?> از <?= fa_num($cAll) ?></b>
-  446     </div>
-  447     <div class="tk-rate-bar"><span style="width:<?= (int)$closedPct ?>%"></span></div>
-  448   </div>
-  449 </div>
-  450 
-  451 <?php if ($cOpen > 0 && $waitBad): ?>
-  452   <div class="alert a-warn mt3">⚠️ قدیمی‌ترین تیکت باز بیش از <b><?= $waitTxt ?></b> منتظر پاسخ است. رسیدگی به آن را در اولویت قرار دهید.</div>
-  453 <?php endif; ?>
-  454 
-  455 <?php if ($T):
-  456     [$ageTxt, $ageCls] = $ageOf((string)$T['updated_at']);
-  457     $nAtt = 0;
-  458     foreach ($msgs as $mm) { if (trim((string)($mm['file_id'] ?? '')) !== '') $nAtt++; }
-  459 ?>
-  460   <div class="tk-conv">
-  461     <div class="tk-chead">
-  462       <div class="tk-cava">🎫</div>
-  463       <div class="tk-cttl">
-  464         <h3>تیکت #<?= fa_num((int)$T['id']) ?> — <?= h((string)$T['subject']) ?></h3>
-  465         <div class="s">
-  466           <?= h((string)($T['first_name'] ?: 'کاربر')) ?>
-  467           · <a class="mono" href="index.php?p=users&u=<?= (int)$T['uid'] ?>"><?= fa_num((string)$T['utg']) ?></a>
-  468           · <?= fa_num(count($msgs)) ?> پیام<?= $nAtt ? ' · 📎 ' . fa_num($nAtt) . ' پیوست' : '' ?>
-  469           · آخرین فعالیت: <?= h(to_jalali((string)$T['updated_at'], true)) ?>
-  470         </div>
----- end dump tk_head_view ----
----- dump tk_nav : admin/pages/tickets.php (788 lines) ----
-  545       <div class="tk-reply"><div class="alert a-info" style="margin:0">این تیکت بسته شده است.</div></div>
-  546     <?php endif; ?>
-  547 
-  548     <div class="tk-reply" style="border-top:1px solid var(--border-soft);background:var(--surface-2)">
-  549       <div class="row" style="flex-wrap:wrap;gap:6px">
-  550         <?php if (can('tickets.close')): ?>
-  551           <?php if ((string)$T['status'] !== 'closed'): ?>
-  552             <form method="post" style="display:inline"><?= csrf_field() ?>
-  553               <input type="hidden" name="act" value="close"><input type="hidden" name="id" value="<?= (int)$T['id'] ?>">
-  554               <button class="btn btn-sm">✅ بستن تیکت</button></form>
-  555           <?php else: ?>
-  556             <form method="post" style="display:inline"><?= csrf_field() ?>
-  557               <input type="hidden" name="act" value="open"><input type="hidden" name="id" value="<?= (int)$T['id'] ?>">
-  558               <button class="btn btn-sm">🔓 باز کردن مجدد</button></form>
-  559           <?php endif; ?>
-  560         <?php endif; ?>
-  561         <a class="btn btn-sm" href="index.php?p=users&u=<?= (int)$T['uid'] ?>">👤 پروندهٔ کاربر</a>
-  562         <?php if (can('tickets.delete')): ?>
-  563           <form method="post" style="display:inline" data-confirm="تیکت و پیام‌هایش حذف شوند؟"><?= csrf_field() ?>
-  564             <input type="hidden" name="act" value="del"><input type="hidden" name="id" value="<?= (int)$T['id'] ?>">
-  565             <button class="btn btn-red btn-sm">🗑 حذف تیکت</button></form>
-  566         <?php endif; ?>
-  567       </div>
-  568     </div>
-  569   </div>
-  570 <?php endif; ?>
-  571 
-  572 <div class="tk-nav">
-  573   <a class="tk-nv <?= $fStatus === '' ? 'on' : '' ?>" href="index.php?p=tickets">📂 همه <span class="n"><?= fa_num($cAll) ?></span></a>
-  574   <a class="tk-nv <?= $fStatus === 'open' ? 'on' : '' ?>" href="index.php?p=tickets&amp;status=open">🕓 باز <span class="n"><?= fa_num($cOpen) ?></span></a>
-  575   <a class="tk-nv <?= $fStatus === 'answered' ? 'on' : '' ?>" href="index.php?p=tickets&amp;status=answered">✅ پاسخ داده شده <span class="n"><?= fa_num($cAns) ?></span></a>
----- end dump tk_nav ----
----- dump tk_list : admin/pages/tickets.php (788 lines) ----
-  585   <span class="hint" id="tkCount"><?= fa_num(count($rows)) ?> تیکت</span>
-  586 </div>
-  587 
-  588 <?php if (!$rows): ?>
-  589   <div class="card mt3"><div class="empty"><div class="ic">🆘</div>تیکتی در این دسته وجود ندارد.</div></div>
-  590 <?php else: ?>
-  591 
-  592 <form method="post" id="tkBulkForm">
-  593   <?= csrf_field() ?>
-  594   <input type="hidden" name="act" value="bulk">
-  595   <input type="hidden" name="mode" id="tkMode" value="">
-  596 
-  597   <?php if (can('tickets.close') || can('tickets.delete')): ?>
-  598     <div class="tk-bulk" id="tkBulk" hidden>
-  599       <span>✔️ <span class="cnt" id="tkCnt">۰</span> تیکت انتخاب شده</span>
-  600       <?php if (can('tickets.close')): ?>
-  601         <button class="btn btn-green btn-sm" type="button" data-tk-bulk="close">✅ بستن گروهی</button>
-  602         <button class="btn btn-sm" type="button" data-tk-bulk="open">🔓 باز کردن</button>
-  603       <?php endif; ?>
-  604       <?php if (can('tickets.delete')): ?>
-  605         <button class="btn btn-red btn-sm" type="button" data-tk-bulk="del">🗑 حذف</button>
-  606       <?php endif; ?>
-  607       <button class="btn btn-sm btn-ghost" type="button" id="tkNone">لغو انتخاب</button>
-  608     </div>
-  609   <?php endif; ?>
-  610 
-  611   <!-- نمای کارتی -->
-  612   <div class="tk-grid" id="tkGrid">
-  613     <?php foreach ($rows as $t):
-  614         [$aTxt, $aCls] = $ageOf((string)$t['updated_at']);
-  615         $st  = (string)$t['status'];
-  616         $hay = mb_strtolower((string)($t['first_name'] ?? '') . ' ' . (string)$t['subject'] . ' ' . (string)$t['utg']);
-  617     ?>
-  618       <div class="tk-card s-<?= h($st) ?>" data-tk-card data-hay="<?= h($hay) ?>">
-  619         <span class="strip"></span>
-  620         <?php if (can('tickets.close') || can('tickets.delete')): ?>
-  621           <label class="tk-pick"><input type="checkbox" name="ids[]" value="<?= (int)$t['id'] ?>" data-tk-box></label>
-  622         <?php endif; ?>
-  623 
-  624         <div class="tk-ctop">
-  625           <div class="tk-cava" style="width:38px;height:38px;font-size:17px">🎫</div>
-  626           <div class="tk-cw">
-  627             <div class="t"><?= h((string)$t['subject']) ?></div>
-  628             <div class="s">#<?= fa_num((int)$t['id']) ?> · <?= h((string)($t['first_name'] ?: 'کاربر')) ?>
-  629               · <span class="mono"><?= fa_num((string)$t['utg']) ?></span></div>
-  630           </div>
-  631           <?= badge($st) ?>
-  632         </div>
-  633 
-  634         <div class="tk-tags">
-  635           <span class="tk-tag">💬 <?= fa_num((int)$t['msgs']) ?> پیام</span>
-  636           <?php if ((int)$t['atts'] > 0): ?><span class="tk-tag">📎 <?= fa_num((int)$t['atts']) ?> پیوست</span><?php endif; ?>
-  637           <span class="tk-age <?= h($aCls) ?>">⏱ <?= $aTxt ?></span>
-  638           <span class="tk-tag"><?= h(to_jalali((string)$t['updated_at'], true)) ?></span>
-  639         </div>
-  640 
-  641         <div class="tk-cact">
-  642           <a class="btn btn-sm <?= $st === 'open' ? 'btn-primary' : '' ?>" href="index.php?p=tickets&amp;t=<?= (int)$t['id'] ?>">👁 مشاهده و پاسخ</a>
-  643           <a class="btn btn-sm btn-ghost" href="index.php?p=users&amp;u=<?= (int)$t['uid'] ?>">👤 پرونده</a>
-  644         </div>
-  645       </div>
-  646     <?php endforeach; ?>
-  647   </div>
-  648 
-  649   <!-- نمای جدولی -->
-  650   <div class="card mt3" id="tkTableWrap" hidden>
-  651     <div class="table-wrap">
-  652       <table id="tkTable" class="responsive">
-  653         <thead><tr><th>#</th><th>کاربر</th><th>موضوع</th><th>پیام</th><th>پیوست</th><th>وضعیت</th><th>سن</th><th>آخرین فعالیت</th><th data-l="">عملیات</th></tr></thead>
-  654         <tbody>
-  655         <?php foreach ($rows as $t): [$aTxt, $aCls] = $ageOf((string)$t['updated_at']); ?>
-  656           <tr data-hay="<?= h(mb_strtolower((string)($t['first_name'] ?? '') . ' ' . (string)$t['subject'] . ' ' . (string)$t['utg'])) ?>">
-  657             <td class="mono"><?= fa_num((int)$t['id']) ?></td>
-  658             <td>
-  659               <b><?= h((string)($t['first_name'] ?: 'کاربر')) ?></b>
-  660               <div class="muted mono" style="font-size:11.5px"><?= fa_num((string)$t['utg']) ?></div>
----- end dump tk_list ----
-===== admin pages + nav =====
----- listdir admin/pages ----
-admins.php                         43024
-audit.php                          8674
-backup.php                         37947
-botbuttons.php                     71568
-bottexts.php                       31799
-cards.php                          35947
-codes.php                          55112
-dashboard.php                      51357
-export.php                         3743
-gateways.php                       47427
-health.php                         20731
-join.php                           10642
-panels.php                         73251
-payments.php                       59168
-products.php                       62728
-resellers.php                      152533
-services.php                       51718
-settings.php                       202493
-stock.php                          45840
-subs.php                           74918
-tickets.php                        40918
-tutorials.php                      40985
-update.php                         32615
-users.php                          77625
----- end listdir admin/pages ----
----- grep: p=tickets ----
-admin/index.php:543: <a class="sd-chip b" href="index.php?p=tickets">🎫 <?= fa_num($openTk) ?> تیکت</a>
-admin/pages/dashboard.php:562: <?php if ($d_page('tickets')): ?><a class="qa<?= $m_tkOpen ? ' hot' : '' ?>" href="index.php?p=tickets"><span class="ic">🆘</span><span class="t">پاسخ  ...
-admin/pages/dashboard.php:768: <?php if ($d_page('tickets')): ?><a class="btn btn-sm" href="index.php?p=tickets">پاسخ</a><?php endif; ?>
-admin/pages/resellers.php:2279: <a class="btn btn-sm btn-ghost" href="index.php?p=tickets">🆘 تیکت‌ها</a>
-admin/pages/tickets.php:474: <a class="btn btn-sm btn-ghost" href="index.php?p=tickets">← بازگشت</a>
-admin/pages/tickets.php:493: <?php if ($fid !== ''): $url = 'index.php?p=tickets&t=' . (int)$T['id'] . '&att=' . (int)$m['id']; ?>
-admin/pages/tickets.php:573: <a class="tk-nv <?= $fStatus === '' ? 'on' : '' ?>" href="index.php?p=tickets">📂 همه <span class="n"><?= fa_num($cAll) ?></span></a>
-admin/pages/tickets.php:574: <a class="tk-nv <?= $fStatus === 'open' ? 'on' : '' ?>" href="index.php?p=tickets&amp;status=open">🕓 باز <span class="n"><?= fa_num($cOpen) ?></span>< ...
-admin/pages/tickets.php:575: <a class="tk-nv <?= $fStatus === 'answered' ? 'on' : '' ?>" href="index.php?p=tickets&amp;status=answered">✅ پاسخ داده شده <span class="n"><?= fa_num( ...
-admin/pages/tickets.php:576: <a class="tk-nv <?= $fStatus === 'closed' ? 'on' : '' ?>" href="index.php?p=tickets&amp;status=closed">🔒 بسته <span class="n"><?= fa_num($cCls) ?></sp ...
-admin/pages/tickets.php:642: <a class="btn btn-sm <?= $st === 'open' ? 'btn-primary' : '' ?>" href="index.php?p=tickets&amp;t=<?= (int)$t['id'] ?>">👁 مشاهده و پاسخ</a>
-admin/pages/tickets.php:669: <a class="btn btn-sm <?= (string)$t['status'] === 'open' ? 'btn-primary' : '' ?>" href="index.php?p=tickets&amp;t=<?= (int)$t['id'] ?>">👁 مشاهده</a>
----- end grep: p=tickets (truncated) ----
-===== row 19 (trial abuse) anchors =====
----- grep: test_count ----
-admin/pages/users.php:569: <div class="v"><?= fa_num((int)$U['test_count']) ?></div>
-app/Bot/AdminBot.php:1001: $t .= '🧪 تست دریافتی: ' . fa_num((string)(int)$u['test_count']) . "\n";
-app/Service/Broadcast.php:21: 'testonly'   => ['label' => '🧪 فقط اکانت تست',      'where' => 'is_banned = 0 AND test_count > 0 AND (total_paid IS NULL OR total_paid = 0)'],
-app/Service/Svc.php:457: DB::q('UPDATE {p}users SET test_count = test_count + 1 WHERE id = :id', [':id' => (int)$user['id']]);
-app/Service/Svc.php:464: *  test_global_max      سقف کل تست هر کاربر روی همهٔ سرورها (users.test_count)
-app/Service/Svc.php:475: if ($gmax > 0 && (int)($user['test_count'] ?? 0) >= $gmax) {
-app/Service/Svc.php:517: if ((string)DB::setting('test_panel_check', '1') === '1' && (int)($user['test_count'] ?? 0) === 0) {
-database/schema.sql:18: `test_count` INT NOT NULL DEFAULT 0,
----- end grep: test_count (8) ----
----- grep: 'is_test' ----
-admin/pages/services.php:41: 'is_test'    => pchk('is_test') === 1,
-admin/pages/services.php:549: <?php if (!empty($r['is_test'])): ?><span class="badge b-purple xs">تست</span><?php endif; ?>
-admin/pages/services.php:657: <span class="ava"><?= !empty($V['is_test']) ? '🧪' : '🛰' ?></span>
-admin/pages/services.php:664: <?php if (!empty($V['is_test'])): ?><span class="chip">اکانت تست</span><?php endif; ?>
-admin/pages/users.php:405: if ((int)($s['is_test'] ?? 0) === 1)    $nSvcTs++;
-admin/pages/users.php:915: <td data-l="نوع"><?= (int)$s['is_test']
-app/Bot/AdminBot.php:1075: if ((int)$s['is_test'])     $t .= '🧪 این یک ��کانت تست است.' . "\n";
-app/Bot/AdminHub.php:329: if ((int)($s['is_test'] ?? 0) === 1) $ic .= '🧪';
-app/Bot/Bot.php:2781: if (!empty($service['is_test']))     $tags[] = '🧪 اکانت تست';
-app/Service/Export.php:73: $head = ['id', 'client_email', 'status', 'tg_id', 'username', 'name', 'panel', 'product', 'volume_gb', 'used_gb', 'days', 'expire_at', 'renew_count',  ...
-app/Service/Export.php:78: $r['days'], $r['expire_at'], $r['renew_count'], $r['is_test'], $r['is_reseller'] ?? 0,
-app/Service/Svc.php:233: $isTest = !empty($opts['is_test']);
-app/Service/Svc.php:355: 'is_test'     => $isTest ? 1 : 0,
-app/Service/Svc.php:453: 'is_test'        => true,
-app/Service/Svc.php:680: 'is_test'     => 0,
-app/Service/Svc.php:1787: if (!empty($s['is_test'])) $lines[] = '🧪 اکانت تست';
-app/Service/Svc.php:1962: } elseif ((int)($s['is_test'] ?? 0) === 1) {
-cron/tasks.php:383: if (((int)$s['notified'] & 4) === 0 && !(int)$s['is_test']) {
-miniapp/api.php:338: 'is_test'    => (int)($s['is_test'] ?? 0) === 1,
-miniapp/api.php:356: && (int)($s['is_test'] ?? 0) !== 1 && (int)($s['is_reseller'] ?? 0) !== 1 && (string)($s['status'] ?? '') !== 'deleted',
----- end grep: 'is_test' (truncated) ----
+sanity admin/pages/tickets.php / $tkPrioLabel = [ : ok
+sanity admin/pages/tickets.php / $pw); : ok
+sanity admin/pages/tickets.php / DESC, $ordPrio t.updated_at : ok
+sanity admin/pages/tickets.php / name="act" value="tkmeta"><input : ok
+sanity admin/pages/tickets.php / prio=urgent : ok
+sanity admin/pages/tickets.php / $t['priority'] ?? 'normal' : ok
+sanity: 6/6
+===== admin router / menu =====
+---- dump router : admin/index.php (638 lines) ----
+  420         $page = $fallback;
+  421     } else {
+  422         $denied = true;
+  423     }
+  424 }
+  425 // basename لایهٔ دوم محافظت در برابر Path Traversal است
+  426 $pageFile = __DIR__ . '/pages/' . basename($page) . '.php';
+  427 
+  428 /* 0.0.2 #6: سپر سراسری CSRF روی همهٔ درخواست‌های POST پنل.
+  429    پیش‌فرض حالت گزارشی است؛ با تنظیم sec_csrf_strict = 1 درخواست بدون توکن مسدود می‌شود. */
+  430 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_ok()) {
+  431     $csrfStrict = (string)DB::setting('sec_csrf_strict', '1') === '1';
+  432     $csrfAct    = (string)preg_replace('/[^a-z0-9_\-]/i', '', (string)($_POST['act'] ?? ($_POST['action'] ?? '')));
+  433     app_log('sec', 'csrf ' . ($csrfStrict ? 'blocked' : 'report') . ': p=' . $page . ' act=' . $csrfAct . ' ip=' . $clientIp);
+  434     try {
+  435         if (class_exists('Logs')) {
+  436             Logs::send('security', Logs::fmt('🚫 درخواست بدون توکن امنیتی', [
+  437                 'صفحه'  => $page,
+  438                 'اقدام'  => $csrfAct !== '' ? $csrfAct : '-',
+  439                 'مدیر'   => (string)($ADMIN['username'] ?? '-'),
+  440                 'آی‌پی'  => $clientIp !== '' ? $clientIp : '-',
+  441                 'نتیجه'  => $csrfStrict ? 'مسدود شد' : 'فقط گزارش',
+  442             ]));
+  443         }
+  444     } catch (Throwable $e) { }
+  445     if ($csrfStrict) {
+  446         http_response_code(419);
+  447         header('Content-Type: text/html; charset=utf-8');
+  448         echo '<!doctype html><html dir="rtl" lang="fa"><meta charset="utf-8"><title>توکن امنیتی نامعتبر</title>'
+---- end dump router ----
+---- grep: 'tickets' ----
+admin/index.php:374: 'tickets'   => ['پشتیبانی', '🆘', 'تیکت‌ها'],
+admin/index.php:396: '🆘 پشتیبانی و محتوا' => ['tickets', 'tutorials'],
+admin/index.php:509: foreach (['dashboard', 'users', 'payments', 'services', 'resellers', 'panels', 'tickets', 'settings'] as $bk) {
+admin/index.php:513: $BADGE_OF = ['payments' => $pendingPay, 'tickets' => $openTk];
+admin/index.php:542: <?php if ($openTk > 0 && in_array('tickets', $VISIBLE, true)): ?>
+---- end grep: 'tickets' (5) ----
+---- grep: 'dashboard' => ----
+admin/index.php:366: 'dashboard' => ['داشبورد', '📊', 'نمای کلی'],
+---- end grep: 'dashboard' => (1) ----
 changelog: entry added
-build: fixed147 (was fixed146)
+build: fixed148 (was fixed147)
 exit: 0
 exit: 0
