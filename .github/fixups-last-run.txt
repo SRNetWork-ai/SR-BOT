@@ -1,185 +1,337 @@
 Python 3.12.3
-Thu Sep 24 13:24:10 UTC 2026
-new file: app/Service/Zarinpal.php (15660 bytes)
-new file: zarinpal.php (3336 bytes)
-patched: app/Service/Gateway.php ($kind === 'zarinpal')
-patched: app/Service/Gateway.php (function zarinpalOn()
+Thu Sep 24 13:29:11 UTC 2026
+patched: app/Service/Wallet.php ('nowpay', 'zarinpal')
+patched: app/Service/Gateway.php ('zarinpal' =>)
+patched: admin/pages/payments.php ('zarinpal' => [)
+patched: admin/pages/gateways.php ($kk === 'zarinpal')
+wrote admin/pages/gateways.php
+wrote admin/pages/payments.php
 wrote app/Service/Gateway.php
-wrote app/Service/Zarinpal.php
-wrote zarinpal.php
-changed files: 3
-sanity app/Service/Zarinpal.php / class Zarinpal : ok
-sanity app/Service/Zarinpal.php / public const START     = 'https://payment.zari : ok
-sanity app/Service/Zarinpal.php / public static function createInvoice( : ok
-sanity zarinpal.php / Zarinpal::apply($authority : ok
-sanity app/Service/Gateway.php / public static function zarinpalOn( : ok
-sanity app/Service/Gateway.php / $kind === 'zarinpal' : ok
-sanity: 6/6
-===== autoloader =====
----- grep: spl_autoload_register ----
-app/bootstrap.php:28: spl_autoload_register(function (string $class): void {
----- end grep: spl_autoload_register (1) ----
-===== Wallet auto-method list =====
----- dump wal_auto : app/Service/Wallet.php (468 lines) ----
-   10     public const AUTO_METHODS = ['hooshpay', 'nowpay'];
-   11 
-   12     /** آیا این روش پرداخت، درگاه خودکار است؟ */
-   13     public static function isAuto(?string $method): bool
-   14     {
-   15         return in_array(strtolower(trim((string)$method)), self::AUTO_METHODS, true);
-   16     }
+wrote app/Service/Wallet.php
+changed files: 4
+sanity app/Service/Wallet.php / 'nowpay', 'zarinpal' : ok
+sanity app/Service/Gateway.php / 'zarinpal' => : ok
+sanity admin/pages/payments.php / 'zarinpal' => [ : ok
+sanity: 3/3
+===== gateways.php save handlers =====
+---- dump gw_save : admin/pages/gateways.php (919 lines) ----
+    1 <?php
+    2 /** درگاه‌های پرداخت — ارز دیجیتال، کارت بانکی و پرداخت خودکار */
+    3 
+    4 if (!can('gateways.view')) { echo denyBox('بخش درگاه‌های پرداخت برای شما فعال نیست.'); return; }
+    5 
+    6 if (!class_exists('Gateway')) {
+    7     echo '<div class="card"><div class="alert a-err">ماجول درگاه پیدا نشد. فایل <code>app/Service/Gateway.php</code> را بررسی کنید.</div></div>';
+    8     return;
+    9 }
+   10 
+   11 $act = (string)($_POST['act'] ?? '');
+   12 
+   13 if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
+   14 
+   15     if ($act === 'save') { need('gateways.edit', 'gateways');
+   16         $fee = function_exists('pflt') ? (float)pflt('fee') : (float)str_replace(',', '.', ptxt('fee'));
    17 
-   18     /** لیست روش‌های خودکار برای شرط‌های SQL */
-   19     public static function autoSqlList(): string
-   20     {
-   21         return "'" . implode("','", self::AUTO_METHODS) . "'";
-   22     }
-   23 
-   24     public static function balance(int $userId): int
-   25     {
-   26         return (int)DB::val('SELECT balance FROM {p}users WHERE id = :id', [':id' => $userId], 0);
----- end dump wal_auto ----
-===== bot ask amount flow =====
----- dump bot_ask : needle not found (function askAmount) ----
----- grep: wal_hp ----
-app/Bot/Bot.php:570: case 'wal_hp':     self::askAmount($chatId, 'hooshpay'); return true;
-app/Service/Btn.php:44: 'wal_hp'     => ['🪙', 'شارژ آنی هوش‌پی', 'all', 'کیف پول'],
-app/Service/Btn.php:77: 'wal_hp'     => 'wallet',
----- end grep: wal_hp (3) ----
-===== admin gateways: kind select + hooshpay fields =====
----- dump gw_kind : admin/pages/gateways.php (918 lines) ----
+   18         $r = Gateway::upsert([
+   19             'id'       => ptxt('id'),
+   20             'kind'     => ptxt('kind'),
+   21             'enabled'  => pchk('enabled'),
+   22             'audience' => ptxt('audience'),
+   23             'label'    => ptxt('label'),
+   24             'icon'     => ptxt('icon'),
+   25             'asset'    => ptxt('asset'),
+   26             'network'  => ptxt('network_custom') !== '' ? ptxt('network_custom') : ptxt('network'),
+   27             'address'  => ptxt('address'),
+   28             'memo'     => ptxt('memo'),
+   29             'number'   => ptxt('number'),
+   30             'holder'   => ptxt('holder'),
+   31             'bank'     => ptxt('bank'),
+   32             'sheba'    => ptxt('sheba'),
+   33             'note'     => ptxt('note'),
+   34             'min'      => pint('min'),
+   35             'max'      => pint('max'),
+   36             'fee'      => $fee,
+   37         ]);
+   38 
+   39         if (ptxt('kind') === 'nowpay') {
+   40             DB::setSetting('nowpay_api_key',    ptxt('np_key'));
+   41             DB::setSetting('nowpay_ipn_secret', ptxt('np_ipn'));
+   42             DB::setSetting('nowpay_min_usd',    (string)max(1, pint('np_min', 5)));
+   43             DB::setSetting('nowpay_currency',   strtolower(ptxt('np_cur')));
+   44             DB::setSetting('nowpay_enabled',    (string)pchk('enabled'));
+   45         }
+   46 
+   47         if (ptxt('kind') === 'hooshpay') {
+   48             DB::setSetting('hp_api_key',  ptxt('hp_key', 200));
+   49             DB::setSetting('hp_secret',   ptxt('hp_secret', 200));
+   50             DB::setSetting('hp_fee_mode', ptxt('hp_fee_mode', 20));
+   51             DB::setSetting('hp_unit',     ptxt('hp_unit', 20));
+   52             DB::setSetting('hp_min',      (string)max(0, pint('hp_min', 0)));
+   53             DB::setSetting('hp_max',      (string)max(0, pint('hp_max', 0)));
+   54             DB::setSetting('hp_audience', ptxt('hp_audience', 20));
+   55             DB::setSetting('hp_desc',     ptxt('hp_desc', 200));
+   56             DB::setSetting('hp_label',    ptxt('label', 120));
+   57             DB::setSetting('hp_icon',     ptxt('icon', 20));
+   58             DB::setSetting('hp_enabled',  (string)pchk('enabled'));
+   59         }
+   60 
+   61         flash(!empty($r['ok']) ? 'ok' : 'err', h((string)($r['message'] ?? '')));
+   62         back('gateways');
+   63     }
+   64 
+   65     if ($act === 'del') { need('gateways.edit', 'gateways');
+   66         Gateway::remove(ptxt('id'));
+   67         flash('ok', '🗑 درگاه حذف شد.');
+   68         back('gateways');
+   69     }
+   70 
+---- end dump gw_save ----
+===== gateways.php kind flags =====
+---- dump gw_flags : admin/pages/gateways.php (919 lines) ----
+  360       <?php if (can('gateways.edit')): ?>
+  361         <div class="btn-row mt3" style="justify-content:center">
+  362           <button class="btn btn-primary" data-modal="mGw" data-gw-new="1">➕ ساخت اولین درگاه</button>
+  363         </div>
+  364       <?php endif; ?>
+  365     </div>
+  366   </div>
+  367 <?php else: ?>
+  368 
+  369 <div class="card mt4">
+  370   <div class="card-head tight"><div>
+  371     <div class="card-title">📋 فهرست درگاه‌ها</div>
+  372     <div class="card-sub">ترتیب نمایش در ربات و مینی‌اپ، همین ترتیب فهرست است.</div>
+  373   </div></div>
+  374 
+  375   <div class="gw-grid mt3" id="gwGrid">
+  376     <?php foreach ($rows as $i => $g):
+  377         $isCard = $g['kind'] === 'card';
+  378         $isNp   = $g['kind'] === 'nowpay';
+  379         $isHp   = $g['kind'] === 'hooshpay';
+  380         $on     = !empty($g['enabled']);
+  381         $title  = Gateway::title($g);
+  382         $color  = Gateway::color($g);
+  383         if ($isCard)   { $val = (string)$g['number']; }
+  384         elseif ($isNp) { $val = $cbUrl; }
+  385         elseif ($isHp) { $val = class_exists('HooshPay') ? HooshPay::callbackUrl() : 'HooshPay'; }
+  386         else           { $val = (string)$g['address']; }
+  387         $lim    = Gateway::limits($g);
+  388         $fee    = (float)($g['fee'] ?? 0);
+  389         $noRate = $g['kind'] === 'crypto' && !Gateway::hasRate($g);
+  390         $empty  = ($g['kind'] === 'crypto' && (string)$g['address'] === '') || ($isCard && (string)$g['number'] === '');
+  391         $q      = strtolower(trim(implode(' ', [
+  392             $title, (string)$g['label'], (string)$g['asset'], (string)$g['network'],
+  393             (string)$g['address'], (string)$g['number'], (string)$g['bank'], (string)$g['holder'],
+  394             Gateway::kindLabel((string)$g['kind']),
+  395         ])));
+  396     ?>
+---- end dump gw_flags ----
+===== gateways.php kind descriptions =====
+---- dump gw_desc : admin/pages/gateways.php (919 lines) ----
+  552               <div class="gw-name" id="gwPvName">درگاه تازه</div>
+  553               <div class="gw-sub" id="gwPvSub">ارز دیجیتال</div>
+  554             </div>
+  555             <div class="v mono ltr" id="gwPvVal">—</div>
+  556           </div>
+  557 
+  558           <div class="fieldset">
+  559             <div class="lg"><span class="n">🧭</span> نوع درگاه</div>
+  560             <div class="gw-kinds">
+  561               <?php
+  562               $kindDesc = [
+  563                   'crypto' => 'واریز دستی روی آدرس ولت',
+  564                   'card'   => 'کارت به کارت با رسید',
+  565                   'nowpay' => 'شارژ خودکار با NOWPayments',
+  566                   'hooshpay' => 'کارت به کارت آنی با هوش‌پی',
+  567               ];
+  568               $curKind = (string)$v('kind', 'crypto');
+  569               foreach (Gateway::KINDS as $kk => $klb):
   570                   $ic = '🌐';
   571                   if ($kk === 'card')          $ic = '💳';
   572                   elseif ($kk === 'nowpay')    $ic = '⚡️';
-  573                   elseif ($kk === 'hooshpay')  $ic = '🪙';
-  574               ?>
-  575                 <label class="gw-kind<?= $curKind === $kk ? ' on' : '' ?>" data-k="<?= h($kk) ?>">
-  576                   <input type="radio" name="kind" value="<?= h($kk) ?>" <?= $curKind === $kk ? 'checked' : '' ?>>
-  577                   <span class="i"><?= $ic ?></span>
-  578                   <span class="t"><?= h(Gateway::kindLabel($kk)) ?></span>
-  579                   <span class="d"><?= h($kindDesc[$kk] ?? '') ?></span>
-  580                 </label>
-  581               <?php endforeach; ?>
-  582             </div>
-  583           </div>
-  584 
-  585           <div class="fieldset">
-  586             <div class="lg"><span class="n">🏷</span> نمایش و محدودیت‌ها</div>
-  587             <div class="form-grid g2">
-  588               <div class="field"><label>نمایش برای</label>
-  589                 <select name="audience">
-  590                   <?php foreach (Gateway::AUDIENCE as $k => $lb): ?>
-  591                     <option value="<?= h($k) ?>" <?= (string)$v('audience', 'all') === $k ? 'selected' : '' ?>><?= h($lb) ?></option>
-  592                   <?php endforeach; ?>
-  593                 </select>
-  594                 <div class="hint">با «فقط نمایندگان» این درگاه از دید کاربران عادی پنهان می‌شود.</div>
-  595               </div>
-  596 
-  597               <div class="field"><label>وضعیت</label>
-  598                 <label class="pick"><input type="checkbox" name="enabled" value="1" <?= !$e || !empty($v('enabled')) ? 'checked' : '' ?>> فعال باشد</label></div>
-  599 
-  600               <div class="field"><label>برچسب دلخواه (اختیاری)</label>
-  601                 <input type="text" name="label" id="gwLabel" value="<?= h((string)$v('label')) ?>" placeholder="مثلاً تتر روی ترون"></div>
-  602 
----- end dump gw_kind ----
----- dump gw_hpui : admin/pages/gateways.php (918 lines) ----
-  690                 <div class="hint">خالی = کاربر خودش ارز را انتخاب می‌کند.</div></div>
-  691 
-  692               <div class="field" style="grid-column:1/-1">
-  693                 <div class="hint">آدرس کال‌بک (IPN): <b class="mono ltr"><?= h($cbUrl) ?></b></div>
-  694               </div>
-  695             </div>
-  696           </div>
-  697 
-  698           <?php if (class_exists('HooshPay')): ?>
-  699           <div class="fieldset accent" id="gwHp">
-  700             <div class="lg"><span class="n">🪙</span> تنطیمات هوش‌پی (HooshPay)</div>
-  701             <div class="fs-hint">کلید API را از اپلیکیشن هوش‌پی ← بخش «توسعه» بگیرید. با ذخیره، درگاه فعال می‌شود.</div>
-  702             <div class="form-grid g2">
-  703               <div class="field" style="grid-column:1/-1"><label>کلید API <span style="color:var(--red)">*</span></label>
-  704                 <input class="mono ltr" type="text" name="hp_key" autocomplete="off"
-  705                   value="<?= h((string)DB::setting('hp_api_key', '')) ?>" placeholder="hp_live_…"></div>
-  706 
-  707               <div class="field" style="grid-column:1/-1"><label>کلید Secret (برای اعتبارسنجی کال‌بک)</label>
-  708                 <input class="mono ltr" type="text" name="hp_secret" autocomplete="off"
-  709                   value="<?= h((string)DB::setting('hp_secret', '')) ?>" placeholder="از همان بخش «توسعه»">
-  710                 <div class="hint">خالی هم کار می‌کند؛ چون هر پرداخت مستقیماً از هوش‌پی استعلام می‌شود.</div></div>
-  711 
-  712               <div class="field"><label>تقسیم کارمزد</label>
-  713                 <select name="hp_fee_mode">
-  714                   <?php $hpFm = (string)DB::setting('hp_fee_mode', 'seller'); ?>
-  715                   <?php foreach (HooshPay::FEE_MODES as $fk => $fv): ?>
-  716                     <option value="<?= h((string)$fk) ?>" <?= $hpFm === (string)$fk ? 'selected' : '' ?>><?= h((string)$fv) ?></option>
-  717                   <?php endforeach; ?>
-  718                 </select></div>
-  719 
-  720               <div class="field"><label>واحد مبلغ فروشگاه</label>
-  721                 <select name="hp_unit">
-  722                   <?php $hpU = (string)DB::setting('hp_unit', 'toman'); ?>
-  723                   <?php foreach (HooshPay::UNITS as $uk => $uv): ?>
-  724                     <option value="<?= h((string)$uk) ?>" <?= $hpU === (string)$uk ? 'selected' : '' ?>><?= h((string)$uv) ?></option>
-  725                   <?php endforeach; ?>
-  726                 </select>
-  727                 <div class="hint">هوش‌پی همیشه تومان می‌گیرد؛ اگر مبالغ فروشگاه ریال است، این را روی ریال بگذارید.</div></div>
-  728 
-  729               <div class="field"><label>حداقل مبلغ</label>
-  730                 <input type="number" name="hp_min" min="0" value="<?= (int)DB::setting('hp_min', 0) ?>" placeholder="0 = بدون محدودیت"></div>
-  731 
-  732               <div class="field"><label>حداکثر مبلغ</label>
-  733                 <input type="number" name="hp_max" min="0" value="<?= (int)DB::setting('hp_max', 0) ?>" placeholder="0 = بدون محدودیت"></div>
-  734 
-  735               <div class="field"><label>مخاطب درگاه</label>
-  736                 <select name="hp_audience">
-  737                   <?php $hpA = (string)DB::setting('hp_audience', 'all'); ?>
-  738                   <?php foreach (Gateway::AUDIENCE as $ak => $av): ?>
----- end dump gw_hpui ----
-===== payments labels =====
----- dump pay_lbl : admin/pages/payments.php (1089 lines) ----
-   10     'purchase' => ['خرید سرویس', '🛒'],
-   11     'refund'   => ['بازگشت وجه', '↩️'],
-   12     'gift'     => ['کد هدیه', '🎁'],
-   13     'admin'    => ['دستی مدیر', '🛠'],
-   14     'referral' => ['پاداش زیرمجموعه', '🤝'],
-   15 ];
-   16 $METHODS = [
-   17     /* fixed84: درگاه‌های خودکار هم برچسب درست داشته باشند */
-   18     'hooshpay' => ['هوش‌پی (خودکار)', '🪙'],
-   19     'nowpay'   => ['نوپیمنتس (خودکار)', '🤖'],
-   20     'card'   => ['کارت به کارت', '💳'],
-   21     'crypto' => ['پرداخت ارزی', '🌐'],
-   22     'wallet' => ['کیف پول', '👛'],
-   23     'gift'   => ['کد هدیه', '🎁'],
-   24     'admin'  => ['مدیر', '🛠'],
-   25 ];
-   26 $ST_LBL = ['pending' => 'در انتظار', 'approved' => 'تایید شده', 'rejected' => 'رد شده', 'canceled' => 'لغو شده'];
-   27 
-   28 $typeLabel = function (string $k) use ($TYPES): string {
-   29     return isset($TYPES[$k]) ? ($TYPES[$k][1] . ' ' . $TYPES[$k][0]) : $k;
-   30 };
----- end dump pay_lbl ----
-===== cron auto list =====
----- dump cron_auto : cron/tasks.php (664 lines) ----
-  116         }
-  117         usleep(250000);
-  118     }
-  119 }
-  120 
-  121 /* fixed84: فاکتورهای درگاه که کاربر هرگز پرداخت نکرده، پس از چند ساعت لغو می‌شوند */
-  122 try {
-  123     $gwHours = max(1, (int)DB::setting('gw_stale_hours', '6'));
-  124     $gwAuto  = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay'";
-  125     $gwStale = DB::all("SELECT id FROM {p}transactions
-  126                         WHERE status = 'pending' AND type = 'deposit' AND method IN ($gwAuto)
-  127                           AND created_at < DATE_SUB(NOW(), INTERVAL $gwHours HOUR)
-  128                         ORDER BY id ASC LIMIT 200");
-  129     foreach ($gwStale as $g) {
-  130         $rj = Wallet::reject((int)$g['id'], null, 'فاکتور درگاه بدون پرداخت منقضی شد', false);
-  131         if (!empty($rj['ok'])) $report['gw_expired']++;
-  132     }
-  133     if ($report['gw_expired'] > 0) cron_say('gateway invoices canceled: ' . (int)$report['gw_expired']);
-  134 } catch (Throwable $e) {
----- end dump cron_auto ----
+  573                   elseif ($kk === 'zarinpal')  $ic = "\u{1F3E6}";
+  574                   elseif ($kk === 'hooshpay')  $ic = '🪙';
+  575               ?>
+  576                 <label class="gw-kind<?= $curKind === $kk ? ' on' : '' ?>" data-k="<?= h($kk) ?>">
+---- end dump gw_desc ----
+===== gateways.php end of hooshpay fieldset =====
+---- dump gw_hpend : admin/pages/gateways.php (919 lines) ----
+  738                   <?php $hpA = (string)DB::setting('hp_audience', 'all'); ?>
+  739                   <?php foreach (Gateway::AUDIENCE as $ak => $av): ?>
+  740                     <option value="<?= h((string)$ak) ?>" <?= $hpA === (string)$ak ? 'selected' : '' ?>><?= h((string)$av) ?></option>
+  741                   <?php endforeach; ?>
+  742                 </select></div>
+  743 
+  744               <div class="field"><label>توضیح فاکتور</label>
+  745                 <input type="text" name="hp_desc" maxlength="120"
+  746                   value="<?= h((string)DB::setting('hp_desc', '')) ?>" placeholder="شارژ کیف پول"></div>
+  747 
+  748               <div class="field" style="grid-column:1/-1">
+  749                 <div class="hint">آدرس کال‌بک: <b class="mono ltr"><?= h(HooshPay::callbackUrl()) ?></b></div>
+  750                 <div class="hint">این آدرس خودکار در هر فاکتور ارسال می‌شود؛ نیازی به تنطیم دستی در پنل هوش‌پی نیست.</div>
+  751               </div>
+  752             </div>
+  753           </div>
+  754           <?php endif; ?>
+  755 
+  756           <div class="fieldset">
+  757             <div class="lg"><span class="n">📝</span> یادداشت برای کاربر</div>
+  758             <div class="field"><textarea name="note" rows="2" placeholder="مثلاً: فقط از صرافی واریز کنید"><?= h((string)$v('note')) ?></textarea></div>
+  759           </div>
+  760         </div>
+  761 
+  762         <div class="m-foot">
+  763           <button class="btn btn-primary">💾 ذخیره درگاه</button>
+  764           <button type="button" class="btn btn-ghost" data-modal-close>انصراف</button>
+  765         </div>
+  766       </form>
+  767     </div>
+  768   </div>
+  769 </div>
+  770 <?php endif; ?>
+  771 
+  772 <script>
+  773 (function () {
+  774   var COLORS = <?= json_encode(Gateway::COLORS, JSON_UNESCAPED_UNICODE) ?>;
+  775   var KIND_T = { crypto: 'ارز دیجیتال', card: 'کارت بانکی', nowpay: 'پرداخت خودکار', hooshpay: 'هوش‌پی' };
+  776 
+  777   function $(id) { return document.getElementById(id); }
+  778   function $$(s, r) { return [].slice.call((r || document).querySelectorAll(s)); }
+  779 
+  780   /* ---------- فیلتر و جستجوی فهرست ---------- */
+  781   var grid = $('gwGrid');
+  782   if (grid) {
+  783     var q = $('gwQ'), filt = $('gwFilt'), empt = $('gwEmpty'), mode = 'all';
+  784 
+  785     function paint() {
+  786       var s = (q && q.value ? q.value : '').trim().toLowerCase(), n = 0;
+  787       $$('.gw-card', grid).forEach(function (c) {
+  788         var okK = mode === 'all' ? true : (mode === 'off' ? c.getAttribute('data-on') === '0' : c.getAttribute('data-kind') === mode);
+  789         var okQ = !s || (c.getAttribute('data-q') || '').indexOf(s) > -1;
+  790         var show = okK && okQ;
+  791         c.style.display = show ? '' : 'none';
+  792         if (show) n++;
+  793       });
+  794       if (empt) empt.style.display = n ? 'none' : 'block';
+  795     }
+  796 
+  797     if (q) q.addEventListener('input', paint);
+  798     if (filt) {
+  799       $$('button', filt).forEach(function (b) {
+  800         b.addEventListener('click', function () {
+  801           $$('button', filt).forEach(function (x) { x.classList.remove('on'); });
+  802           b.classList.add('on');
+  803           mode = b.getAttribute('data-f') || 'all';
+  804           paint();
+  805         });
+  806       });
+  807     }
+  808     paint();
+  809   }
+  810 
+  811   /* ---------- فرم درگاه ---------- */
+  812   var form = $('gwForm');
+  813   if (!form) return;
+  814 
+  815   var asset = $('gwAsset'), net = $('gwNet'),
+---- end dump gw_hpend ----
+===== gateways.php js =====
+---- dump gw_js : admin/pages/gateways.php (919 lines) ----
+  815   var asset = $('gwAsset'), net = $('gwNet'),
+  816       bc = $('gwCrypto'), bk = $('gwCard'), bn = $('gwNp'), bh = $('gwHp'),
+  817       pv = $('gwPrev'), pvI = $('gwPvIcon'), pvN = $('gwPvName'), pvS = $('gwPvSub'), pvV = $('gwPvVal');
+  818 
+  819   function kind() {
+  820     var r = form.querySelector('input[name="kind"]:checked');
+  821     return r ? r.value : 'crypto';
+  822   }
+  823 
+  824   function paintKind() {
+  825     var k = kind();
+  826     $$('.gw-kind').forEach(function (l) { l.classList.toggle('on', l.getAttribute('data-k') === k); });
+  827     if (bc) bc.style.display = k === 'crypto' ? '' : 'none';
+  828     if (bk) bk.style.display = k === 'card' ? '' : 'none';
+  829     if (bn) bn.style.display = k === 'nowpay' ? '' : 'none';
+  830     if (bh) bh.style.display = k === 'hooshpay' ? '' : 'none';
+  831     paintPrev();
+  832   }
+  833 
+  834   function paintNets() {
+  835     if (!asset || !net) return;
+  836     var a = asset.value, first = null;
+  837     [].forEach.call(net.options, function (o) {
+  838       var ok = o.getAttribute('data-asset') === a;
+  839       o.hidden = !ok;
+  840       o.disabled = !ok;
+  841       if (ok && first === null) first = o;
+  842     });
+  843     if (net.selectedOptions.length && net.selectedOptions[0].disabled && first) first.selected = true;
+  844     paintPrev();
+  845   }
+  846 
+  847   function paintPrev() {
+  848     if (!pv) return;
+  849     var k = kind(),
+  850         lb = ($('gwLabel') && $('gwLabel').value.trim()) || '',
+  851         ic = ($('gwIcon') && $('gwIcon').value.trim()) || '',
+  852         ak = asset ? asset.value : 'USDT',
+  853         nt = (net && net.selectedOptions.length) ? net.selectedOptions[0].textContent.trim() : '',
+  854         fee = parseFloat(($('gwFee') && $('gwFee').value) || '0') || 0,
+  855         col = k === 'card' ? '#3b82f6' : (k === 'nowpay' ? '#8b5cf6' : (k === 'hooshpay' ? '#f59e0b' : (COLORS[ak] || '#22c55e'))),
+  856         val = '—';
+  857 
+  858     if (k === 'crypto') val = ($('gwAddr') && $('gwAddr').value.trim()) || '—';
+  859     if (k === 'card')   val = ($('gwNum') && $('gwNum').value.trim()) || '—';
+  860     if (k === 'nowpay') val = 'NOWPayments';
+  861     if (k === 'hooshpay') val = 'HooshPay';
+  862 
+  863     pv.style.setProperty('--c', col);
+  864     if (pvI) pvI.textContent = ic || (k === 'card' ? '💳' : (k === 'nowpay' ? '⚡️' : '🌐'));
+  865     if (pvN) pvN.textContent = lb || (k === 'crypto' ? (ak + (nt ? ' • ' + nt : '')) : KIND_T[k]);
+  866     if (pvS) {
+  867       var sub = KIND_T[k];
+  868       if (k === 'crypto' && nt) sub += ' • ' + nt;
+  869       if (fee) sub += ' • ' + (fee > 0 ? 'کارمزد ' : 'تخفیف ') + Math.abs(fee) + '٪';
+  870       pvS.textContent = sub;
+  871     }
+  872     if (pvV) pvV.textContent = val.length > 26 ? (val.slice(0, 14) + '…' + val.slice(-8)) : val;
+  873   }
+  874 
+  875   $$('input[name="kind"]', form).forEach(function (r) { r.addEventListener('change', paintKind); });
+  876   if (asset) asset.addEventListener('change', paintNets);
+  877   ['gwLabel', 'gwIcon', 'gwAddr', 'gwNum', 'gwFee'].forEach(function (id) {
+  878     var el = $(id);
+  879     if (el) el.addEventListener('input', paintPrev);
+  880   });
+---- end dump gw_js ----
+===== bot ask amount =====
+---- ls app/Bot ----
+f AdminBot.php 73385
+f AdminHub.php 120043
+f Bot.php 162504
+f Kb.php 3867
+---- end ls app/Bot ----
+---- grep: function askAmount ----
+---- end grep: function askAmount (0) ----
+---- grep: askAmount ----
+app/Bot/Bot.php:569: case 'wal_np':     self::askAmount($chatId, 'nowpay'); return true;
+app/Bot/Bot.php:570: case 'wal_hp':     self::askAmount($chatId, 'hooshpay'); return true;
+app/Bot/Bot.php:571: case 'wal_hash':   self::askAmount($chatId, 'crypto_hash'); return true;
+app/Bot/Bot.php:652: self::askAmount($chatId, 'crypto');
+app/Bot/Bot.php:678: if (!class_exists('Gateway')) { self::askAmount($chatId, 'crypto'); return; }
+app/Bot/Bot.php:1084: elseif ($arg === 'hash') self::askAmount($chatId, 'crypto_hash');
+app/Bot/Bot.php:1085: elseif ($arg === 'np') self::askAmount($chatId, 'nowpay');
+app/Bot/Bot.php:1087: elseif ($arg === 'hp') self::askAmount($chatId, 'hooshpay');
+app/Bot/Bot.php:1099: elseif ($arg === 'pick')  self::askAmount($chatId, 'card', (int)$arg2);
+---- end grep: askAmount (9) ----
+===== where hooshpay button is offered =====
+---- grep: hooshpayOn ----
+app/Service/Gateway.php:347: public static function hooshpayOn(bool $isReseller = false): bool
+---- end grep: hooshpayOn (1) ----
+---- grep: hooshpayLabel ----
+app/Service/Gateway.php:363: public static function hooshpayLabel(bool $isReseller = false): string
+---- end grep: hooshpayLabel (1) ----
 changelog: entry added
-build: fixed155 (was fixed154)
+build: fixed156 (was fixed155)
 exit: 0
 exit: 0

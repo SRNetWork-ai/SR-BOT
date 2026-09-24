@@ -570,6 +570,7 @@ $fmtFee = function ($f) {
                   $ic = '🌐';
                   if ($kk === 'card')          $ic = '💳';
                   elseif ($kk === 'nowpay')    $ic = '⚡️';
+                  elseif ($kk === 'zarinpal')  $ic = "\u{1F3E6}";
                   elseif ($kk === 'hooshpay')  $ic = '🪙';
               ?>
                 <label class="gw-kind<?= $curKind === $kk ? ' on' : '' ?>" data-k="<?= h($kk) ?>">

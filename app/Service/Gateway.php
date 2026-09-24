@@ -18,6 +18,7 @@ class Gateway
         'card'   => '💳 کارت بانکی',
         'nowpay' => '⚡️ نوپیمنتس (خودکار)',
         'hooshpay' => '🪙 هوش‌پی (کارت به کارت آنی)',
+        'zarinpal' => "\u{1F3E6} زرین‌پال (پرداخت آنلاین)",
     ];
 
     public const AUDIENCE = [

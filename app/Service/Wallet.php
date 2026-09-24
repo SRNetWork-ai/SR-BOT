@@ -7,7 +7,7 @@ declare(strict_types=1);
 class Wallet
 {
     /* fixed84: روش‌های پرداخت خودکار (درگاه) — رسید دستی ندارند و نباید در صف تایید مدیر بیایند */
-    public const AUTO_METHODS = ['hooshpay', 'nowpay'];
+    public const AUTO_METHODS = ['hooshpay', 'nowpay', 'zarinpal'];
 
     /** آیا این روش پرداخت، درگاه خودکار است؟ */
     public static function isAuto(?string $method): bool
