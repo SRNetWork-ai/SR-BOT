@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# fixed164 - recon only: runButton switch + Kb constants + state/verify gates.
-import io, os, sys, json
+# fixed165 - recon only: which Bot:: methods referenced by runButton actually exist.
+import io, os, sys
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
 
@@ -9,8 +9,6 @@ SKIP_DIRS = {'.git', 'node_modules', 'vendor', 'storage', 'uploads', 'backups'}
 EXT = ('.php', '.sql', '.js', '.html', '.json')
 
 BOT = 'app/Bot/Bot.php'
-BTN = 'app/Service/Btn.php'
-KB = 'app/Bot/Kb.php'
 
 
 def load(path):
@@ -34,19 +32,6 @@ def dump(tag, path, start, end):
             s = s[:200] + ' ...'
         print('%5d %s' % (i, s))
     print('---- end dump %s ----' % tag)
-
-
-def dump_find(tag, path, needle, before=3, after=30):
-    try:
-        lines = load(path).split(chr(10))
-    except Exception as e:
-        print('---- dump %s FAILED (%s) ----' % (tag, e))
-        return
-    for i, ln in enumerate(lines, 1):
-        if needle in ln:
-            dump(tag, path, i - before, i + after)
-            return
-    print('---- dump %s : needle not found (%s) ----' % (tag, needle))
 
 
 ALL = []
@@ -89,24 +74,61 @@ def grep_all(needle, limit=20, only=None, ci=False):
     print('---- end grep: %s (%d) ----' % (needle, n))
 
 
-print('changed files: 0 (recon only)')
+def where(name):
+    needle = ('function ' + name + '(').lower()
+    for p in files_all():
+        try:
+            lines = load(p).split(chr(10))
+        except Exception:
+            continue
+        for i, ln in enumerate(lines, 1):
+            if needle in ln.lower().replace('  ', ' '):
+                return '%s:%d' % (p, i)
+            if needle in ln.lower():
+                return '%s:%d' % (p, i)
+    return ''
 
-print('===== runButton switch =====')
-dump_find('run', BOT, 'function runButton(', 2, 140)
-print('===== submenu opener =====')
-dump('bot_menu', BOT, 415, 470)
-print('===== Kb constants =====')
-dump('kb_head', KB, 1, 120)
-print('===== Kb::isMenuButton =====')
-dump_find('kb_ismenu', KB, 'function isMenuButton', 2, 40)
-print('===== handleState head =====')
-dump_find('bot_state', BOT, 'function handleState', 2, 55)
-print('===== verifyGate =====')
-dump_find('bot_vg', BOT, 'function verifyGate', 2, 40)
-print('===== section handlers =====')
-grep_all('function section', 30, only=BOT)
-print('===== Btn::meta / guessMeta / scanReport / autoFix =====')
-dump_find('btn_meta', BTN, 'public static function meta(', 2, 26)
-dump_find('btn_report', BTN, 'function scanReport', 2, 42)
-dump('btn_fix', BTN, 1249, 1300)
+
+NAMES = [
+    'sectionProducts', 'sectionServices', 'sectionWallet', 'sectionAccount',
+    'sectionTest', 'sectionTutorials', 'sectionSupport', 'sectionReseller',
+    'sectionReferral', 'sectionStock', 'sectionOrders', 'sectionCampaign',
+    'sectionResellerServices', 'cusMenu', 'walletCardMenu', 'walletHistory',
+    'cryptoAssets', 'askAmount', 'verifyMenu', 'referralList', 'priceList',
+    'resellerRequest', 'mainMenu', 'kbMain', 'miniappBtn', 'attachLooseReceipt',
+    'handleState', 'runButton', 'openBtnMenu', 'setState', 'stateData',
+    'waitMsg', 'waitEdit', 'isAdmin', 'tx', 'verifyGate', 'cusProducts',
+]
+print('===== method existence =====')
+missing = []
+for nm in NAMES:
+    w = where(nm)
+    if w == '':
+        missing.append(nm)
+        print('MISSING  %s' % nm)
+    else:
+        print('ok       %-26s %s' % (nm, w))
+print('missing count: %d' % len(missing))
+print('missing list: %s' % ', '.join(missing))
+
+print('===== app/Bot files =====')
+for p in files_all():
+    if p.startswith('app/Bot') or p.startswith('app/Tg'):
+        try:
+            sz = os.path.getsize(os.path.join(ROOT, p))
+            ln = len(load(p).split(chr(10)))
+        except Exception:
+            sz, ln = -1, -1
+        print('%-34s %8d B  %5d lines' % (p, sz, ln))
+
+print('===== traits / class heads =====')
+grep_all('trait ', 20)
+grep_all('class Bot', 10)
+print('===== Bot.php head =====')
+dump('bot_head', BOT, 1, 40)
+print('===== Bot.php tail =====')
+bl = len(load(BOT).split(chr(10)))
+dump('bot_tail', BOT, bl - 25, bl)
+print('===== self::section callers =====')
+grep_all('self::section', 40, only=BOT)
 print('exit: 0')
