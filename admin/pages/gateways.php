@@ -58,6 +58,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
             DB::setSetting('hp_enabled',  (string)pchk('enabled'));
         }
 
+        if (ptxt('kind') === 'zarinpal') { /* 0.0.2 #22 */
+            DB::setSetting('zp_merchant', ptxt('zp_merchant', 60));
+            DB::setSetting('zp_unit',     ptxt('zp_unit', 20));
+            DB::setSetting('zp_audience', ptxt('zp_audience', 20));
+            DB::setSetting('zp_min',      (string)max(0, pint('zp_min', 0)));
+            DB::setSetting('zp_max',      (string)max(0, pint('zp_max', 0)));
+            DB::setSetting('zp_desc',     ptxt('zp_desc', 200));
+            DB::setSetting('zp_sandbox',  (string)pchk('zp_sandbox'));
+            DB::setSetting('zp_label',    ptxt('label', 120));
+            DB::setSetting('zp_icon',     ptxt('icon', 20));
+            DB::setSetting('zp_enabled',  (string)pchk('enabled'));
+        }
+
         flash(!empty($r['ok']) ? 'ok' : 'err', h((string)($r['message'] ?? '')));
         back('gateways');
     }
@@ -377,12 +390,14 @@ $fmtFee = function ($f) {
         $isCard = $g['kind'] === 'card';
         $isNp   = $g['kind'] === 'nowpay';
         $isHp   = $g['kind'] === 'hooshpay';
+        $isZp   = $g['kind'] === 'zarinpal'; /* 0.0.2 #22 */
         $on     = !empty($g['enabled']);
         $title  = Gateway::title($g);
         $color  = Gateway::color($g);
         if ($isCard)   { $val = (string)$g['number']; }
         elseif ($isNp) { $val = $cbUrl; }
         elseif ($isHp) { $val = class_exists('HooshPay') ? HooshPay::callbackUrl() : 'HooshPay'; }
+        elseif ($isZp) { $val = class_exists('Zarinpal') ? Zarinpal::callbackUrl() : 'ZarinPal'; }
         else           { $val = (string)$g['address']; }
         $lim    = Gateway::limits($g);
         $fee    = (float)($g['fee'] ?? 0);
@@ -563,6 +578,7 @@ $fmtFee = function ($f) {
                   'crypto' => 'واریز دستی روی آدرس ولت',
                   'card'   => 'کارت به کارت با رسید',
                   'nowpay' => 'شارژ خودکار با NOWPayments',
+                  'zarinpal' => 'پرداخت آنلاین با کارت شتاب (زرین‌پال)',
                   'hooshpay' => 'کارت به کارت آنی با هوش‌پی',
               ];
               $curKind = (string)$v('kind', 'crypto');
@@ -696,6 +712,56 @@ $fmtFee = function ($f) {
             </div>
           </div>
 
+          <?php if (class_exists('Zarinpal')): ?>
+          <div class="fieldset accent" id="gwZp">
+            <div class="lg"><span class="n"><?= "\u{1F3E6}" ?></span> تنظیمات زرین‌پال (ZarinPal)</div>
+            <div class="fs-hint">مرچنت کد ۳۶ کاراکتری را از پنل زرین‌پال بخش «درگاه‌های پرداخت» بگیرید. با ذخیره، درگاه فعال می‌شود.</div>
+            <div class="form-grid g2">
+              <div class="field" style="grid-column:1/-1"><label>مرچنت کد <span style="color:var(--red)">*</span></label>
+                <input class="mono ltr" type="text" name="zp_merchant" autocomplete="off" maxlength="60"
+                  value="<?= h((string)DB::setting('zp_merchant', '')) ?>" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                <div class="hint">بدون مرچنت کد، درگاه روشن نمی‌شود.</div></div>
+
+              <div class="field"><label>واحد مبلغ فروشگاه</label>
+                <select name="zp_unit">
+                  <?php $zpU = (string)DB::setting('zp_unit', 'toman'); ?>
+                  <?php foreach (Zarinpal::UNITS as $uk => $uv): ?>
+                    <option value="<?= h((string)$uk) ?>" <?= $zpU === (string)$uk ? 'selected' : '' ?>><?= h((string)$uv) ?></option>
+                  <?php endforeach; ?>
+                </select>
+                <div class="hint">همین واحد به زرین‌پال اعلام می‌شود (تومان = IRT، ریال = IRR).</div></div>
+
+              <div class="field"><label>مخاطب درگاه</label>
+                <select name="zp_audience">
+                  <?php $zpA = (string)DB::setting('zp_audience', 'all'); ?>
+                  <?php foreach (Gateway::AUDIENCE as $ak => $av): ?>
+                    <option value="<?= h((string)$ak) ?>" <?= $zpA === (string)$ak ? 'selected' : '' ?>><?= h((string)$av) ?></option>
+                  <?php endforeach; ?>
+                </select></div>
+
+              <div class="field"><label>حداقل مبلغ</label>
+                <input type="number" name="zp_min" min="0" value="<?= (int)DB::setting('zp_min', 0) ?>" placeholder="0 = بدون محدودیت"></div>
+
+              <div class="field"><label>حداکثر مبلغ</label>
+                <input type="number" name="zp_max" min="0" value="<?= (int)DB::setting('zp_max', 0) ?>" placeholder="0 = بدون محدودیت"></div>
+
+              <div class="field" style="grid-column:1/-1"><label>توضیح تراکنش</label>
+                <input type="text" name="zp_desc" maxlength="120"
+                  value="<?= h((string)DB::setting('zp_desc', '')) ?>" placeholder="شارژ کیف پول"></div>
+
+              <div class="field" style="grid-column:1/-1">
+                <label class="pick"><input type="checkbox" name="zp_sandbox" value="1" <?= (string)DB::setting('zp_sandbox', '0') === '1' ? 'checked' : '' ?>> حالت تست (Sandbox)</label>
+                <div class="hint">فقط برای آزمایش؛ در حالت عادی خاموش باشد.</div>
+              </div>
+
+              <div class="field" style="grid-column:1/-1">
+                <div class="hint">آدرس بازگشت: <b class="mono ltr"><?= h(Zarinpal::callbackUrl()) ?></b></div>
+                <div class="hint">همین آدرس در هر تراکنش ارسال می‌شود؛ در پنل زرین‌پال نیازی به ثبت دستی نیست.</div>
+              </div>
+            </div>
+          </div>
+          <?php endif; ?>
+
           <?php if (class_exists('HooshPay')): ?>
           <div class="fieldset accent" id="gwHp">
             <div class="lg"><span class="n">🪙</span> تنطیمات هوش‌پی (HooshPay)</div>
@@ -772,7 +838,7 @@ $fmtFee = function ($f) {
 <script>
 (function () {
   var COLORS = <?= json_encode(Gateway::COLORS, JSON_UNESCAPED_UNICODE) ?>;
-  var KIND_T = { crypto: 'ارز دیجیتال', card: 'کارت بانکی', nowpay: 'پرداخت خودکار', hooshpay: 'هوش‌پی' };
+  var KIND_T = { zarinpal: 'زرین‌پال', crypto: 'ارز دیجیتال', card: 'کارت بانکی', nowpay: 'پرداخت خودکار', hooshpay: 'هوش‌پی' };
 
   function $(id) { return document.getElementById(id); }
   function $$(s, r) { return [].slice.call((r || document).querySelectorAll(s)); }
@@ -813,7 +879,7 @@ $fmtFee = function ($f) {
   if (!form) return;
 
   var asset = $('gwAsset'), net = $('gwNet'),
-      bc = $('gwCrypto'), bk = $('gwCard'), bn = $('gwNp'), bh = $('gwHp'),
+      bc = $('gwCrypto'), bk = $('gwCard'), bn = $('gwNp'), bh = $('gwHp'), bz = $('gwZp'),
       pv = $('gwPrev'), pvI = $('gwPvIcon'), pvN = $('gwPvName'), pvS = $('gwPvSub'), pvV = $('gwPvVal');
 
   function kind() {
@@ -828,6 +894,7 @@ $fmtFee = function ($f) {
     if (bk) bk.style.display = k === 'card' ? '' : 'none';
     if (bn) bn.style.display = k === 'nowpay' ? '' : 'none';
     if (bh) bh.style.display = k === 'hooshpay' ? '' : 'none';
+    if (bz) bz.style.display = k === 'zarinpal' ? '' : 'none';
     paintPrev();
   }
 
@@ -852,13 +919,14 @@ $fmtFee = function ($f) {
         ak = asset ? asset.value : 'USDT',
         nt = (net && net.selectedOptions.length) ? net.selectedOptions[0].textContent.trim() : '',
         fee = parseFloat(($('gwFee') && $('gwFee').value) || '0') || 0,
-        col = k === 'card' ? '#3b82f6' : (k === 'nowpay' ? '#8b5cf6' : (k === 'hooshpay' ? '#f59e0b' : (COLORS[ak] || '#22c55e'))),
+        col = k === 'card' ? '#3b82f6' : (k === 'nowpay' ? '#8b5cf6' : (k === 'zarinpal' ? '#ffd400' : (k === 'hooshpay' ? '#f59e0b' : (COLORS[ak] || '#22c55e')))),
         val = '—';
 
     if (k === 'crypto') val = ($('gwAddr') && $('gwAddr').value.trim()) || '—';
     if (k === 'card')   val = ($('gwNum') && $('gwNum').value.trim()) || '—';
     if (k === 'nowpay') val = 'NOWPayments';
     if (k === 'hooshpay') val = 'HooshPay';
+    if (k === 'zarinpal') val = 'ZarinPal';
 
     pv.style.setProperty('--c', col);
     if (pvI) pvI.textContent = ic || (k === 'card' ? '💳' : (k === 'nowpay' ? '⚡️' : '🌐'));
