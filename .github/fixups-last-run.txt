@@ -1,131 +1,240 @@
 Python 3.12.3
-Thu Sep 24 13:08:37 UTC 2026
-patched: app/Service/Migrate.php ('test_ip'           =>)
-patched: app/Service/Svc.php (function setTestFp()
-patched: app/Service/Svc.php ('test_ip_max')
-patched: app/Service/Svc.php (self::testStampFp()
-wrote app/Service/Migrate.php
-wrote app/Service/Svc.php
+Thu Sep 24 13:13:57 UTC 2026
+patched: admin/pages/settings.php ($clamp('test_ip_max')
+patched: admin/pages/settings.php (name="test_ip_max")
+patched: miniapp/api.php (Svc::setTestFp()
+wrote admin/pages/settings.php
+wrote miniapp/api.php
 changed files: 2
-sanity app/Service/Migrate.php / 'test_ip'           => 'VARCHAR(64) NULL' : ok
-sanity app/Service/Svc.php / public static function setTestFp( : ok
-sanity app/Service/Svc.php / DB::setting('test_ip_max', '0') : ok
-sanity app/Service/Svc.php / DB::setting('test_device_unique', '0') : ok
-sanity app/Service/Svc.php / self::testStampFp((int)$user['id']); : ok
-sanity: 5/5
-===== settings.php: trial rules save-handlers =====
----- dump set_save : admin/pages/settings.php (3091 lines) ----
-   26 
-   27 if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
+sanity admin/pages/settings.php / $clamp('test_ip_max', 0, 0, 100); : ok
+sanity admin/pages/settings.php / name="test_ip_max" : ok
+sanity admin/pages/settings.php / name="test_device_unique" : ok
+sanity miniapp/api.php / Svc::setTestFp($maFpIp : ok
+sanity: 4/4
+===== Gateway.php surface =====
+---- funcs app/Service/Gateway.php ----
+  114 public static function raw(): array
+  120 public static function save(array $rows): void
+  133 public static function normalize(array $r): array
+  176 public static function all(): array
+  182 usort($rows, function (array $a, array $b) {
+  193 public static function importLegacy(): array
+  233 public static function byId(string $id): ?array
+  242 public static function forUser(string $kind, bool $isReseller = false): array
+  257 public static function crypto(bool $isReseller = false): array
+  262 public static function cards(bool $isReseller = false): array
+  270 public static function card(bool $isReseller = false): ?array
+  277 public static function cardOn(bool $isReseller = false): bool
+  292 public static function cryptoOn(bool $isReseller = false): bool
+  307 public static function nowpay(bool $isReseller = false): array
+  313 public static function nowpayOn(bool $isReseller = false): bool
+  328 public static function nowpayLabel(bool $isReseller = false): string
+  338 public static function hooshpay(bool $isReseller = false): array
+  344 public static function hooshpayOn(bool $isReseller = false): bool
+  360 public static function hooshpayLabel(bool $isReseller = false): string
+  373 public static function grouped(bool $isReseller = false): array
+  394 public static function upsert(array $in): array
+  431 public static function remove(string $id): bool
+  444 public static function toggle(string $id): bool
+  460 public static function move(string $id, int $dir): bool
+  480 public static function assetLabel(string $asset): string
+  489 public static function kindLabel(string $kind): string
+  496 public static function color(array $g): string
+  505 public static function shortAddr(string $s, int $head = 10, int $tail = 8): string
+  515 public static function netLabel(string $asset, string $net): string
+  523 public static function title(array $g): string
+  538 public static function priceBase(string $asset): string
+  545 public static function hasRate(array $g): bool
+  552 public static function qty(array $g, int $amount): float
+  569 public static function decimals(string $asset): int
+  578 public static function limits(array $g): array
+  593 public static function addresses(): array
+  605 public static function duplicate(string $id): ?array
+  624 public static function setAll(bool $on): int
+  638 public static function moveEdge(string $id, bool $top): bool
+  656 public static function stats(): array
+---- end funcs app/Service/Gateway.php (679 lines) ----
+---- dump gw_head : app/Service/Gateway.php (679 lines) ----
+    1 <?php
+    2 declare(strict_types=1);
+    3 
+    4 /**
+    5  * درگاه‌های پرداخت دستی (کارت به کارت و ارزی)
+    6  *
+    7  * برای هر ارز می‌توان چند درگاه با شبکه‌های مختلف ساخت؛
+    8  * مثلاً تتر روی ترون، تتر روی بی‌ان‌بی چین و تتر روی اتریوم.
+    9  * هر درگاه می‌تواند برای همه، فقط کاربران عادی یا فقط نمایندگان باشد.
+   10  */
+   11 class Gateway
+   12 {
+   13     public const KEY = 'pay_gateways';
+   14 
+   15     /** انواع درگاه */
+   16     public const KINDS = [
+   17         'crypto' => '🌐 ارز دیجیتال (دستی)',
+   18         'card'   => '💳 کارت بانکی',
+   19         'nowpay' => '⚡️ نوپیمنتس (خودکار)',
+   20         'hooshpay' => '🪙 هوش‌پی (کارت به کارت آنی)',
+   21     ];
+   22 
+   23     public const AUDIENCE = [
+   24         'all'      => '👥 همه',
+   25         'user'     => '🙋 فقط کاربران عادی',
+   26         'reseller' => '🏷 فقط نمایندگان',
+   27     ];
    28 
-   29     if ($act === 'adv') { /* fixed79: تنظیمات پیشرفته */
-   30         need('settings.bot', 'settings');
-   31         $clamp = static function (string $k, int $d, int $min, int $max): void { DB::setSetting($k, (string)max($min, min($max, pint($k, $d)))); };
-   32         $chk   = static function (string $k): void { DB::setSetting($k, (string)pchk($k)); };
-   33         /* اکانت تست */
-   34         $clamp('test_global_max', 0, 0, 1000);
-   35         $clamp('test_cooldown_days', 0, 0, 365);
-   36         $chk('test_cooldown_per_panel');
-   37         $clamp('test_min_age_hours', 0, 0, 24 * 365);
-   38         $chk('test_phone_unique');
-   39         $chk('test_panel_check');
-   40         /* تمدید خودکار و هشدارها */
-   41         $chk('arn_enabled');
-   42         $clamp('arn_hours', 24, 1, 24 * 30);
-   43         $clamp('arn_traffic', 95, 0, 100);
-   44         $clamp('expire_notify_days2', 1, 0, 30);
-   45         $clamp('traffic_notify_percent', 85, 1, 100);
-   46         /* حذف خودکار تمام‌شده‌ها */
-   47         $chk('svc_autodel_on');
-   48         $clamp('svc_autodel_days', 3, 1, 60);
----- end dump set_save ----
-===== settings.php: trial rules form =====
----- dump set_form : admin/pages/settings.php (3091 lines) ----
- 2818     <div class="card-head">
- 2819       <div><div class="card-title">🧩 تنظیمات پیشرفته</div>
- 2820         <div class="card-sub">گزینه‌هایی که تا قبل فقط از داخل ربات (پنل مدیریت) قابل تغییر بودند؛ هر دو جا روی یک تنظیم کار می‌کنند.</div></div>
- 2821     </div>
- 2822 
- 2823     <div class="fieldset">
- 2824       <div class="lg">🧪 اکانت تست</div>
- 2825       <div class="fs-hint">حجم/مدت/سقف هر سرور در «پنل‌ها» تنظیم می‌شود (بر حسب گیگ یا مگابایت)؛ این‌جا قوانین عمومی ضد سوءاستفاده است. فعال/غیرفعال بودن کل تست در تب «ربات» است.</div>
- 2826       <div class="form-grid g2 mt3">
- 2827         <div class="field"><label>سقف کل تست هر کاربر (همهٔ سرورها)</label>
- 2828           <input class="mono" type="number" min="0" name="test_global_max" value="<?= (int)$SET('test_global_max', 0) ?>"><div class="hint">۰ = فقط سقف هر سرور اعمال شود</div></div>
- 2829         <div class="field"><label>فاصلهٔ بین دو تست (روز)</label>
- 2830           <input class="mono" type="number" min="0" name="test_cooldown_days" value="<?= (int)$SET('test_cooldown_days', 0) ?>"><div class="hint">۰ = بدون محدودیت</div></div>
- 2831         <div class="field"><label>حداقل عمر حساب کاربر در ربات (ساعت)</label>
- 2832           <input class="mono" type="number" min="0" name="test_min_age_hours" value="<?= (int)$SET('test_min_age_hours', 0) ?>"><div class="hint">جلوگیری از اکانت‌های تازه‌ساز</div></div>
- 2833       </div>
- 2834       <label class="check"><input type="checkbox" name="test_cooldown_per_panel" value="1" <?= $on('test_cooldown_per_panel') ?>><span>فاصلهٔ بین دو تست برای هر سرور جدا حساب شود (تست سرور A مانع تست سرور B نباشد)</span> ...
- 2835       <label class="check"><input type="checkbox" name="test_phone_unique" value="1" <?= $on('test_phone_unique', '1') ?>><span>هر شمارهٔ موبایل تاییدشده فقط یک تست</span></label>
- 2836       <label class="check"><input type="checkbox" name="test_panel_check" value="1" <?= $on('test_panel_check', '1') ?>><span>بررسی مستقیم پنل با آیدی تلگرام (کلاینت قدیمی حتی اگر از ربات پاک شده باشد)</span></label>
- 2837     </div>
- 2838 
- 2839     <div class="fieldset">
- 2840       <div class="lg">🔁 تمدید خودکار و هشدارها</div>
- 2841       <label class="check"><input type="checkbox" name="arn_enabled" value="1" <?= $on('arn_enabled') ?>><span>تمدید خودکار از کیف پول (کاربر باید روی سرویس فعال کند)</span></label>
- 2842       <div class="form-grid g2 mt3">
- 2843         <div class="field"><label>چند ساعت قبل از انقضا تمدید شود</label>
- 2844           <input class="mono" type="number" min="1" name="arn_hours" value="<?= (int)$SET('arn_hours', 24) ?>"></div>
- 2845         <div class="field"><label>تمدید در چند درصد مصرف حجم</label>
- 2846           <input class="mono" type="number" min="0" max="100" name="arn_traffic" value="<?= (int)$SET('arn_traffic', 95) ?>"><div class="hint">۰ = فقط بر اساس زمان</div></div>
- 2847         <div class="field"><label>هشدار دوم انقضا (روز قبل)</label>
- 2848           <input class="mono" type="number" min="0" name="expire_notify_days2" value="<?= (int)$SET('expire_notify_days2', 1) ?>"><div class="hint">هشدار اول در تب «ربات» تنظیم می‌شود؛ ۰ = خاموش</div></div>
----- end dump set_form ----
-===== mini-app: client ip context =====
----- dump ma_ip : miniapp/api.php (2932 lines) ----
-  218     if (!is_array($tgUser) || (int)($tgUser['id'] ?? 0) <= 0) {
-  219         return ['ok' => false, 'user' => [], 'message' => 'شناسهٔ کاربر تلگرام یافت نشد.'];
-  220     }
-  221 
-  222     return ['ok' => true, 'user' => $tgUser, 'message' => ''];
-  223 }
-  224 
-  225 $auth = ma_auth($initData);
-  226 if (!$auth['ok']) {
-  227     /* 0.0.2 #7-log: گزارش تلاش‌های پی‌درپی برای دور زدن اعتبارسنجی تلگرام */
-  228     try {
-  229         if (class_exists('RateLimit') && class_exists('Logs')) {
-  230             $maIp  = class_exists('Guard') ? Guard::clientIp() : (string)($_SERVER['REMOTE_ADDR'] ?? '');
-  231             $maBad = RateLimit::hit('ma:bad:' . ($maIp !== '' ? $maIp : 'unknown'), 20, 600);
-  232             if ((int)($maBad['count'] ?? 0) === 21) {
-  233                 Logs::send('security', Logs::fmt('🚫 تلاش‌های ناموفق ورود به مینی‌اپ', [
-  234                     'آی‌پی' => $maIp !== '' ? $maIp : '-',
-  235                     'تعداد' => 'بیش از ۲۰ بار در ۱۰ دقیقه',
-  236                     'پیام'  => mb_substr((string)$auth['message'], 0, 60),
-  237                 ]));
-  238             }
-  239         }
-  240     } catch (Throwable $e) { }
-  241     ma_fail($auth['message'], 401);
-  242 }
-  243 
-  244 $tg   = (int)$auth['user']['id'];
-  245 
-  246 /* 0.0.2 #7-rate: محدودیت نرخ درخواست بر پایهٔ شناسهٔ تلگرام (نه آی‌پی؛ اپراتورهای ایران آی‌پی مشترک می‌دهند) */
-  247 if (class_exists('RateLimit')) {
-  248     $maMax = (int)DB::setting('ma_rate_per_min', '240');
----- end dump ma_ip ----
-===== trial entry points =====
----- grep: Svc::test ----
-admin/pages/panels.php:461: <span class="badge b-orange">🧪 تست <?= h(Svc::testVolumeLabel($p)) ?></span>
-miniapp/api.php:914: 'volume_gb' => Svc::testVolumeGb($tpn), /* fixed79 */
-miniapp/api.php:916: 'spec'      => Svc::testVolumeLabel($tpn),
----- end grep: Svc::test (3) ----
----- grep: clientIp() ----
-admin/index.php:41: $clientIp   = class_exists('Guard') ? Guard::clientIp() : (string)($_SERVER['REMOTE_ADDR'] ?? '');
-app/Service/Guard.php:150: public static function clientIp(): string
-app/Service/RateLimit.php:101: $ip = class_exists('Guard') ? Guard::clientIp() : (string)($_SERVER['REMOTE_ADDR'] ?? '');
-miniapp/api.php:230: $maIp  = class_exists('Guard') ? Guard::clientIp() : (string)($_SERVER['REMOTE_ADDR'] ?? '');
----- end grep: clientIp() (4) ----
-===== users INDEXES block =====
----- grep: 'users' => [ ----
-app/Service/Migrate.php:21: 'users' => [
-app/Service/Migrate.php:157: 'users' => [
-app/Service/Perm.php:74: 'users' => [
----- end grep: 'users' => [ (3) ----
+   29     /** شبکه‌های پیشنهادی هر ارز */
+   30     public const NETWORKS = [
+   31         'USDT' => [
+   32             'TRC20'    => 'ترون • TRC20',
+   33             'BEP20'    => 'بی‌ان‌بی چین • BEP20',
+   34             'ERC20'    => 'اتریوم • ERC20',
+   35             'TON'      => 'تون • Jetton',
+   36             'POLYGON'  => 'پالیگان • Polygon',
+   37             'ARBITRUM' => 'آربیتروم • Arbitrum',
+   38             'OPTIMISM' => 'اپتیمیزم • Optimism',
+   39             'BASE'     => 'بیس • Base',
+   40             'SOL'      => 'سولانا • SPL',
+   41             'AVAX'     => 'آوالانچ • C-Chain',
+   42             'APTOS'    => 'اپتاس • Aptos',
+   43             'NEAR'     => 'نیر • NEAR',
+   44         ],
+   45         'USDC' => [
+   46             'ERC20'    => 'اتریوم • ERC20',
+   47             'TRC20'    => 'ترون • TRC20',
+   48             'BEP20'    => 'بی‌ان‌بی چین • BEP20',
+   49             'POLYGON'  => 'پالیگان • Polygon',
+   50             'ARBITRUM' => 'آربیتروم • Arbitrum',
+   51             'BASE'     => 'بیس • Base',
+   52             'SOL'      => 'سولانا • SPL',
+   53             'AVAX'     => 'آوالانچ • C-Chain',
+   54         ],
+   55         'DAI'  => ['ERC20' => 'اتریوم • ERC20', 'POLYGON' => 'پالیگان • Polygon', 'ARBITRUM' => 'آربیتروم • Arbitrum', 'BEP20' => 'بی‌ان‌بی چین • BEP20'],
+   56         'TON'  => ['TON' => 'تون • TON'],
+   57         'NOT'  => ['TON' => 'تون • Jetton'],
+   58         'TRX'  => ['TRON' => 'ترون • TRX'],
+   59         'BTC'  => ['BTC' => 'بیت‌کوین • BTC', 'LN' => 'لایتنینگ • LN', 'BEP20' => 'بی‌ان‌بی چین • BTCB'],
+   60         'ETH'  => ['ERC20' => 'اتریوم • ERC20', 'ARBITRUM' => 'آربیتروم • Arbitrum', 'BASE' => 'بیس • Base', 'OPTIMISM' => 'اپتیمیزم • Optimism', 'ZKSYNC' => 'زدکی‌سینک • zkSync', 'BEP20' => 'بی‌ان‌بی چین • BEP20'],
+   61         'BNB'  => ['BEP20' => 'بی‌ان‌بی چین • BEP20', 'OPBNB' => 'اپ‌بی‌ان‌بی • opBNB'],
+   62         'SOL'  => ['SOL' => 'سولانا • SPL'],
+   63         'LTC'  => ['LTC' => 'لایت‌کوین • LTC'],
+   64         'DOGE' => ['DOGE' => 'دوج‌کوین • DOGE', 'BEP20' => 'بی‌ان‌بی چین • BEP20'],
+   65         'XRP'  => ['XRP' => 'ریپل • XRP Ledger'],
+   66         'ADA'  => ['ADA' => 'کاردانو • Cardano'],
+   67         'AVAX' => ['AVAX' => 'آوالانچ • C-Chain'],
+   68         'POL'  => ['POLYGON' => 'پالیگان • Polygon'],
+   69         'SHIB' => ['ERC20' => 'اتریوم • ERC20', 'BEP20' => 'بی‌ان‌بی چین • BEP20'],
+   70         'XMR'  => ['XMR' => 'مونرو • Monero'],
+---- end dump gw_head ----
+===== gateway drivers / keys =====
+---- grep: pay_gateways ----
+app/Service/Gateway.php:13: public const KEY = 'pay_gateways';
+app/Service/Migrate.php:285: 'pay_gateways' => '[]', 'pay_gw_migrated' => '0',
+database/migrations/0006_gateways_texts_buttons.sql:6: ('pay_gateways',      '[]'),
+database/schema.sql:347: ('pay_gateways','[]'),
+---- end grep: pay_gateways (4) ----
+---- grep: 'nowpay' ----
+admin/pages/dashboard.php:147: $m_payPending = (int)$d_val("SELECT COUNT(*) FROM {p}transactions WHERE status = 'pending' AND method NOT IN ('hooshpay','nowpay')");
+admin/pages/dashboard.php:148: $m_paySum     = (float)$d_val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'pending' AND method NOT IN ('hooshpay','nowpay')");
+admin/pages/dashboard.php:240: 'nowpay'  => 'ناوپیمنت',
+admin/pages/dashboard.php:311: WHERE t.status = 'pending' AND t.method NOT IN ('hooshpay','nowpay') ORDER BY t.id DESC LIMIT 5");
+admin/pages/gateways.php:39: if (ptxt('kind') === 'nowpay') {
+admin/pages/gateways.php:121: 'nowpay' => (int)($st['nowpay'] ?? 0),
+admin/pages/gateways.php:301: <div class="sub"><?= fa_num($cnt['nowpay']) ?> درگاه نوپیمنتس</div></div>
+admin/pages/gateways.php:319: <button type="button" data-f="nowpay">⚡️ خودکار <i><?= fa_num($cnt['nowpay']) ?></i></button>
+admin/pages/gateways.php:378: $isNp   = $g['kind'] === 'nowpay';
+admin/pages/gateways.php:565: 'nowpay' => 'شارژ خودکار با NOWPayments',
+admin/pages/gateways.php:572: elseif ($kk === 'nowpay')    $ic = '⚡️';
+admin/pages/gateways.php:828: if (bn) bn.style.display = k === 'nowpay' ? '' : 'none';
+admin/pages/gateways.php:854: col = k === 'card' ? '#3b82f6' : (k === 'nowpay' ? '#8b5cf6' : (k === 'hooshpay' ? '#f59e0b' : (COLORS[ak] || '#22c55e'))),
+admin/pages/gateways.php:859: if (k === 'nowpay') val = 'NOWPayments';
+admin/pages/gateways.php:863: if (pvI) pvI.textContent = ic || (k === 'card' ? '💳' : (k === 'nowpay' ? '⚡️' : '🌐'));
+admin/pages/payments.php:19: 'nowpay'   => ['نوپیمنتس (خودکار)', '🤖'],
+---- end grep: 'nowpay' (truncated) ----
+---- grep: 'hooshpay' ----
+admin/pages/dashboard.php:147: $m_payPending = (int)$d_val("SELECT COUNT(*) FROM {p}transactions WHERE status = 'pending' AND method NOT IN ('hooshpay','nowpay')");
+admin/pages/dashboard.php:148: $m_paySum     = (float)$d_val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'pending' AND method NOT IN ('hooshpay','nowpay')");
+admin/pages/dashboard.php:311: WHERE t.status = 'pending' AND t.method NOT IN ('hooshpay','nowpay') ORDER BY t.id DESC LIMIT 5");
+admin/pages/gateways.php:47: if (ptxt('kind') === 'hooshpay') {
+admin/pages/gateways.php:379: $isHp   = $g['kind'] === 'hooshpay';
+admin/pages/gateways.php:566: 'hooshpay' => 'کارت به کارت آنی با هوش‌پی',
+admin/pages/gateways.php:573: elseif ($kk === 'hooshpay')  $ic = '🪙';
+admin/pages/gateways.php:829: if (bh) bh.style.display = k === 'hooshpay' ? '' : 'none';
+admin/pages/gateways.php:854: col = k === 'card' ? '#3b82f6' : (k === 'nowpay' ? '#8b5cf6' : (k === 'hooshpay' ? '#f59e0b' : (COLORS[ak] || '#22c55e'))),
+admin/pages/gateways.php:860: if (k === 'hooshpay') val = 'HooshPay';
+admin/pages/payments.php:18: 'hooshpay' => ['هوش‌پی (خودکار)', '🪙'],
+admin/pages/payments.php:111: $autoList = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay'";
+admin/pages/payments.php:188: if ($mth === 'hooshpay' && class_exists('HooshPay'))   $pr = HooshPay::poll($tx);
+admin/pages/payments.php:291: $autoIn   = class_exists('Wallet') ? Wallet::autoSqlList() : "'hooshpay','nowpay'";
+app/Bot/AdminBot.php:489: 'hooshpay' => '🪙 هوش‌پی (خودکار)', 'nowpay' => '🤖 نوپیمنتس (خودکار)'];
+app/Bot/Bot.php:570: case 'wal_hp':     self::askAmount($chatId, 'hooshpay'); return true;
+---- end grep: 'hooshpay' (truncated) ----
+---- grep: zarinpal ----
+---- end grep: zarinpal (0) ----
+===== admin gateways page head =====
+---- dump gw_page : admin/pages/gateways.php (918 lines) ----
+    1 <?php
+    2 /** درگاه‌های پرداخت — ارز دیجیتال، کارت بانکی و پرداخت خودکار */
+    3 
+    4 if (!can('gateways.view')) { echo denyBox('بخش درگاه‌های پرداخت برای شما فعال نیست.'); return; }
+    5 
+    6 if (!class_exists('Gateway')) {
+    7     echo '<div class="card"><div class="alert a-err">ماجول درگاه پیدا نشد. فایل <code>app/Service/Gateway.php</code> را بررسی کنید.</div></div>';
+    8     return;
+    9 }
+   10 
+   11 $act = (string)($_POST['act'] ?? '');
+   12 
+   13 if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
+   14 
+   15     if ($act === 'save') { need('gateways.edit', 'gateways');
+   16         $fee = function_exists('pflt') ? (float)pflt('fee') : (float)str_replace(',', '.', ptxt('fee'));
+   17 
+   18         $r = Gateway::upsert([
+   19             'id'       => ptxt('id'),
+   20             'kind'     => ptxt('kind'),
+   21             'enabled'  => pchk('enabled'),
+   22             'audience' => ptxt('audience'),
+   23             'label'    => ptxt('label'),
+   24             'icon'     => ptxt('icon'),
+   25             'asset'    => ptxt('asset'),
+   26             'network'  => ptxt('network_custom') !== '' ? ptxt('network_custom') : ptxt('network'),
+   27             'address'  => ptxt('address'),
+   28             'memo'     => ptxt('memo'),
+   29             'number'   => ptxt('number'),
+   30             'holder'   => ptxt('holder'),
+   31             'bank'     => ptxt('bank'),
+   32             'sheba'    => ptxt('sheba'),
+   33             'note'     => ptxt('note'),
+   34             'min'      => pint('min'),
+   35             'max'      => pint('max'),
+   36             'fee'      => $fee,
+   37         ]);
+   38 
+   39         if (ptxt('kind') === 'nowpay') {
+   40             DB::setSetting('nowpay_api_key',    ptxt('np_key'));
+   41             DB::setSetting('nowpay_ipn_secret', ptxt('np_ipn'));
+   42             DB::setSetting('nowpay_min_usd',    (string)max(1, pint('np_min', 5)));
+   43             DB::setSetting('nowpay_currency',   strtolower(ptxt('np_cur')));
+   44             DB::setSetting('nowpay_enabled',    (string)pchk('enabled'));
+   45         }
+   46 
+   47         if (ptxt('kind') === 'hooshpay') {
+   48             DB::setSetting('hp_api_key',  ptxt('hp_key', 200));
+   49             DB::setSetting('hp_secret',   ptxt('hp_secret', 200));
+   50             DB::setSetting('hp_fee_mode', ptxt('hp_fee_mode', 20));
+   51             DB::setSetting('hp_unit',     ptxt('hp_unit', 20));
+   52             DB::setSetting('hp_min',      (string)max(0, pint('hp_min', 0)));
+   53             DB::setSetting('hp_max',      (string)max(0, pint('hp_max', 0)));
+   54             DB::setSetting('hp_audience', ptxt('hp_audience', 20));
+   55             DB::setSetting('hp_desc',     ptxt('hp_desc', 200));
+   56             DB::setSetting('hp_label',    ptxt('label', 120));
+   57             DB::setSetting('hp_icon',     ptxt('icon', 20));
+   58             DB::setSetting('hp_enabled',  (string)pchk('enabled'));
+   59         }
+   60 
+---- end dump gw_page ----
 changelog: entry added
-build: fixed152 (was fixed151)
+build: fixed153 (was fixed152)
 exit: 0
 exit: 0

@@ -243,6 +243,12 @@ if (!$auth['ok']) {
 
 $tg   = (int)$auth['user']['id'];
 
+/* 0.0.2 #19: request fingerprint for trial-abuse rules (real client ip, only here - not on the bot webhook) */
+if (class_exists('Svc')) {
+    $maFpIp = class_exists('Guard') ? Guard::clientIp() : (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    Svc::setTestFp($maFpIp, (string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
+}
+
 /* 0.0.2 #7-rate: محدودیت نرخ درخواست بر پایهٔ شناسهٔ تلگرام (نه آی‌پی؛ اپراتورهای ایران آی‌پی مشترک می‌دهند) */
 if (class_exists('RateLimit')) {
     $maMax = (int)DB::setting('ma_rate_per_min', '240');

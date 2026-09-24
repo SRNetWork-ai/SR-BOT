@@ -37,6 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
         $clamp('test_min_age_hours', 0, 0, 24 * 365);
         $chk('test_phone_unique');
         $chk('test_panel_check');
+        $clamp('test_ip_max', 0, 0, 100);   /* 0.0.2 #19 */
+        $chk('test_device_unique');         /* 0.0.2 #19 */
         /* تمدید خودکار و هشدارها */
         $chk('arn_enabled');
         $clamp('arn_hours', 24, 1, 24 * 30);
@@ -2833,6 +2835,11 @@ items: 7
       </div>
       <label class="check"><input type="checkbox" name="test_cooldown_per_panel" value="1" <?= $on('test_cooldown_per_panel') ?>><span>فاصلهٔ بین دو تست برای هر سرور جدا حساب شود (تست سرور A مانع تست سرور B نباشد)</span></label>
       <label class="check"><input type="checkbox" name="test_phone_unique" value="1" <?= $on('test_phone_unique', '1') ?>><span>هر شمارهٔ موبایل تاییدشده فقط یک تست</span></label>
+      <div class="form-grid g2 mt3">
+        <div class="field"><label>سقف اکانت تست برای هر IP</label>
+          <input class="mono" type="number" min="0" name="test_ip_max" value="<?= (int)$SET('test_ip_max', 0) ?>"><div class="hint">۰ = خاموش · فقط برای مینی‌اپ و وب</div></div>
+      </div>
+      <label class="check"><input type="checkbox" name="test_device_unique" value="1" <?= $on('test_device_unique') ?>><span>هر دستگاه فقط یک اکانت تست</span></label>
       <label class="check"><input type="checkbox" name="test_panel_check" value="1" <?= $on('test_panel_check', '1') ?>><span>بررسی مستقیم پنل با آیدی تلگرام (کلاینت قدیمی حتی اگر از ربات پاک شده باشد)</span></label>
     </div>
 
