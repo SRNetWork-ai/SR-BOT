@@ -1,171 +1,95 @@
 Python 3.12.3
-Thu Sep 24 22:56:22 UTC 2026
-===== method existence =====
-ok       sectionProducts            app/Bot/Bot.php:1905
-ok       sectionServices            app/Bot/Bot.php:2998
-MISSING  sectionWallet
-MISSING  sectionAccount
-MISSING  sectionTest
-MISSING  sectionTutorials
-MISSING  sectionSupport
-MISSING  sectionReseller
-MISSING  sectionReferral
-MISSING  sectionStock
-ok       sectionOrders              app/Bot/Bot.php:2277
-ok       sectionCampaign            app/Bot/Bot.php:2351
-MISSING  sectionResellerServices
-ok       cusMenu                    app/Bot/Bot.php:2517
-MISSING  walletCardMenu
-MISSING  walletHistory
-ok       cryptoAssets               app/Bot/Bot.php:644
-MISSING  askAmount
-MISSING  verifyMenu
-MISSING  referralList
-ok       priceList                  app/Bot/Bot.php:2321
-MISSING  resellerRequest
-ok       mainMenu                   app/Bot/Bot.php:899
-ok       kbMain                     app/Bot/Bot.php:890
-MISSING  miniappBtn
-ok       attachLooseReceipt         app/Bot/Bot.php:1795
-ok       handleState                app/Bot/AdminBot.php:664
-ok       runButton                  app/Bot/Bot.php:452
-ok       openBtnMenu                app/Bot/Bot.php:432
-ok       setState                   app/Bot/AdminHub.php:309
-ok       stateData                  app/Bot/Bot.php:89
-ok       waitMsg                    app/Bot/Bot.php:330
-ok       waitEdit                   app/Bot/Bot.php:337
-ok       isAdmin                    app/Bot/Bot.php:91
-ok       tx                         app/Bot/Bot.php:413
-ok       verifyGate                 app/Bot/Bot.php:349
-ok       cusProducts                app/Bot/Bot.php:2217
-missing count: 16
-missing list: sectionWallet, sectionAccount, sectionTest, sectionTutorials, sectionSupport, sectionReseller, sectionReferral, sectionStock, sectionResellerServices, walletCardMenu, walletHistory, askAmount, verifyMenu, referralList, resellerRequest, miniappBtn
-===== app/Bot files =====
-app/Bot/AdminBot.php                  73445 B   1311 lines
-app/Bot/AdminHub.php                 120043 B   1710 lines
-app/Bot/Bot.php                      165272 B   3104 lines
-app/Bot/Kb.php                         3867 B    103 lines
-app/Tg.php                            12030 B    283 lines
-===== traits / class heads =====
----- grep: trait  ----
----- end grep: trait  (0) ----
----- grep: class Bot ----
-app/Bot/Bot.php:7: class Bot
----- end grep: class Bot (1) ----
-===== Bot.php head =====
----- dump bot_head : app/Bot/Bot.php (3104 lines) ----
-    1 <?php
-    2 declare(strict_types=1);
-    3 
-    4 /**
-    5  * مغز ربات: دریافت آپدیت‌ها و مدیریت بخش‌ها
-    6  */
-    7 class Bot
-    8 {
-    9     public static array $u = [];
-   10 
-   11     public static function handle(array $update): void
-   12     {
-   13         try {
-   14             /* محدودساز پیام: جلوی اسپم پیام و کلیک گرفته می‌شود — مدیران معاف‌اند */
-   15             if (class_exists('Flood')) {
-   16                 $fFrom = (int)($update['message']['from']['id'] ?? $update['callback_query']['from']['id'] ?? 0);
-   17                 if ($fFrom > 0) {
-   18                     $fRes = Flood::hit($fFrom);
-   19                     if ($fRes !== 'ok') {
-   20                         if ($fRes === 'notice') {
-   21                             if (isset($update['callback_query']['id'])) {
-   22                                 Tg::answerCb((string)$update['callback_query']['id'], '⏳ تعداد درخواست‌های شما زیاد است؛ چند لحظه صبر کنید.', true);
-   23                             } else {
-   24                                 Tg::send($fFrom, '⏳ تعداد پیام‌های شما زیاد است؛ لطفاً چند لحظه صبر کنید.');
-   25                             }
-   26                         }
-   27                         return;
-   28                     }
-   29                 }
-   30             }
-   31             if (isset($update['message'])) {
-   32                 self::onMessage($update['message']);
-   33             } elseif (isset($update['callback_query'])) {
-   34                 self::onCallback($update['callback_query']);
-   35             }
-   36         } catch (Throwable $e) {
-   37             app_log('bot', 'exception: ' . $e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine()]);
-   38         }
-   39     }
-   40 
----- end dump bot_head ----
-===== Bot.php tail =====
----- dump bot_tail : app/Bot/Bot.php (3104 lines) ----
- 3079             Tg::send($chatId, 'ℹ️ این سرویس لینک Happ ندارد.');
- 3080             return;
- 3081         }
- 3082 
- 3083         $happ = Links::happ($s);
- 3084         $ext  = Links::external($s);
- 3085 
- 3086         $txt = "⚡ <b>افزودن به Happ</b>\n"
- 3087             . '<code>─────────────────</code>' . "\n";
- 3088         if ($happ !== '') {
- 3089             $txt .= "لینک زیر را کپی کنید و در اپلیکیشن Happ بزنید روی «+» ← Import from clipboard:\n\n"
- 3090                 . '<code>' . h($happ) . '</code>' . "\n";
- 3091         } else {
- 3092             $txt .= "لینک Happ برای این سرویس در دسترس نیست.\n";
- 3093         }
- 3094         /* 0.0.2 #happ-plain-off: آدرس خام اشتراک عمداً نمایش داده نمی‌شود تا فقط لینک رمزنگاری‌شدهٔ Happ به مشتری برسد و محدودیت هاردویر دور زده نشود */
- 3095         $txt .= "\n<i>ویرایش حجم، حذف و عودت وجه این کانفیگ از پنل نمایندگی انجام می‌شود.</i>";
- 3096         $rows = [
- 3097             [Tg::btn('🧩 همهٔ کانفیگ‌های نمایندگی', 'rs:svcs')],
- 3098             Kb::navRow('rs:panel'),
- 3099         ];
- 3100         $msgId ? Tg::edit($chatId, $msgId, $txt, Tg::ikb($rows)) : Tg::send($chatId, $txt, Tg::ikb($rows));
- 3101     }
- 3102 
- 3103 }
- 3104 
----- end dump bot_tail ----
-===== self::section callers =====
----- grep: self::section ----
-app/Bot/Bot.php:183: case Kb::PRODUCTS: self::sectionProducts($chatId); return;
-app/Bot/Bot.php:185: case Kb::SERVICES: self::sectionServices($chatId); return;
-app/Bot/Bot.php:186: case Kb::WALLET:   self::sectionWallet($chatId); return;
-app/Bot/Bot.php:187: case Kb::ACCOUNT:  self::sectionAccount($chatId); return;
-app/Bot/Bot.php:188: case Kb::TEST:     self::sectionTest($chatId); return;
-app/Bot/Bot.php:193: case Kb::TUTORIAL: self::sectionTutorials($chatId); return;
-app/Bot/Bot.php:194: case Kb::SUPPORT:  self::sectionSupport($chatId); return;
-app/Bot/Bot.php:195: case Kb::RESELLER: self::sectionReseller($chatId); return;
-app/Bot/Bot.php:539: case 'products': self::sectionProducts($chatId, $msgId); return true;
-app/Bot/Bot.php:541: case 'services': self::sectionServices($chatId, $msgId); return true;
-app/Bot/Bot.php:542: case 'wallet':   self::sectionWallet($chatId, $msgId); return true;
-app/Bot/Bot.php:543: case 'account':  self::sectionAccount($chatId); return true;
-app/Bot/Bot.php:544: case 'test':     self::sectionTest($chatId); return true;
-app/Bot/Bot.php:549: case 'tutorial': self::sectionTutorials($chatId); return true;
-app/Bot/Bot.php:550: case 'support':  self::sectionSupport($chatId, $msgId); return true;
-app/Bot/Bot.php:552: case 'tickets':  self::sectionSupport($chatId, $msgId); return true;
-app/Bot/Bot.php:553: case 'renew':    self::sectionServices($chatId, $msgId); return true;
-app/Bot/Bot.php:554: case 'campaign': self::sectionCampaign($chatId); return true;
-app/Bot/Bot.php:556: case 'orders':   self::sectionOrders($chatId); return true; /* fixed79 */
-app/Bot/Bot.php:557: case 'reseller': self::sectionReseller($chatId); return true;
-app/Bot/Bot.php:560: if (self::isRs()) self::sectionResellerServices($chatId, $msgId);
-app/Bot/Bot.php:561: else self::sectionServices($chatId, $msgId);
-app/Bot/Bot.php:563: case 'referral': self::sectionReferral($chatId, $msgId); return true;
-app/Bot/Bot.php:564: case 'stock':    self::sectionStock($chatId, $msgId); return true;
-app/Bot/Bot.php:594: else self::sectionAccount($chatId);
-app/Bot/Bot.php:991: elseif ($arg === 'products') self::sectionProducts($chatId, $msgId);
-app/Bot/Bot.php:992: elseif ($arg === 'services') self::sectionServices($chatId, $msgId);
-app/Bot/Bot.php:993: elseif ($arg === 'wallet') self::sectionWallet($chatId, $msgId);
-app/Bot/Bot.php:998: elseif ($arg === 'ref') self::sectionReferral($chatId, $msgId);
-app/Bot/Bot.php:999: elseif ($arg === 'support') self::sectionSupport($chatId, $msgId);
-app/Bot/Bot.php:1005: else self::sectionReferral($chatId, $msgId);
-app/Bot/Bot.php:1012: case 'tst':  Tg::answerCb($cbId); self::sectionTest($chatId, (int)$arg, $msgId); return;
-app/Bot/Bot.php:1016: elseif ($arg === 'svcs') self::sectionResellerServices($chatId, $msgId);
-app/Bot/Bot.php:1017: elseif ($arg === 'panel') self::sectionReseller($chatId);
-app/Bot/Bot.php:1069: case 'test': self::sectionTest($chatId); Tg::answerCb($cbId); return;
-app/Bot/Bot.php:1112: self::sectionAccount($chatId, $msgId);
-app/Bot/Bot.php:1184: self::sectionAccount($chatId);
-app/Bot/Bot.php:1212: self::sectionAccount($chatId);
-app/Bot/Bot.php:1220: self::sectionAccount($chatId);
-app/Bot/Bot.php:1231: self::sectionAccount($chatId);
----- end grep: self::section (truncated) ----
+Thu Sep 24 23:02:52 UTC 2026
+current app/Bot/Bot.php: 3104 lines, 165272 bytes
+===== history probe =====
+2026-09-11 upload    02d49e6b     4727 lines    245620 B  sectionWallet=YES
+2026-09-12 fixed83   1b73ed1a     4852 lines    252732 B  sectionWallet=YES
+2026-09-12 fixed84   ed9f457a     4852 lines    252746 B  sectionWallet=YES
+2026-09-20 a         767d1bf0     4931 lines    256432 B  sectionWallet=YES
+2026-09-20 b         d01982d4     4977 lines    258587 B  sectionWallet=YES
+2026-09-23 a         97ffa749     4991 lines    259671 B  sectionWallet=YES
+2026-09-23 b         c67bd4be     5005 lines    260424 B  sectionWallet=YES
+2026-09-23 c         27cd62c9     5020 lines    261841 B  sectionWallet=YES
+2026-09-23 d         2a2603ce     5036 lines    262524 B  sectionWallet=YES
+2026-09-24 a         e60553e1     3062 lines    162504 B  sectionWallet=no
+2026-09-24 b         e3e68241     3064 lines    162675 B  sectionWallet=no
+2026-09-24 c         1ac3677f     3104 lines    165272 B  sectionWallet=no
+reference chosen: 2026-09-23 d (2a2603ce)
+members: reference=133 current=68
+===== members to restore (65) =====
+  + devicesView
+  + deviceDel
+  + deviceClear
+  + sendSub
+  + sendConfig
+  + sendSpec
+  + syncService
+  + delOptions
+  + doDelete
+  + purgeDeadView
+  + doPurgeDead
+  + renewOptions
+  + doRenew
+  + sectionTest
+  + testPanelMenu
+  + sectionAccount
+  + sectionWallet
+  + walletCardMenu
+  + walletCardStart
+  + cardMenu
+  + cardAskPan
+  + cardAskPanText
+  + cardDelete
+  + cardSave
+  + askAmount
+  + checkNowPay
+  + payMethodOn
+  + walletMissingRows
+  + checkHooshPay
+  + walletHistory
+  + sectionTutorials
+  + showTutorials
+  + showTutorial
+  + sectionSupport
+  + showTicket
+  + verifyMenu
+  + verifyLink
+  + verifyResend
+  + resellerRequest
+  + sectionReseller
+  + miniappLabel
+  + miniappUrl
+  + rsAppUrl
+  + cardAppUrl
+  + miniappOn
+  + muteStart
+  + muteRows
+  + dropReplyKb
+  + muteRoute
+  + resellerAppUrl
+  + miniappBtn
+  + miniappSectionBtn
+  + setMenuButton
+  + sectionStock
+  + stockCat
+  + stockBuy
+  + stockMine
+  + stockResend
+  + stockCb
+  + sectionReferral
+  + referralList
+  + gauge
+  + resellerService
+  + sectionResellerServices
+  + showResellerService
+missing consts/props: none
+wrote app/Bot/Bot.php -> 5031 lines, 263711 bytes
+changed files: 1
+members after merge: 133
+unresolved self:: calls: isAdmin, onMessage
+unresolved Kb:: constants: none
+duplicate members: none
+changelog: entry added
+build: fixed166 (was fixed162)
 exit: 0
 exit: 0
