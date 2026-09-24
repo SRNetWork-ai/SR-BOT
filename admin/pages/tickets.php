@@ -51,6 +51,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
     $id = pint('id');
     $tk = $id ? DB::one('SELECT t.*, u.tg_id AS utg, u.first_name FROM {p}tickets t LEFT JOIN {p}users u ON u.id = t.user_id WHERE t.id = :id', [':id' => $id]) : null;
 
+    /* 0.0.2 #21: اولویت و دستهٔ تیکت */
+    if ($tk && $act === 'tkmeta') {
+        need('tickets.reply', 'tickets');
+        $pr  = (string)($_POST['priority'] ?? 'normal');
+        $cat = trim((string)($_POST['category'] ?? ''));
+        if (!in_array($pr, ['low', 'normal', 'high', 'urgent'], true)) $pr = 'normal';
+        if (function_exists('mb_substr') && mb_strlen($cat, 'UTF-8') > 32) $cat = mb_substr($cat, 0, 32, 'UTF-8');
+        $hasPr  = !class_exists('Migrate') || Migrate::hasColumn('tickets', 'priority');
+        $hasCat = !class_exists('Migrate') || Migrate::hasColumn('tickets', 'category');
+        $up = ['updated_at' => now()];
+        if ($hasPr)  $up['priority'] = $pr;
+        if ($hasCat) $up['category'] = ($cat !== '' ? $cat : null);
+        if (count($up) > 1) {
+            DB::update('tickets', $up, 'id = :id', [':id' => $id]);
+            flash('ok', '✅ اولویت/دستهٔ تیکت به‌روز شد.');
+        } else {
+            flash('warn', '⚠️ ابتدا به‌روزرسانی دیتابیس را اجرا کنید.');
+        }
+        back('tickets', ['t' => $id]);
+    }
+
     if ($tk && $act === 'reply') {
         need('tickets.reply', 'tickets');
 
