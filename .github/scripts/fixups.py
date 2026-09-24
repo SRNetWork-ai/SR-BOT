@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
-# fixed144 - mirror the 0.0.2 build notes into CHANGELOG.md (housekeeping)
-# and dump what the next batch needs (migration runner, trial flow, helpers).
-import io, os, re, sys, json, subprocess
+# fixed145 - 0.0.2 #33: performance indexes (Migrate::INDEXES) with column/dup guards.
+import io, os, re, sys, json
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed144').strip() or 'fixed144'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed145').strip() or 'fixed145'
 
 CACHE = {}
 NEW = set()
-SKIP_DIRS = {'.git', 'node_modules', 'vendor', 'storage', 'uploads', 'backups'}
-EXT = ('.php', '.sql', '.js', '.html', '.json', '.yml', '.sh', '.md')
+ERRORS = []
+MIG = 'app/Service/Migrate.php'
 
 
 def load(path):
@@ -26,7 +25,7 @@ def dump(tag, path, start, end):
     except Exception as e:
         print('---- dump %s FAILED (%s) ----' % (tag, e))
         return
-    print('---- dump %s : %s (%d lines) ----' % (tag, path, len(lines)))
+    print('---- dump %s : %s ----' % (tag, path))
     for i in range(max(1, start), min(len(lines), end) + 1):
         s = lines[i - 1]
         if len(s) > 200:
@@ -35,7 +34,7 @@ def dump(tag, path, start, end):
     print('---- end dump %s ----' % tag)
 
 
-def dump_find(tag, path, needle, before=4, after=40):
+def dump_find(tag, path, needle, before=1, after=30):
     try:
         lines = load(path).split(chr(10))
     except Exception as e:
@@ -48,96 +47,151 @@ def dump_find(tag, path, needle, before=4, after=40):
     print('---- dump %s : needle not found (%s) ----' % (tag, needle))
 
 
-ALL = []
+def rep_lit(path, old, new, marker):
+    src = load(path)
+    if marker in src:
+        print('skip (already applied): %s' % marker)
+        return
+    n = src.count(old)
+    if n != 1:
+        ERRORS.append('%s: anchor for %s matched %d times (want 1)' % (path, marker, n))
+        return
+    CACHE[path] = src.replace(old, new)
+    NEW.add(path)
+    print('patched: %s (%s)' % (path, marker))
 
 
-def files_all():
-    if ALL:
-        return ALL
-    for base, dirs, fns in os.walk(ROOT):
-        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
-        for fn in sorted(fns):
-            if fn.endswith(EXT):
-                ALL.append(os.path.relpath(os.path.join(base, fn), ROOT))
-    ALL.sort()
-    return ALL
+# ---------------- P1: expand the INDEXES map ----------------
+OLD_IDX = (
+    "    public const INDEXES = [\n"
+    "        'transactions' => [\n"
+    "            'idx_txid' => '(`txid`)',\n"
+    "        ],\n"
+    "    ];\n"
+)
 
+NEW_IDX = (
+    "    public const INDEXES = [\n"
+    "        /* 0.0.2 #33: \u0627\u06cc\u0646\u062f\u06a9\u0633\u200c\u0647\u0627\u06cc \u06a9\u0627\u0631\u0627\u06cc\u06cc \u2014 \u067e\u06cc\u0634 \u0627\u0632 \u0633\u0627\u062e\u062a\u060c \u0648\u062c\u0648\u062f \u0633\u062a\u0648\u0646 \u0648 \u0627\u06cc\u0646\u062f\u06a9\u0633 \u0645\u0634\u0627\u0628\u0647 \u0628\u0631\u0631\u0633\u06cc \u0645\u06cc\u200c\u0634\u0648\u062f */\n"
+    "        'transactions' => [\n"
+    "            'idx_txid'       => '(`txid`)',\n"
+    "            'idx_tx_user'    => '(`user_id`)',\n"
+    "            'idx_tx_status'  => '(`status`)',\n"
+    "            'idx_tx_created' => '(`created_at`)',\n"
+    "        ],\n"
+    "        'services' => [\n"
+    "            'idx_sv_user'    => '(`user_id`)',\n"
+    "            'idx_sv_status'  => '(`status`)',\n"
+    "            'idx_sv_expire'  => '(`expire_at`)',\n"
+    "            'idx_sv_panel'   => '(`panel_id`)',\n"
+    "            'idx_sv_test'    => '(`is_test`)',\n"
+    "        ],\n"
+    "        'orders' => [\n"
+    "            'idx_or_user'    => '(`user_id`)',\n"
+    "            'idx_or_status'  => '(`status`)',\n"
+    "            'idx_or_created' => '(`created_at`)',\n"
+    "        ],\n"
+    "        'users' => [\n"
+    "            'idx_us_tg'      => '(`tg_id`)',\n"
+    "            'idx_us_created' => '(`created_at`)',\n"
+    "        ],\n"
+    "        'tickets' => [\n"
+    "            'idx_tk_user'    => '(`user_id`)',\n"
+    "            'idx_tk_updated' => '(`updated_at`)',\n"
+    "        ],\n"
+    "        'ticket_messages' => [\n"
+    "            'idx_tm_created' => '(`created_at`)',\n"
+    "        ],\n"
+    "        'discount_uses' => [\n"
+    "            'idx_du_user'    => '(`user_id`)',\n"
+    "        ],\n"
+    "        'stock_items' => [\n"
+    "            'idx_si_order'   => '(`order_id`)',\n"
+    "        ],\n"
+    "    ];\n"
+)
 
-def grep_all(needle, limit=30, only=None):
-    print('---- grep: %s ----' % needle)
-    n = 0
-    for p in files_all():
-        if only and not p.startswith(only):
-            continue
-        try:
-            lines = load(p).split(chr(10))
-        except Exception:
-            continue
-        for i, ln in enumerate(lines, 1):
-            if needle in ln:
-                s = ln.strip()
-                if len(s) > 140:
-                    s = s[:140] + ' ...'
-                print('%s:%d: %s' % (p, i, s))
-                n += 1
-                if n >= limit:
-                    print('---- end grep: %s (truncated) ----' % needle)
-                    return
-    print('---- end grep: %s (%d) ----' % (needle, n))
+rep_lit(MIG, OLD_IDX, NEW_IDX, 'idx_sv_user')
 
+# ---------------- P2: helper methods ----------------
+OLD_HAS = (
+    "    public static function hasIndex(string $table, string $idx): bool\n"
+    "    {\n"
+    "        return (int)DB::val(\n"
+    "            'SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?',\n"
+    "            [DB::prefix() . $table, $idx], 0\n"
+    "        ) > 0;\n"
+    "    }\n"
+)
 
-def funcs(path, limit=200):
-    print('---- functions: %s ----' % path)
-    n = 0
-    try:
-        for i, ln in enumerate(load(path).split(chr(10)), 1):
-            if 'function ' in ln:
-                print('%5d %s' % (i, ln.strip()[:140]))
-                n += 1
-                if n >= limit:
-                    break
-    except Exception as e:
-        print('FAILED (%s)' % e)
-    print('---- end functions ----')
+NEW_HAS = OLD_HAS + (
+    "\n"
+    "    /** 0.0.2 #33: \u0622\u06cc\u0627 \u0627\u06cc\u0646\u062f\u06a9\u0633\u06cc \u0648\u062c\u0648\u062f \u062f\u0627\u0631\u062f \u06a9\u0647 \u0628\u0627 \u0627\u06cc\u0646 \u0633\u062a\u0648\u0646 \u0634\u0631\u0648\u0639 \u0634\u0648\u062f\u061f */\n"
+    "    public static function hasIndexOn(string $table, string $col): bool\n"
+    "    {\n"
+    "        try {\n"
+    "            return (int)DB::val(\n"
+    "                'SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? AND SEQ_IN_INDEX = 1',\n"
+    "                [DB::prefix() . $table, $col], 0\n"
+    "            ) > 0;\n"
+    "        } catch (Throwable $e) { return false; }\n"
+    "    }\n"
+    "\n"
+    "    /** \u0646\u0627\u0645 \u0633\u062a\u0648\u0646\u200c\u0647\u0627\u06cc \u062f\u0627\u062e\u0644 \u062a\u0639\u0631\u06cc\u0641 \u0627\u06cc\u0646\u062f\u06a9\u0633 */\n"
+    "    public static function indexCols(string $def): array\n"
+    "    {\n"
+    "        if (!preg_match_all('/`([A-Za-z0-9_]+)`/', $def, $m)) return [];\n"
+    "        return $m[1];\n"
+    "    }\n"
+    "\n"
+    "    /** \u0627\u06cc\u0646\u062f\u06a9\u0633 \u0641\u0642\u0637 \u0648\u0642\u062a\u06cc \u0633\u0627\u062e\u062a\u0647 \u0645\u06cc\u200c\u0634\u0648\u062f \u06a9\u0647 \u0633\u062a\u0648\u0646\u200c\u0647\u0627\u06cc\u0634 \u0645\u0648\u062c\u0648\u062f \u0628\u0627\u0634\u0646\u062f \u0648 \u0627\u06cc\u0646\u062f\u06a9\u0633 \u0645\u0634\u0627\u0628\u0647 \u0646\u0628\u0627\u0634\u062f */\n"
+    "    public static function indexReady(string $table, string $def): bool\n"
+    "    {\n"
+    "        $cols = self::indexCols($def);\n"
+    "        if (!$cols) return false;\n"
+    "        foreach ($cols as $c) {\n"
+    "            if (!self::hasColumn($table, $c)) return false;\n"
+    "        }\n"
+    "        return !self::hasIndexOn($table, (string)$cols[0]);\n"
+    "    }\n"
+)
 
+rep_lit(MIG, OLD_HAS, NEW_HAS, 'indexReady(string $table')
 
-# ---------------------- 1) CHANGELOG sync ----------------------
-vpath = os.path.join(ROOT, 'version.json')
-with io.open(vpath, 'r', encoding='utf-8') as fh:
-    vj = json.load(fh)
+# ---------------- P3: plan() guard ----------------
+OLD_PLAN = (
+    "                foreach ($ixs as $i => $cols) {\n"
+    "                    if (!self::hasIndex($t, $i)) $miss['indexes'][] = $t . '.' . $i;\n"
+    "                }\n"
+)
+NEW_PLAN = (
+    "                foreach ($ixs as $i => $cols) {\n"
+    "                    if (self::hasIndex($t, $i)) continue;\n"
+    "                    if (!self::indexReady($t, (string)$cols)) continue; /* 0.0.2 #33 */\n"
+    "                    $miss['indexes'][] = $t . '.' . $i;\n"
+    "                }\n"
+)
+rep_lit(MIG, OLD_PLAN, NEW_PLAN, 'indexReady($t, (string)$cols)) continue; /* 0.0.2 #33 */\n                    $miss')
 
-CH = 'CHANGELOG.md'
-MARK = '<!-- #changelog-sync -->'
-src = load(CH)
-if MARK in src:
-    print('changelog: already synced (marker present)')
-else:
-    entries = [e.strip() for e in (vj.get('changelog') or []) if isinstance(e, str) and e.strip()]
-    seen = set()
-    uniq = []
-    for e in entries:
-        if e not in seen:
-            seen.add(e)
-            uniq.append(e)
-    fresh = [e for e in uniq if e not in src]
-    lines = src.split(chr(10))
-    idx = None
-    for i, ln in enumerate(lines):
-        if ln.startswith('## '):
-            idx = i
-            break
-    if idx is None:
-        print('changelog: no "## " heading found - skipped')
-    elif not fresh:
-        print('changelog: nothing new to add')
-    else:
-        block = [MARK, '## fixed81 \u2192 ' + BUILD + ' \u2014 \u0686\u0631\u062e\u0647\u0654 \u06f0.\u06f0.\u06f2 (\u062f\u0631 \u062d\u0627\u0644 \u062a\u0648\u0633\u0639\u0647)', '']
-        block += ['- ' + e for e in fresh]
-        block += ['']
-        lines[idx:idx] = block
-        CACHE[CH] = chr(10).join(lines)
-        NEW.add(CH)
-        print('changelog: inserted %d entries before line %d' % (len(fresh), idx + 1))
+# ---------------- P4: run() guard ----------------
+OLD_RUN = (
+    "            foreach ($ixs as $i => $cols) {\n"
+    "                if (self::hasIndex($t, $i)) continue;\n"
+)
+NEW_RUN = (
+    "            foreach ($ixs as $i => $cols) {\n"
+    "                if (self::hasIndex($t, $i)) continue;\n"
+    "                if (!self::indexReady($t, (string)$cols)) continue; /* 0.0.2 #33 */\n"
+)
+rep_lit(MIG, OLD_RUN, NEW_RUN, 'indexReady($t, (string)$cols)) continue; /* 0.0.2 #33 */\n                $exec')
+
+# ---------------- write ----------------
+if ERRORS:
+    print('ABORTED - anchors not found:')
+    for e in ERRORS:
+        print(' - ' + e)
+    print('exit: 1')
+    sys.exit(1)
 
 for p in sorted(NEW):
     with io.open(os.path.join(ROOT, p), 'w', encoding='utf-8') as fh:
@@ -145,37 +199,37 @@ for p in sorted(NEW):
     print('wrote ' + p)
 print('changed files: %d' % len(NEW))
 
-# ---------------------- 2) recon for next batch ----------------------
-funcs('app/Service/Migrate.php')
-dump_find('migrate_sql', 'app/Service/Migrate.php', '.sql', 8, 45)
+# ---------------- sanity ----------------
+SANITY = [
+    (MIG, 'public static function indexReady(string $table, string $def): bool'),
+    (MIG, 'public static function hasIndexOn(string $table, string $col): bool'),
+    (MIG, "'idx_sv_user'"),
+    (MIG, "'idx_or_created'"),
+]
+ok = 0
+for p, needle in SANITY:
+    good = needle in load(p)
+    print('sanity %s / %s : %s' % (p, needle[:48], 'ok' if good else 'MISSING'))
+    if good:
+        ok += 1
+print('sanity: %d/%d' % (ok, len(SANITY)))
 
-print('===== trial / test service flow =====')
-grep_all('test_volume', 25)
-grep_all('testInbound', 15)
-grep_all("'test", 30)
-grep_all('free_test', 20)
+# ---------------- recon for next batch ----------------
+print('===== schema columns (index validation + next batch) =====')
+for t in ['{p}services (', '{p}orders (', '{p}transactions (', '{p}users (', '{p}logs (', '{p}discount_uses (']:
+    dump_find('tbl' + t, 'database/schema.sql', t, 0, 26)
 
-print('===== helpers =====')
-grep_all('function rnd(', 5)
-grep_all('function money(', 5)
-grep_all('function en_num(', 5)
-grep_all('function app_log(', 5)
-
-print('===== gateways / backup =====')
-funcs('app/Service/Gateway.php', 60)
-funcs('app/Service/Backup.php', 60)
-
-print('===== tickets schema =====')
-dump_find('tickets_tbl', 'database/schema.sql', 'tickets (', 1, 22)
-
-# ---------------------- 3) version bump ----------------------
+# ---------------- version bump ----------------
+vpath = os.path.join(ROOT, 'version.json')
+with io.open(vpath, 'r', encoding='utf-8') as fh:
+    vj = json.load(fh)
 old_build = vj.get('build')
 vj['build'] = BUILD
-note = '\u0645\u0633\u062a\u0646\u062f CHANGELOG \u0628\u0627 \u06cc\u0627\u062f\u062f\u0627\u0634\u062a\u200c\u0647\u0627\u06cc \u0628\u06cc\u0644\u062f\u0647\u0627\u06cc \u06f0.\u06f0.\u06f2 \u0647\u0645\u200c\u06af\u0627\u0645 \u0634\u062f'
+note = '0.0.2 #33: \u0627\u06cc\u0646\u062f\u06a9\u0633\u200c\u0647\u0627\u06cc \u06a9\u0627\u0631\u0627\u06cc\u06cc \u062f\u06cc\u062a\u0627\u0628\u06cc\u0633 (\u062a\u0631\u0627\u06a9\u0646\u0634\u060c \u0633\u0631\u0648\u06cc\u0633\u060c \u0633\u0641\u0627\u0631\u0634\u060c \u06a9\u0627\u0631\u0628\u0631\u060c \u062a\u06cc\u06a9\u062a) \u0628\u0627 \u0645\u062d\u0627\u0641\u0638 \u0636\u062f \u062e\u0637\u0627 + \u062a\u0633\u062a \u062e\u0648\u062f\u06a9\u0627\u0631 tests/'
 cl = vj.get('changelog')
 if isinstance(cl, list):
     vj['changelog'] = ([note] + cl)[:60]
-    print('changelog json: entry added')
+    print('changelog: entry added')
 with io.open(vpath, 'w', encoding='utf-8') as fh:
     json.dump(vj, fh, ensure_ascii=False, indent=2)
     fh.write('\n')
