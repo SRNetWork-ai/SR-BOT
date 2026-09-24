@@ -118,6 +118,26 @@ if (class_exists('HooshPay') && HooshPay::enabled()) {
     }
 }
 
+/* 0.0.2 #22: auto-poll pending Zarinpal transactions */
+if (class_exists('Zarinpal') && Zarinpal::enabled()) {
+    $zpWait = DB::all("SELECT * FROM {p}transactions
+                       WHERE method = 'zarinpal' AND status = 'pending'
+                         AND created_at > DATE_SUB(NOW(), INTERVAL 2 DAY)
+                       ORDER BY id ASC LIMIT 25");
+    foreach ($zpWait as $tx) {
+        try {
+            $pr = Zarinpal::poll($tx);
+            if (!empty($pr['ok'])) {
+                $report['zarinpal'] = ($report['zarinpal'] ?? 0) + 1;
+                cron_say('zarinpal tx #' . (int)$tx['id'] . ' => ' . (string)($pr['message'] ?? 'done'));
+            }
+        } catch (Throwable $e) {
+            cron_say('zarinpal poll failed: ' . $e->getMessage());
+        }
+        usleep(250000);
+    }
+}
+
 /* fixed84: فاکتورهای درگاه که کاربر هرگز پرداخت نکرده، پس از چند ساعت لغو می‌شوند */
 try {
     $gwHours = max(1, (int)DB::setting('gw_stale_hours', '6'));

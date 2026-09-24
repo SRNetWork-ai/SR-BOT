@@ -485,7 +485,7 @@ class AdminBot
 
     private static function sendPaymentCard($chatId, array $tx, string $note = ''): void
     {
-        $mLbl   = ['card' => '💳 کارت به کارت', 'crypto' => '🌐 ارزی', 'wallet' => '👛 کیف پول',
+        $mLbl   = ['zarinpal' => "\u{1F3E6} زرین‌پال (خودکار)", 'card' => '💳 کارت به کارت', 'crypto' => '🌐 ارزی', 'wallet' => '👛 کیف پول',
                    'hooshpay' => '🪙 هوش‌پی (خودکار)', 'nowpay' => '🤖 نوپیمنتس (خودکار)'];
         $method = $mLbl[(string)$tx['method']] ?? (string)$tx['method'];
 

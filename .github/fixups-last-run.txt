@@ -1,222 +1,229 @@
 Python 3.12.3
-Thu Sep 24 13:37:31 UTC 2026
-patched: app/Service/Btn.php ('wal_zp'     => [)
-patched: app/Service/Btn.php ('wal_zp'     => 'wallet')
-patched: app/Bot/Bot.php (case 'wal_zp':)
-patched: app/Bot/Bot.php ($arg === 'zp'))
-patched: admin/pages/payments.php (Zarinpal::poll($tx))
-patched: miniapp/api.php ('zarinpal' => class_exists('Zarinpal'))
-patched: admin/pages/payments.php (nowpay','zarinpal' x2)
-patched: cron/tasks.php (nowpay','zarinpal' x1)
-wrote admin/pages/payments.php
-wrote app/Bot/Bot.php
-wrote app/Service/Btn.php
+Thu Sep 24 13:41:08 UTC 2026
+patched: cron/tasks.php (zarinpal poll failed)
+patched: app/Bot/AdminBot.php ('zarinpal' => ")
+wrote app/Bot/AdminBot.php
 wrote cron/tasks.php
-wrote miniapp/api.php
-changed files: 5
-sanity app/Service/Btn.php / 'wal_zp'     => [ : ok
-sanity app/Service/Btn.php / 'wal_zp'     => 'wallet' : ok
-sanity app/Bot/Bot.php / case 'wal_zp': : ok
-sanity app/Bot/Bot.php / $arg === 'zp') : ok
-sanity admin/pages/payments.php / Zarinpal::poll($tx) : ok
-sanity miniapp/api.php / 'zarinpal' => class_exists('Zarinp : ok
-sanity: 6/6
-===== bot deposit branch =====
----- dump app/Bot/Bot.php : app/Bot/Bot.php (3064 lines) ----
- 1400                         Logs::send('errors', Logs::fmt('⚠ خطای ساخت فاکتور ارزی', [
- 1401                             'کاربر' => (int)self::$u['tg_id'],
- 1402                             'مبلغ'  => money($amount) . ' ' . currency(),
- 1403                             'خطا'   => (string)($inv['message'] ?? '-'),
- 1404                         ]));
- 1405                         return true;
- 1406                     }
- 1407                     $txt = "⚡️ <b>پرداخت ارزی خودکار</b>\n\n"
- 1408                         . 'مبلغ: <b>' . money($amount) . ' ' . currency() . "</b>\n"
- 1409                         . 'معادل: <b>' . fa_num((string)$inv['usd']) . " $</b>\n"
- 1410                         . 'نرخ محاسبه: ' . money(Wallet::rate()) . ' ' . currency() . "\n"
- 1411                         . 'شماره پیگیری: <code>#' . $txN . "</code>\n\n"
- 1412                         . "روی دکمهٔ زیر بزنید، ارز دلخواه را انتخاب و مبلغ را واریز کنید.\n"
- 1413                         . "پس از تایید شبکه، کیف پول شما <b>خودکار</b> شارژ می‌شود.";
- 1414                     self::waitEdit($chatId, $waitId, $txt, Tg::ikb([
- 1415                         [Tg::url('💠 صفحه پرداخت', (string)$inv['url'])],
- 1416                         [Tg::btn('🔄 بررسی وضعیت پرداخت', 'wal:chk:' . $txN)],
- 1417                     ]));
- 1418                     Logs::send('financial', Logs::fmt('⚡️ فاکتور ارزی جدید', [
- 1419                         'کاربر'  => (($u2 = self::$u)['first_name'] ?? '-') . ' (' . (int)$u2['tg_id'] . ')',
- 1420                         'مبلغ'   => money($amount) . ' ' . currency(),
- 1421                         'معادل'  => $inv['usd'] . ' $',
- 1422                         'فاکتور' => (string)$inv['order'],
- 1423                     ]));
- 1424                     return true;
- 1425                 } elseif ($method === 'hooshpay') {
- 1426                     self::setState(null);
- 1427                     $waitId = self::waitMsg(
- 1428                         $chatId,
- 1429                         "🪙 <b>در حال ساخت لینک پرداخت…</b>\n\n⏳ اتصال به هوش‌پی و رزرو کارت دریافت، چند لحطه صبر کنید.",
- 1430                         self::kbMain()
- 1431                     );
- 1432 
- 1433                     if (!class_exists('HooshPay')) {
- 1434                         self::waitEdit($chatId, $waitId, '⚠️ درگاه هوش‌پی در دسترس نیست.');
- 1435                         return true;
- 1436                     }
- 1437 
- 1438                     $txH = Wallet::createDeposit(self::$u, $amount, 'hooshpay');
- 1439                     $inv = HooshPay::createInvoice(self::$u, $amount, $txH);
- 1440 
- 1441                     if (empty($inv['ok'])) {
- 1442                         DB::update('transactions', [
- 1443                             'status' => 'rejected', 'decided_at' => now(),
- 1444                             'note' => mb_substr((string)($inv['message'] ?? 'خطا'), 0, 250),
- 1445                         ], 'id = :id', [':id' => $txH]);
- 1446                         self::waitEdit($chatId, $waitId, '❌ ' . (string)($inv['message'] ?? 'ساخت لینک پرداخت ناموفق بود.'));
- 1447                         Logs::send('errors', Logs::fmt('⚠ خطای ساخت فاکتور هوش‌پی', [
- 1448                             'کاربر' => (int)self::$u['tg_id'],
- 1449                             'مبلغ'  => money($amount) . ' ' . currency(),
- 1450                             'خطا'   => (string)($inv['message'] ?? '-'),
- 1451                         ]));
- 1452                         return true;
- 1453                     }
- 1454 
- 1455                     $hpPay = (int)($inv['payable'] ?? 0);
- 1456                     $hpFee = HooshPay::FEE_SHORT[HooshPay::feeMode()] ?? '';
- 1457                     $hpCrd = is_array($inv['card'] ?? null) ? $inv['card'] : [];
- 1458 
- 1459                     $txt = "🪙 <b>پرداخت آنی کارت به کارت</b>\n\n"
- 1460                         . 'مبلغ فاکتور: <b>' . money($amount) . ' ' . currency() . "</b>\n";
- 1461                     if ($hpPay > 0) {
- 1462                         $txt .= 'مبلغ قابل پرداخت: <b>' . fa_num((string)$hpPay) . " تومان</b>\n";
- 1463                     }
- 1464                     if ($hpFee !== '') $txt .= 'کارم��د درگاه: ' . $hpFee . "\n";
- 1465                     if (trim((string)($hpCrd['bank_name'] ?? '')) !== '') {
- 1466                         $txt .= 'بانک مقصد: ' . h((string)$hpCrd['bank_name']) . "\n";
- 1467                     }
- 1468                     $txt .= 'شماره پیگیری: <code>#' . $txH . "</code>\n\n"
- 1469                         . "⚠️ <b>مهم:</b> دقیقاً همان مبلغی را واریز کنید که در صفحهٔ پرداخت نشان داده می‌شود؛ "
- 1470                         . "چند تومان اختلاف عمدی است و برای تشخیص خودکار واریز شما لازم است.\n\n"
- 1471                         . "پس از واریز، تایید <b>آنی</b> انجام می‌شود و کیف پول شما خودکار شارژ می‌گردد.";
- 1472 
- 1473                     self::waitEdit($chatId, $waitId, $txt, Tg::ikb([
- 1474                         [Tg::url('🪙 رفتن به صفحهٔ پرداخت', (string)$inv['url'])],
- 1475                         [Tg::btn('🔄 بررسی وضعیت پرداخت', 'wal:hpchk:' . $txH)],
- 1476                     ]));
----- end dump app/Bot/Bot.php ----
-===== bot askAmount definition hunt =====
----- grep: function ask ----
-app/Bot/AdminBot.php:969: public static function askUser($chatId): void
-app/Bot/AdminBot.php:1047: public static function askService($chatId): void
----- end grep: function ask (2) ----
----- grep: wal_hp ----
-app/Bot/Bot.php:570: case 'wal_hp':     self::askAmount($chatId, 'hooshpay'); return true;
-app/Service/Btn.php:44: 'wal_hp'     => ['🪙', 'شارژ آنی هوش‌پی', 'all', 'کیف پول'],
-app/Service/Btn.php:78: 'wal_hp'     => 'wallet',
----- end grep: wal_hp (3) ----
-===== cron hooshpay poll =====
----- dump cron_hp : cron/tasks.php (664 lines) ----
-   92         $pr = NowPay::poll($tx);
-   93         if (!empty($pr['ok'])) {
-   94             $report['nowpay']++;
-   95             cron_say('nowpay tx #' . (int)$tx['id'] . ' => ' . (string)($pr['status'] ?? 'done'));
-   96         }
-   97         usleep(250000);
-   98     }
-   99 }
-  100 
-  101 /* fixed84: استعلام خودکار فاکتورهای هوش‌پی تا صف رسیدهای پنل وب پر نشود */
-  102 if (class_exists('HooshPay') && HooshPay::enabled()) {
-  103     $hpWait = DB::all("SELECT * FROM {p}transactions
-  104                        WHERE method = 'hooshpay' AND status = 'pending'
-  105                          AND created_at > DATE_SUB(NOW(), INTERVAL 2 DAY)
-  106                        ORDER BY id ASC LIMIT 25");
-  107     foreach ($hpWait as $tx) {
-  108         try {
-  109             $pr = HooshPay::poll($tx);
-  110             if (!empty($pr['ok'])) {
-  111                 $report['hooshpay']++;
-  112                 cron_say('hooshpay tx #' . (int)$tx['id'] . ' => ' . (string)($pr['message'] ?? 'done'));
-  113             }
-  114         } catch (Throwable $e) {
-  115             cron_say('hooshpay poll failed: ' . $e->getMessage());
-  116         }
-  117         usleep(250000);
-  118     }
-  119 }
-  120 
-  121 /* fixed84: فاکتورهای درگاه که کاربر هرگز پرداخت نکرده، پس از چند ساعت لغو می‌شوند */
-  122 try {
----- end dump cron_hp ----
-===== miniapp hooshpay deposit =====
----- dump ma_hp : miniapp/api.php (2939 lines) ----
- 1475                 'state' => 'wallet_txid',
- 1476                 'state_data' => jenc(['amount' => $amount, 'method' => 'crypto']),
- 1477             ], 'id = :id', [':id' => $UID]);
- 1478 
- 1479             ma_out(['ok' => true, 'method' => 'crypto', 'amount' => $amount, 'amount_txt' => ma_money($amount),
- 1480                 'rate_txt' => class_exists('Rates') ? ma_money((int)Rates::liveRate()) : '',
- 1481                 'assets' => $assets, 'can_hash' => true,
- 1482                 'note' => 'مقادیر با نرخ همین لحظه محاسبه شد. پس از واریز، هش تراکنش (TXID) را همین‌جا ارسال کنید.']);
- 1483         }
- 1484 
- 1485         if ($method === 'hooshpay') {
- 1486             if (!class_exists('HooshPay') || !HooshPay::enabled()) ma_fail('درگاه هوش‌پی فعال نیست.');
- 1487             if (!HooshPay::forUser($isRs)) ma_fail('این درگاه برای حساب شما فعال نیست.');
- 1488 
- 1489             $hpMin = HooshPay::minAmount();
- 1490             $hpMax = HooshPay::maxAmount();
- 1491             if ($hpMin > 0 && $amount < $hpMin) ma_fail('حداقل مبلغ این درگاه ' . ma_money($hpMin) . ' است.');
- 1492             if ($hpMax > 0 && $amount > $hpMax) ma_fail('حداکثر مبلغ این درگاه ' . ma_money($hpMax) . ' است.');
- 1493 
- 1494             $txHp  = (int)Wallet::createDeposit($user, $amount, 'hooshpay');
- 1495             $invHp = HooshPay::createInvoice($user, $amount, $txHp);
- 1496 
- 1497             if (empty($invHp['ok'])) {
- 1498                 try {
- 1499                     Wallet::reject($txHp, null, 'HooshPay: ' . (string)($invHp['message'] ?? ''), false);
- 1500                 } catch (Throwable $e) {
- 1501                 }
- 1502                 ma_fail((string)($invHp['message'] ?? 'ساخت فاکتور هوش‌پی ناموفق بود.'));
- 1503             }
- 1504 
- 1505             $hpCd  = is_array($invHp['card'] ?? null) ? (array)$invHp['card'] : [];
- 1506             $hpPay = (int)($invHp['payable'] ?? 0);
- 1507             $hpFee = (string)(HooshPay::FEE_SHORT[HooshPay::feeMode()] ?? '');
- 1508 
- 1509             ma_out(['ok' => true, 'method' => 'hooshpay',
- 1510                 'amount'      => $amount,
- 1511                 'amount_txt'  => ma_money($amount),
- 1512                 'tx'          => $txHp,
- 1513                 'url'         => (string)($invHp['url'] ?? ''),
- 1514                 'uid'         => (string)($invHp['uid'] ?? ''),
- 1515                 'payable'     => $hpPay,
- 1516                 'payable_txt' => money($hpPay) . ' تومان',
- 1517                 'fee_txt'     => $hpFee,
- 1518                 'expires'     => (string)($invHp['expires'] ?? ''),
- 1519                 'card'        => [
- 1520                     'number' => (string)($hpCd['card_number'] ?? ''),
- 1521                     'holder' => (string)($hpCd['holder_name'] ?? ''),
- 1522                     'bank'   => (string)($hpCd['bank_name'] ?? ''),
- 1523                 ],
- 1524                 'note' => 'روی دکمهٔ پرداخت بزنید و «دقیقاً» همان مبلغ قابل پرداخت را واریز کنید؛ بعد دکمهٔ بررسی وضعیت را بزنید.']);
- 1525         }
----- end dump ma_hp ----
-===== adminbot method labels =====
----- dump ab_lbl : app/Bot/AdminBot.php (1311 lines) ----
-  483         foreach (self::adminIds() as $id) self::sendCardRequest($id, $c);
-  484     }
-  485 
-  486     private static function sendPaymentCard($chatId, array $tx, string $note = ''): void
-  487     {
-  488         $mLbl   = ['card' => '💳 کارت به کارت', 'crypto' => '🌐 ارزی', 'wallet' => '👛 کیف پول',
-  489                    'hooshpay' => '🪙 هوش‌پی (خودکار)', 'nowpay' => '🤖 نوپیمنتس (خودکار)'];
-  490         $method = $mLbl[(string)$tx['method']] ?? (string)$tx['method'];
-  491 
-  492         /* کارت احرازشده‌ای که کاربر اعلام کرده با آن واریز می‌کند */
-  493         $cardLine = '';
-  494         if (!empty($tx['card_id']) && class_exists('CardAuth')) {
-  495             $uc = CardAuth::find((int)$tx['card_id']);
-  496             if ($uc) {
----- end dump ab_lbl ----
+changed files: 2
+sanity cron/tasks.php / zarinpal poll failed : ok
+sanity cron/tasks.php / method = 'zarinpal' AND status = ' : ok
+sanity app/Bot/AdminBot.php / 'zarinpal' => " : ok
+sanity: 3/3
+===== Zarinpal map =====
+---- funcs: app/Service/Zarinpal.php ----
+   17 public const BASE      = 'https://payment.zarinpal.com/pg/v4/payment';
+   18 public const START     = 'https://payment.zarinpal.com/pg/StartPay/';
+   19 public const BASE_BOX  = 'https://sandbox.zarinpal.com/pg/v4/payment';
+   20 public const START_BOX = 'https://sandbox.zarinpal.com/pg/StartPay/';
+   22 public const DEF_ICON = "\u{1F3E6}";
+   24 public const UNITS = [
+   29 public const AUDIENCES = ['all', 'user', 'reseller'];
+   31 public const ERRORS = [
+   54 public static function enabled(): bool
+   59 public static function merchant(): string { return trim((string)DB::setting('zp_merchant', '')); }
+   60 public static function sandbox(): bool    { return (string)DB::setting('zp_sandbox', '0') === '1'; }
+   61 public static function desc(): string     { return trim((string)DB::setting('zp_desc', '')); }
+   64 public static function unit(): string
+   71 public static function currency(): string
+   76 public static function label(): string
+   82 public static function icon(): string
+   88 public static function minAmount(): int { return max(0, (int)DB::setting('zp_min', '0')); }
+   89 public static function maxAmount(): int { return max(0, (int)DB::setting('zp_max', '0')); }
+   91 public static function audience(): string
+   97 public static function forUser(bool $isReseller = false): bool
+  105 public static function btnLabel(): string
+  110 public static function callbackUrl(): string
+  115 public static function maskKey(): string
+  125 public static function api(string $path, array $body): array
+  166 public static function errFa(int $code, string $fallback = ''): string
+  179 public static function createInvoice(array $user, int $amount, int $txId = 0): array
+  237 public static function verify(string $authority, int $amount): array
+  247 public static function apply(string $authority, string $status = 'OK'): array
+  320 public static function poll(array $tx): array
+  329 public static function health(): array
+  337 public static function summary(): array
+---- end funcs: app/Service/Zarinpal.php ----
+===== Zarinpal consts head =====
+---- dump zp_head : app/Service/Zarinpal.php (350 lines) ----
+    1 <?php
+    2 declare(strict_types=1);
+    3 
+    4 /**
+    5  * درگاه زرین‌پال (پرداخت خودکار) — 0.0.2 #22
+    6  *
+    7  * جریان کار:
+    8  *   ۱) ساخت تراکنش «در انتظار» و گرفتن Authority از زرین‌پال
+    9  *   ۲) هدایت کاربر به صفحهٔ StartPay
+   10  *   ۳) بازگشت کاربر به /zarinpal.php
+   11  *   ۴) استعلام دوبارهٔ پرداخت با verify و شارژ کیف پول فقط در صورت کد ۱۰۰ یا ۱۰۱
+   12  *
+   13  * واحد مبلغ فروشگاه با تنظیم zp_unit مشخص می‌شود (تومان = IRT، ریال = IRR).
+   14  */
+   15 class Zarinpal
+   16 {
+   17     public const BASE      = 'https://payment.zarinpal.com/pg/v4/payment';
+   18     public const START     = 'https://payment.zarinpal.com/pg/StartPay/';
+   19     public const BASE_BOX  = 'https://sandbox.zarinpal.com/pg/v4/payment';
+   20     public const START_BOX = 'https://sandbox.zarinpal.com/pg/StartPay/';
+   21 
+   22     public const DEF_ICON = "\u{1F3E6}";
+   23 
+   24     public const UNITS = [
+   25         'toman' => 'تومان — مبالغ فروشگاه تومان است',
+   26         'rial'  => 'ریال — مبالغ فروشگاه ریال است',
+   27     ];
+   28 
+   29     public const AUDIENCES = ['all', 'user', 'reseller'];
+   30 
+   31     public const ERRORS = [
+   32         -9  => 'اطلاعات ارسالی نامعتبر است (مبلغ یا مرچنت کد)',
+   33         -10 => 'مرچنت کد یا آی‌پی سرور درست نیست',
+   34         -11 => 'درخواست یافت نشد',
+   35         -12 => 'تعداد تلاش بیش از حد مجاز',
+   36         -15 => 'درگاه پرداخت شما معلق است',
+   37         -16 => 'سطح تایید پذیرنده پایین‌تر از حد مجاز است',
+   38         -17 => 'محدودیت پذیرنده در سطح آبی',
+   39         -30 => 'سرویس اشتراکی برای این پذیرنده فعال نیست',
+   40         -31 => 'حساب بانکی متصل نیست یا هنوز تایید نشده است',
+   41         -33 => 'مبلغ پرداخت با مبلغ درخواست یکسان نیست',
+   42         -34 => 'سقف تقسیم پرداخت رد شده است',
+   43         -40 => 'دسترسی به این متد وجود ندارد',
+   44         -50 => 'مبلغ پرداخت‌شده با مبلغ ارسالی برابر نیست',
+   45         -51 => 'پرداخت ناموفق بود',
+   46         -52 => 'خطای غیرمنتظره از سمت زرین‌پال',
+   47         -53 => 'این پرداخت متعلق به پذیرندهٔ دیگری است',
+   48         -54 => 'کد رهگیری (Authority) نامعتبر است',
+   49         101 => 'این پرداخت قبلاً تایید شده است',
+   50     ];
+   51 
+   52     /* ==================== تنظیمات ==================== */
+   53 
+   54     public static function enabled(): bool
+   55     {
+   56         return (string)DB::setting('zp_enabled', '0') === '1' && self::merchant() !== '';
+   57     }
+   58 
+   59     public static function merchant(): string { return trim((string)DB::setting('zp_merchant', '')); }
+   60     public static function sandbox(): bool    { return (string)DB::setting('zp_sandbox', '0') === '1'; }
+---- end dump zp_head ----
+===== createInvoice =====
+---- dump zp_inv : app/Service/Zarinpal.php (350 lines) ----
+  177      * خروجی: ok, url, authority, tx, message
+  178      */
+  179     public static function createInvoice(array $user, int $amount, int $txId = 0): array
+  180     {
+  181         $fail = function (string $m) use ($txId): array {
+  182             return ['ok' => false, 'url' => '', 'authority' => '', 'tx' => $txId, 'message' => $m];
+  183         };
+  184 
+  185         if (!self::enabled())  return $fail('درگاه زرین‌پال فعال نیست.');
+  186         if ($amount <= 0)      return $fail('مبلغ نامعتبر است.');
+  187 
+  188         $min = self::minAmount();
+  189         $max = self::maxAmount();
+  190         if ($min > 0 && $amount < $min) return $fail('حداقل مبلغ پرداخت ' . money($min) . ' است.');
+  191         if ($max > 0 && $amount > $max) return $fail('حداکثر مبلغ پرداخت ' . money($max) . ' است.');
+  192 
+  193         if ($txId <= 0) {
+  194             if (!class_exists('Wallet')) return $fail('ماژول کیف پول در دسترس نیست.');
+  195             $txId = (int)Wallet::createDeposit($user, $amount, 'zarinpal');
+  196         }
+  197         if ($txId <= 0) return $fail('ثبت تراکنش انجام نشد.');
+  198 
+  199         $desc = self::desc();
+  200         if ($desc === '') $desc = 'شارژ کیف پول';
+  201 
+  202         $meta = [];
+  203         $mob  = preg_replace('/\D+/', '', (string)($user['phone'] ?? ''));
+  204         if (is_string($mob) && strlen($mob) >= 10) $meta['mobile'] = substr($mob, -11);
+  205         $mail = trim((string)($user['email'] ?? ''));
+  206         if ($mail !== '') $meta['email'] = $mail;
+  207 
+  208         $body = [
+  209             'merchant_id'  => self::merchant(),
+  210             'amount'       => $amount,
+  211             'currency'     => self::currency(),
+  212             'callback_url' => self::callbackUrl(),
+  213             'description'  => $desc . ' #' . $txId,
+  214         ];
+  215         if ($meta !== []) $body['metadata'] = $meta;
+  216 
+  217         $res = self::api('/request.json', $body);
+  218         if (empty($res['ok']) || (int)($res['code'] ?? 0) !== 100) {
+  219             app_log('zarinpal', 'request failed: ' . (string)($res['message'] ?? ''), ['tx' => $txId]);
+  220             return ['ok' => false, 'url' => '', 'authority' => '', 'tx' => $txId,
+  221                 'message' => (string)($res['message'] ?? 'ساخت لینک پرداخت ناموفق بود.')];
+  222         }
+  223 
+  224         $authority = trim((string)($res['data']['authority'] ?? ''));
+  225         if ($authority === '') return $fail('کد رهگیری از زرین‌پال دریافت نشد.');
+  226 
+  227         try {
+  228             DB::update('transactions', ['txid' => $authority], 'id = :id', [':id' => $txId]);
+  229         } catch (Throwable $e) {
+  230             app_log('zarinpal', 'store authority failed: ' . $e->getMessage(), ['tx' => $txId]);
+  231         }
+  232 
+  233         $start = self::sandbox() ? self::START_BOX : self::START;
+  234         return ['ok' => true, 'url' => $start . $authority, 'authority' => $authority, 'tx' => $txId, 'message' => ''];
+  235     }
+  236 
+  237     public static function verify(string $authority, int $amount): array
+  238     {
+  239         return self::api('/verify.json', [
+  240             'merchant_id' => self::merchant(),
+  241             'amount'      => $amount,
+---- end dump zp_inv ----
+===== poll =====
+---- dump zp_poll : app/Service/Zarinpal.php (350 lines) ----
+  318 
+  319     /** استعلام دستی یک تراکنش از پنل مدیریت */
+  320     public static function poll(array $tx): array
+  321     {
+  322         $a = trim((string)($tx['txid'] ?? ''));
+  323         if ($a === '') return ['ok' => false, 'message' => 'کد رهگیری برای این تراکنش ثبت نشده است.'];
+  324         return self::apply($a, 'OK');
+  325     }
+  326 
+  327     /* ==================== وضعیت ==================== */
+  328 
+  329     public static function health(): array
+  330     {
+  331         if (self::merchant() === '') return ['ok' => false, 'message' => 'مرچنت کد ثبت نشده است.'];
+  332         if (strlen(self::merchant()) !== 36) return ['ok' => false, 'message' => 'مرچنت کد باید ۳۶ کاراکتر باشد.'];
+  333         if (!self::enabled()) return ['ok' => false, 'message' => 'درگاه خاموش است.'];
+  334         return ['ok' => true, 'message' => 'آمادهٔ دریافت پرداخت'];
+  335     }
+  336 
+  337     public static function summary(): array
+  338     {
+  339         $out = ['enabled' => self::enabled(), 'pending' => 0, 'approved' => 0, 'sum' => 0];
+  340         try {
+  341             $out['pending']  = (int)DB::val("SELECT COUNT(*) FROM {p}transactions WHERE method = 'zarinpal' AND status = 'pending'");
+  342             $out['approved'] = (int)DB::val("SELECT COUNT(*) FROM {p}transactions WHERE method = 'zarinpal' AND status = 'approved'");
+  343             $out['sum']      = (int)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE method = 'zarinpal' AND status = 'approved'");
+  344         } catch (Throwable $e) {
+  345             /* جدول ممکن است هنوز ساخته نشده باشد */
+  346         }
+---- end dump zp_poll ----
+===== status check callbacks =====
+---- grep: hpchk ----
+app/Bot/Bot.php:1090: elseif ($arg === 'hpchk') self::checkHooshPay($chatId, (int)$arg2);
+app/Bot/Bot.php:1475: [Tg::btn('🔄 بررسی وضعیت پرداخت', 'wal:hpchk:' . $txH)],
+miniapp/index.php:2300: h += '<button type="button" class="btn gh w" data-hpchk="' + esc(String(r.tx || 0)) +
+miniapp/index.php:2307: var tx = parseInt(el.getAttribute('data-hpchk') || '0', 10) || 0;
+miniapp/index.php:3753: if ((el = t.closest('[data-hpchk]'))) { haptic(); hpCheck(el); return; }
+---- end grep: hpchk (5) ----
+---- grep: 'wal:chk ----
+app/Bot/Bot.php:1416: [Tg::btn('🔄 بررسی وضعیت پرداخت', 'wal:chk:' . $txN)],
+---- end grep: 'wal:chk (1) ----
+===== wallet menu builder =====
+---- grep: walletMenu ----
+---- end grep: walletMenu (0) ----
+---- grep: hooshpayOn ----
+app/Service/Gateway.php:347: public static function hooshpayOn(bool $isReseller = false): bool
+---- end grep: hooshpayOn (1) ----
 changelog: entry added
-build: fixed158 (was fixed157)
+build: fixed159 (was fixed158)
 exit: 0
 exit: 0
