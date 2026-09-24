@@ -1,219 +1,257 @@
 Python 3.12.3
-Thu Sep 24 12:30:06 UTC 2026
----- ls . ----
-      207  .dockerignore
-      700  .env.docker.example
-    <dir>  .git
-      935  .gitattributes
-    <dir>  .github
-      935  .gitignore
-     3148  .htaccess
-    28994  CHANGELOG.md
-     3229  CONTRIBUTING.md
-     1466  Dockerfile
-     4798  LICENSE
-    26419  README.md
-     2507  SECURITY.md
-    <dir>  admin
-    <dir>  app
-    <dir>  assets
-     5865  cli.php
-      602  composer.json
-     1253  config.sample.php
-    <dir>  cron
-    <dir>  database
-    <dir>  docker
-     1914  docker-compose.yml
-    <dir>  docs
-     4740  hooshpay.php
-     5499  index.php
-    <dir>  install
-    13822  install.sh
-    <dir>  miniapp
-     3609  nginx.conf.sample
-     1889  nowpay.php
-      731  phpstan.neon.dist
-     3426  rbot.php
-    <dir>  storage
-    42258  sub.php
-    <dir>  tools
-    12546  verify.php
-    13529  version.json
----- end ls . ----
----- ls .github/workflows ----
-     1663  ci.yml
-     1956  fixups.yml
-     4587  release.yml
----- end ls .github/workflows ----
----- ls docs ----
-      207  .htaccess
-     6724  DOCKER.md
-     9795  INSTALL-SR-UI.md
-     4297  RELEASE.md
-     2598  refactor-plan.md
----- end ls docs ----
----- ls tools ----
-      207  .htaccess
-    19694  botcheck.php
-      808  lint.sh
-    10547  sr-ui
----- end ls tools ----
----- ls cron ----
-      207  .htaccess
-    32789  tasks.php
----- end ls cron ----
----- functions: app/Service/AutoRenew.php ----
-   19 public static function enabled(): bool
-   24 public static function hours(): int
-   29 public static function trafficPercent(): int
-   35 public static function hasColumn(): bool
-   53 public static function userOn(array $u): bool
-   59 public static function setUser(int $userId, ?bool $on = null): bool
-   69 public static function planFor(array $s): ?array
-   90 public static function run(int $max = 30): array
-  128 public static function renewOne(array $s): array
-  206 private static function markFail(array $s): void
-  216 public static function stage2Days(): int
-  221 public static function remindStage2(int $max = 80): int
-  251 public static function stats(): array
+Thu Sep 24 12:33:21 UTC 2026
+changelog: inserted 60 entries before line 6
+wrote CHANGELOG.md
+changed files: 1
+---- functions: app/Service/Migrate.php ----
+  273 public static function hasTable(string $table): bool
+  281 public static function hasColumn(string $table, string $col): bool
+  290 public static function columnType(string $table, string $col): string
+  301 public static function needsModify(string $table, string $col, array $badTypes): bool
+  312 public static function hasIndex(string $table, string $idx): bool
+  323 public static function wantedSettings(): array
+  343 private static function existingSettings(): array
+  355 public static function plan(): array
+  393 public static function missingCount(?array $plan = null): int
+  403 public static function run(): array
+  409 $exec = function (string $sql, string $label) use (&$lines, &$done, &$fail): void {
+  489 public static function legacy(): array
 ---- end functions ----
----- grep: AutoRenew:: ----
-app/Bot/AdminHub.php:235: $turnOn = !AutoRenew::enabled();
-app/Bot/AdminHub.php:236: if ($turnOn && !AutoRenew::hasColumn()) {
-app/Bot/AdminHub.php:248: $r = AutoRenew::run(30);
-app/Bot/AdminHub.php:1483: $arnOn = class_exists('AutoRenew') && AutoRenew::enabled();
-app/Bot/AdminHub.php:1545: $on = AutoRenew::enabled();
-app/Bot/AdminHub.php:1546: $st = AutoRenew::stats();
-app/Bot/AdminHub.php:1547: $tp = AutoRenew::trafficPercent();
-app/Bot/AdminHub.php:1550: . '⏱ زمان اقدام: ' . fa_num(AutoRenew::hours()) . ' ساعت قبل از انقضا' . ($tp > 0 ? ' یا ' . fa_num($tp) . '٪ مصرف حجم' : '') . "\n"
-app/Bot/AdminHub.php:1554: . '⏰ یادآوری مرحلهٔ دوم: ' . (AutoRenew::stage2Days() > 0 ? fa_num(AutoRenew::stage2Days()) . ' روز قبل از انقضا' : 'خاموش') . "\n"
-app/Bot/Bot.php:1104: if (!class_exists('AutoRenew') || !AutoRenew::enabled()) { Tg::answerCb($cbId, 'این قابلیت فعلاً غیرفعال است.', true); return; }
-app/Bot/Bot.php:1105: $new = AutoRenew::setUser((int)self::$u['id'], $arg === 'on' ? true : ($arg === 'off' ? false : null));
-cron/tasks.php:304: if (class_exists('AutoRenew') && AutoRenew::enabled()) $kbw[] = [Tg::btn('🔁 فعال‌سازی تمدید خودکار', 'arn:on')];
-cron/tasks.php:315: $n2 = AutoRenew::remindStage2(80);
-cron/tasks.php:325: if (class_exists('AutoRenew') && AutoRenew::enabled()) {
-cron/tasks.php:327: $ar = AutoRenew::run(30);
----- end grep: AutoRenew:: (15) ----
----- grep: expire_soon ----
----- end grep: expire_soon (0) ----
----- grep: remind ----
-app/Service/AutoRenew.php:221: public static function remindStage2(int $max = 80): int
-cron/tasks.php:315: $n2 = AutoRenew::remindStage2(80);
-cron/tasks.php:316: if ($n2 > 0) { $report['warned_stage2'] = $n2; cron_say('stage2 reminders: ' . $n2); }
-cron/tasks.php:318: app_log('cron', 'stage2 reminder failed: ' . $e->getMessage());
----- end grep: remind (4) ----
----- grep: 'trial' ----
----- end grep: 'trial' (0) ----
----- grep: trial_used ----
----- end grep: trial_used (0) ----
----- functions: app/Service/Referral.php ----
-   18 public static function enabled(): bool
-   24 public static function bonus(): float
-   29 public static function percent(): float
-   34 public static function percentL2(): float
-   39 public static function firstOnly(): bool
-   44 public static function minAmount(): int
-   50 public static function capPerTx(): int
-   55 public static function active(): bool
-   63 public static function botUsername(): string
-   82 public static function code(array $u): string
-   87 public static function link(array $u): string
-   95 public static function shareText(array $u): string
-  109 public static function shareUrl(array $u): string
-  120 public static function stats(array $u): array
-  174 public static function invitees(int $tgId, int $limit = 20): array
-  223 public static function reward(int $userId, int $amount, bool $isFirstDeposit = false): array
-  296 public static function top(int $limit = 20): array
-  317 public static function overview(): array
+---- dump migrate_sql : app/Service/Migrate.php (538 lines) ----
+  210   `failed` INT NOT NULL DEFAULT 0,
+  211   `status` VARCHAR(16) NOT NULL DEFAULT 'done',
+  212   `admin_id` INT NULL,
+  213   `created_at` DATETIME NOT NULL,
+  214   KEY `idx_bc_status` (`status`)
+  215 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+  216     ];
+  217 
+  218     /** اگر خواندن schema.sql ممکن نبود، حداقل این کلیدها باید باشند */
+  219     public const SETTINGS_FALLBACK = [
+  220         'stock_enabled' => '1', 'stock_title' => 'انبار ملی', 'stock_icon' => '🏪',
+  221         'stock_low_alert' => '3', 'stock_show_empty' => '0', 'stock_per_user' => '0', 'stock_note' => '',
+  222         'backup_hours'   => '6',
+  223         'backup_auto'    => '1',
+  224         'backup_send_tg' => '1',
+  225         'panel_density' => 'comfortable', 'panel_default_theme' => 'dark',
+  226         'sec_verify_mode' => 'off', 'sec_code_ttl' => '10', 'sec_code_length' => '5',
+  227         'sec_max_tries' => '5', 'sec_resend_wait' => '90',
+  228         'rate_failover' => '1', 'rate_live' => '1', 'rate_assets' => 'USDT,TON,TRX',
+  229         'miniapp_enabled' => '1', 'miniapp_accent' => '#3b82f6',
+  230         'install_autodelete' => '1', 'admin_miniapp' => '1',
+  231         'txc_enabled' => '1', 'txc_auto_approve' => '1', 'txc_tolerance' => '3', 'txc_timeout' => '15',
+  232         'txc_auto_reject' => '1', 'txc_reject_low' => '1', 'txc_reject_notfound' => '0',
+  233         'rs_app_title' => '', 'nowpay_min_usd' => '5',
+  234         'rs_enabled' => '1', 'rs_price_gb' => '2000', 'rs_price_day' => '500',
+  235         'rs_min_gb' => '1', 'rs_max_gb' => '500', 'rs_min_days' => '1', 'rs_max_days' => '365',
+  236         'rs_ip_limit' => '2', 'rs_round' => '1000', 'rs_l1_discount' => '10',
+  237         'rs_l2_discount' => '20', 'rs_l2_credit' => '500000', 'rs_requests_open' => '1',
+  238         'rs_req_fee' => '0', 'rs_req_fee_credit' => '0', 'rs_req_fee_target' => 'balance',
+  239         'rs_req_auto' => '0', 'rs_req_level' => '1',
+  240         'rs_plans' => '[]', 'rs_plans_on' => '1',
+  241         'pay_gateways' => '[]', 'pay_gw_migrated' => '0',
+  242         'hp_enabled' => '0', 'hp_api_key' => '', 'hp_secret' => '',
+  243         'hp_fee_mode' => 'seller', 'hp_unit' => 'toman', 'hp_fee_percent' => '20',
+  244         'hp_min' => '0', 'hp_max' => '0', 'hp_label' => '', 'hp_icon' => '',
+  245         'hp_desc' => '', 'hp_audience' => 'all', 'hp_return_url' => '',
+  246         'sub_domain' => '', 'sub_domain_on' => '0', 'sub_domain_https' => '1',
+  247         'sub_domain_path' => '', 'sub_domain_rs' => '1',
+  248         'rel_enabled' => '0', 'rel_chat_id' => '', 'rel_topic_id' => '0',
+  249         'rel_topic_name' => '', 'rel_topic_color' => '9367192', 'rel_style' => 'hero',
+  250         'rel_auto' => '1', 'rel_pin' => '0', 'rel_silent' => '0',
+  251         'rel_title' => '', 'rel_footer' => '', 'rel_btn_text' => '', 'rel_btn_url' => '',
+  252         'rel_draft' => '', 'rel_history' => '[]', 'rel_last_ver' => '',
+  253         'rel_last_at' => '', 'rel_last_msg' => '0',
+  254         'bot_texts' => '{}', 'bot_text_rules' => '[]',
+  255         'bot_buttons' => '[]', 'btn_mode' => 'reply', 'btn_per_row' => '2',
+  256         /* احراز کارت بانکی */
+  257         'cardauth_enabled' => '1', 'cardauth_required' => '1', 'cardauth_auto' => '0',
+  258         'cardauth_max' => '3', 'cardauth_holder' => '1', 'cardauth_sheba' => '0',
+  259         'cardauth_luhn' => '1',
+  260         'cardauth_single' => '0', 'cardauth_photo' => '1', 'cardauth_photo_req' => '0',
+  261         'cardauth_note' => 'شماره‌ی کارتی که قرار است با آن واریز کنید را ثبت کنید. واریز از کارت دیگران پذیرفته نیست.',
+  262         /* نمایندگی — گزینه‌های گسترده */
+  263         'rs_wallet_only' => '0', 'rs_daily_limit' => '0', 'rs_month_limit' => '0',
+---- end dump migrate_sql ----
+===== trial / test service flow =====
+---- grep: test_volume ----
+CHANGELOG.md:86: - حجم اکانت تست بر حسب مگابایت (ستون panels.test_volume_mb) در ربات، مینی‌اپ و پنل وب؛ مثلاً ۵۰۰ مگابایت
+admin/pages/panels.php:48: 'test_volume_gb' => pflt('test_volume_gb', 1),
+admin/pages/panels.php:49: 'test_volume_mb' => max(0, pint('test_volume_mb')), /* fixed79: حجم تست به مگابایت (اولویت بر گیگ) */
+admin/pages/panels.php:69: /* fixed79: ستون test_volume_mb — نصب‌های قدیمی: خودکار اضافه می‌شود؛ اگر نشد، از داده حذف شود تا INSERT خطا ندهد */
+admin/pages/panels.php:70: if (class_exists('Migrate') && !Migrate::hasColumn('panels', 'test_volume_mb')) {
+admin/pages/panels.php:71: try { DB::q('ALTER TABLE {p}panels ADD COLUMN `test_volume_mb` INT NOT NULL DEFAULT 0'); } catch (Throwable $ex) { app_log('db', 'add panels ...
+admin/pages/panels.php:73: if (!class_exists('Migrate') || !Migrate::hasColumn('panels', 'test_volume_mb')) unset($data['test_volume_mb']);
+admin/pages/panels.php:847: <input class="mono" type="text" name="test_volume_gb" value="<?= h((string)$v('test_volume_gb', '1')) ?>">
+admin/pages/panels.php:852: <input class="mono" type="number" min="0" name="test_volume_mb" value="<?= (int)$v('test_volume_mb', 0) ?>">
+admin/pages/panels.php:1153: var g = val('test_volume_gb') || '0';
+admin/pages/panels.php:1154: var gmb = parseInt(val('test_volume_mb') || '0', 10) || 0; /* fixed79 */
+app/Bot/AdminHub.php:1677: $panels = DB::all('SELECT name, test_limit, test_volume_gb, test_days, test_hours FROM {p}panels WHERE active = 1 AND test_enabled = 1 ORDER ...
+app/Bot/AdminHub.php:1696: $t .= '• ' . h((string)$p['name']) . ' — ' . fa_num((string)(float)$p['test_volume_gb']) . ' گیگ / ' . $dur . ' / سقف ' . fa_num((int)$p['te ...
+app/Service/Migrate.php:59: 'test_volume_mb' => 'INT NOT NULL DEFAULT 0', /* fixed79: حجم تست به مگابایت */
+app/Service/Svc.php:383: /** fixed79: حجم اکانت تست به گیگ — test_volume_mb (مگابایت) اگر > ۰ باشد بر test_volume_gb اولویت دارد */
+app/Service/Svc.php:386: $mb = (int)($panel['test_volume_mb'] ?? 0);
+app/Service/Svc.php:388: return max(0.0, (float)($panel['test_volume_gb'] ?? 0));
+app/Service/Svc.php:394: $mb = (int)($panel['test_volume_mb'] ?? 0);
+app/Service/Svc.php:396: $gb = (float)($panel['test_volume_gb'] ?? 0);
+database/schema.sql:70: `test_volume_gb` DECIMAL(10,2) NOT NULL DEFAULT 1.00,
+miniapp/api.php:915: 'volume_mb' => (int)($tpn['test_volume_mb'] ?? 0),
+---- end grep: test_volume (21) ----
+---- grep: testInbound ----
+app/Service/Svc.php:417: public static function testInbounds(array $panel): string
+app/Service/Svc.php:451: 'inbound_id'     => self::testInbounds($panel),
+---- end grep: testInbound (2) ----
+---- grep: 'test ----
+admin/pages/panels.php:45: 'test_enabled'   => pchk('test_enabled'),
+admin/pages/panels.php:46: 'test_inbound_ids'   => $pnIds('test_inbound_ids'),
+admin/pages/panels.php:47: 'test_single_inbound'=> pchk('test_single_inbound'),
+admin/pages/panels.php:48: 'test_volume_gb' => pflt('test_volume_gb', 1),
+admin/pages/panels.php:49: 'test_volume_mb' => max(0, pint('test_volume_mb')), /* fixed79: حجم تست به مگابایت (اولویت بر گیگ) */
+admin/pages/panels.php:50: 'test_days'      => pint('test_days'),
+admin/pages/panels.php:51: 'test_hours'     => pint('test_hours'),
+admin/pages/panels.php:52: 'test_limit'     => pint('test_limit', 1),
+admin/pages/panels.php:70: if (class_exists('Migrate') && !Migrate::hasColumn('panels', 'test_volume_mb')) {
+admin/pages/panels.php:73: if (!class_exists('Migrate') || !Migrate::hasColumn('panels', 'test_volume_mb')) unset($data['test_volume_mb']);
+admin/pages/panels.php:250: if ((int)$p['test_enabled']) $cntTest++;
+admin/pages/panels.php:460: <?php if ((int)$p['test_enabled']): ?>
+admin/pages/panels.php:840: <input type="checkbox" name="test_enabled" value="1" data-toggle-target="#testbox" <?= (int)$v('test_enabled', 1) ? 'checked' : '' ?>>
+admin/pages/panels.php:847: <input class="mono" type="text" name="test_volume_gb" value="<?= h((string)$v('test_volume_gb', '1')) ?>">
+admin/pages/panels.php:852: <input class="mono" type="number" min="0" name="test_volume_mb" value="<?= (int)$v('test_volume_mb', 0) ?>">
+admin/pages/panels.php:857: <input class="mono" type="number" name="test_days" value="<?= h((string)$v('test_days', 1)) ?>">
+admin/pages/panels.php:861: <input class="mono" type="number" name="test_hours" value="<?= h((string)$v('test_hours', 0)) ?>">
+admin/pages/panels.php:866: <input class="mono" type="number" name="test_limit" value="<?= h((string)$v('test_limit', 1)) ?>">
+admin/pages/panels.php:871: <input class="mono" type="text" name="test_inbound_ids" value="<?= h((string)$v('test_inbound_ids', '')) ?>" placeholder="1,2,5">
+admin/pages/panels.php:877: <input type="checkbox" name="test_single_inbound" value="1" <?= (int)$v('test_single_inbound', 0) ? 'checked' : '' ?>>
+admin/pages/panels.php:1152: if (chk('test_enabled')) {
+admin/pages/panels.php:1153: var g = val('test_volume_gb') || '0';
+admin/pages/panels.php:1154: var gmb = parseInt(val('test_volume_mb') || '0', 10) || 0; /* fixed79 */
+admin/pages/panels.php:1155: var d = val('test_days') || '0';
+admin/pages/panels.php:1156: var hr = val('test_hours') || '0';
+admin/pages/panels.php:1157: setSum('test', 'فعال — ' + (gmb > 0 ? gmb + ' مگابایت ، ' : g + ' گیگ ، ') + d + ' روز و ' + hr + ' ساعت', false);
+admin/pages/panels.php:1159: setSum('test', 'غیرفعال', true);
+admin/pages/services.php:163: if ($sv_type === 'test')     $w[] = 's.is_test = 1';
+admin/pages/services.php:334: <a class="svc-tile t-purple fade-up<?= $sv_type === 'test' ? ' on' : '' ?>" style="--i:5" href="<?= h($sv_link(['type' => 'test'])) ?>">
+admin/pages/services.php:438: <option value="test" <?= $sv_type === 'test' ? 'selected' : '' ?>>تست</option>
+---- end grep: 'test (truncated) ----
+---- grep: free_test ----
+---- end grep: free_test (0) ----
+===== helpers =====
+---- grep: function rnd( ----
+app/Helpers.php:82: function rnd(int $len = 10, string $chars = 'abcdefghijklmnopqrstuvwxyz0123456789'): string {
+---- end grep: function rnd( (1) ----
+---- grep: function money( ----
+admin/pages/products.php:1021: function money(v) { return fa(Math.round(v).toLocaleString('en-US')); }
+app/Helpers.php:129: function money($amount, bool $fa = true): string {
+---- end grep: function money( (2) ----
+---- grep: function en_num( ----
+app/Helpers.php:124: function en_num($v): string {
+---- end grep: function en_num( (1) ----
+---- grep: function app_log( ----
+app/Helpers.php:183: function app_log(string $channel, string $message, array $ctx = []): void {
+---- end grep: function app_log( (1) ----
+===== gateways / backup =====
+---- functions: app/Service/Gateway.php ----
+  114 public static function raw(): array
+  120 public static function save(array $rows): void
+  133 public static function normalize(array $r): array
+  176 public static function all(): array
+  182 usort($rows, function (array $a, array $b) {
+  193 public static function importLegacy(): array
+  233 public static function byId(string $id): ?array
+  242 public static function forUser(string $kind, bool $isReseller = false): array
+  257 public static function crypto(bool $isReseller = false): array
+  262 public static function cards(bool $isReseller = false): array
+  270 public static function card(bool $isReseller = false): ?array
+  277 public static function cardOn(bool $isReseller = false): bool
+  292 public static function cryptoOn(bool $isReseller = false): bool
+  307 public static function nowpay(bool $isReseller = false): array
+  313 public static function nowpayOn(bool $isReseller = false): bool
+  328 public static function nowpayLabel(bool $isReseller = false): string
+  338 public static function hooshpay(bool $isReseller = false): array
+  344 public static function hooshpayOn(bool $isReseller = false): bool
+  360 public static function hooshpayLabel(bool $isReseller = false): string
+  373 public static function grouped(bool $isReseller = false): array
+  394 public static function upsert(array $in): array
+  431 public static function remove(string $id): bool
+  444 public static function toggle(string $id): bool
+  460 public static function move(string $id, int $dir): bool
+  480 public static function assetLabel(string $asset): string
+  489 public static function kindLabel(string $kind): string
+  496 public static function color(array $g): string
+  505 public static function shortAddr(string $s, int $head = 10, int $tail = 8): string
+  515 public static function netLabel(string $asset, string $net): string
+  523 public static function title(array $g): string
+  538 public static function priceBase(string $asset): string
+  545 public static function hasRate(array $g): bool
+  552 public static function qty(array $g, int $amount): float
+  569 public static function decimals(string $asset): int
+  578 public static function limits(array $g): array
+  593 public static function addresses(): array
+  605 public static function duplicate(string $id): ?array
+  624 public static function setAll(bool $on): int
+  638 public static function moveEdge(string $id, bool $top): bool
+  656 public static function stats(): array
 ---- end functions ----
----- grep: ref_l2 ----
----- end grep: ref_l2 (0) ----
----- grep: priority ----
----- end grep: priority (0) ----
----- grep: canned ----
-admin/pages/botbuttons.php:532: <div class="hint" style="margin:0">آخرین اسکن: <b><?= (string)$scan['scanned_at'] !== '' ? h(to_jalali((string)$scan['scanned_at'], true)) : ...
-admin/pages/tickets.php:337: .tk-canned{ display:flex; gap:5px; flex-wrap:wrap; margin-bottom:var(--s3); }
-admin/pages/tickets.php:496: <div class="tk-canned">
-admin/pages/tickets.php:498: <button type="button" class="tk-cn" data-tk-canned="<?= h($body) ?>"><?= h($lbl) ?></button>
-admin/pages/tickets.php:748: document.querySelectorAll('[data-tk-canned]').forEach(function (btn) {
-admin/pages/tickets.php:751: var txt = btn.getAttribute('data-tk-canned') || '';
-app/Service/Btn.php:1569: 'scanned_at'  => (string)(is_array($cache) ? ($cache['at'] ?? '') : ''),
----- end grep: canned (7) ----
----- grep: GATEWAYS ----
----- end grep: GATEWAYS (0) ----
----- grep: case 'zarinpal ----
----- end grep: case 'zarinpal (0) ----
----- grep: zarinpal ----
----- end grep: zarinpal (0) ----
----- grep: 'lang' ----
----- end grep: 'lang' (0) ----
----- grep: i18n ----
----- end grep: i18n (0) ----
----- grep: p=reports ----
----- end grep: p=reports (0) ----
----- grep: profit ----
-app/Service/Stock.php:850: 'profit' => $asReseller ? max(0, (int)$c['price'] - $price) : 0];
-miniapp/api.php:2826: 'profit'     => $gain,
-miniapp/api.php:2827: 'profit_txt' => ma_money($gain),
-miniapp/api.php:2870: $gain  += (int)($r['profit'] ?? 0);
-miniapp/api.php:2891: 'profit'      => $gain,
-miniapp/api.php:2892: 'profit_txt'  => ma_money($gain),
-miniapp/api.php:2919: 'profit_txt' => ma_money($pf),
-miniapp/api.php:2926: ma_out(['ok' => true, 'items' => $rows, 'profit' => $gain, 'profit_txt' => ma_money($gain)]);
-miniapp/reseller.php:2335: S.stockMine = (r && r.ok) ? r : { items: [], profit_txt: '' };
-miniapp/reseller.php:2526: '<div class="pc g"><b>' + esc(c.profit_txt) + '</b><span>سود شما</span></div>' +
-miniapp/reseller.php:2532: '<span class="v">' + esc(c.profit_txt || '—') + '</span></div>';
-miniapp/reseller.php:2569: '<span class="wv b">' + esc(m.profit_txt || '') + '</span></div>' +
-miniapp/reseller.php:2583: if (x.profit_txt) sub.push('سود: ' + x.profit_txt);
----- end grep: profit (13) ----
----- grep: backup_cloud ----
----- end grep: backup_cloud (0) ----
----- grep: sendDocument ----
-app/Service/Broadcast.php:33: 'document'  => ['label' => '📎 فایل',        'method' => 'sendDocument'],
-app/Service/Broadcast.php:266: $method = self::KINDS[$kind]['method'] ?? 'sendDocument';
-app/Service/Logs.php:492: $res = self::call('sendDocument', $build($tid > 0 ? $tid : null), true);
-app/Service/Logs.php:497: $res = self::call('sendDocument', $build($new > 0 ? $new : null), true);
-app/Service/Logs.php:502: app_log('logs', 'sendDocument failed', [
-app/Service/Stock.php:940: $r = Tg::api('sendDocument', [
-app/Tg.php:83: * اگر نوع فایل مشخص نباشد، اول sendPhoto و در صورت خطا sendDocument امتحان می‌شود.
-app/Tg.php:92: 'document'  => ['sendDocument', 'document'],
-app/Tg.php:118: $last = self::api('sendDocument', $p);
-app/Tg.php:137: return self::api('sendDocument', [
----- end grep: sendDocument (10) ----
----- grep: rs_api ----
----- end grep: rs_api (0) ----
----- grep: api/v1 ----
-app/Service/HooshPay.php:7: * مستندات: https://hooshpay.xyz/api/v1
-app/Service/HooshPay.php:20: public const BASE = 'https://hooshpay.xyz/api/v1';
----- end grep: api/v1 (2) ----
----- grep: phpstan ----
-.github/workflows/ci.yml:42: phpstan:
-.github/workflows/ci.yml:43: name: PHPStan (level from phpstan.neon.dist)
-.github/workflows/ci.yml:53: tools: phpstan
-.github/workflows/ci.yml:55: run: phpstan analyse -c phpstan.neon.dist --no-progress --error-format=github || true
-CHANGELOG.md:156: - **ابزار توسعه**: tools/lint.sh (چک سینتکس)، phpstan.neon.dist (تحلیل استاتیک)، docs/refactor-plan.md (نقشه شکستن فایل‌های بزرگ).
-composer.json:16: "phpstan/phpstan": "^1.11"
-composer.json:20: "analyse": "phpstan analyse -c phpstan.neon.dist"
-docs/refactor-plan.md:29: - قبل از هر انتشار: `tools/lint.sh` و در صورت امکان `phpstan analyse`.
-install.sh:207: location ~* ^/(config\.php|config\.sample\.php|composer\.json|phpstan\.neon\.dist)$ { deny all; return 404; }
-phpstan.neon.dist:4: #   composer require --dev phpstan/phpstan
----- end grep: phpstan (truncated) ----
----- grep: phpunit ----
----- end grep: phpunit (0) ----
----- grep: CREATE INDEX ----
----- end grep: CREATE INDEX (0) ----
----- file sizes ----
-   263 lines  app/Service/AutoRenew.php
-   331 lines  app/Service/Referral.php
-   679 lines  app/Service/Gateway.php
-   583 lines  app/Service/Backup.php
-   354 lines  app/Service/Txt.php
-   664 lines  cron/tasks.php
-   767 lines  admin/pages/tickets.php
-   183 lines  CHANGELOG.md
-   378 lines  README.md
----- end file sizes ----
-build: fixed143 (was fixed142)
-changed files: 0 (recon)
+---- functions: app/Service/Backup.php ----
+   18 public static function dir(): string
+   25 public static function typeLabel(string $t): string
+   34 public static function dumpDb(string $path): array
+   67 private static function projectFiles(): array
+   74 private static function walk(string $dir, string $base, array &$out): void
+   86 private static function skipPath(string $rel): bool
+   96 public static function zipPass(): string
+  123 public static function aesReady(): bool
+  131 private static function makePass(int $len = 20): string
+  141 private static function encryptZip(ZipArchive $zip): void
+  151 private static function zipAll(string $zipPath, string $sqlPath): array
+  177 public static function create(string $type = 'db', string $note = '', ?bool $send = null): array
+  235 public static function all(): array
+  258 public static function stats(): array
+  272 public static function path(string $name): ?string
+  280 public static function delete(string $name): bool
+  288 public static function prune(int $keep = 7): int
+  306 public static function sendTg(string $name, string $caption = ''): bool
+  317 public static function sendTgPath(string $p, string $caption = ''): bool
+  365 public static function execSqlFile(string $file, bool $usePrefix = false): array
+  389 private static function harmlessSqlError(string $msg): bool
+  400 private static function nextRowsetSafe(PDOStatement $st): bool
+  412 private static function runStmt(string $s): string
+  420 $run = function (string $sql) use ($rows): void {
+  453 public static function splitSql(string $sql): array
+  485 public static function restore(string $name, bool $withFiles = false): array
+  543 public static function saveUpload(array $file): array
+  558 public static function due(): bool
+  566 public static function autoRun(): array
+  575 public static function nextRun(): string
+---- end functions ----
+===== tickets schema =====
+---- dump tickets_tbl : database/schema.sql (546 lines) ----
+  231 
+  232 CREATE TABLE IF NOT EXISTS {p}tickets (
+  233   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  234   `user_id` INT UNSIGNED NOT NULL,
+  235   `tg_id` BIGINT NOT NULL,
+  236   `subject` VARCHAR(190) NULL,
+  237   `status` VARCHAR(16) NOT NULL DEFAULT 'open',
+  238   `created_at` DATETIME NOT NULL,
+  239   `updated_at` DATETIME NOT NULL,
+  240   KEY `idx_status` (`status`)
+  241 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  242 
+  243 CREATE TABLE IF NOT EXISTS {p}ticket_messages (
+  244   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  245   `ticket_id` INT UNSIGNED NOT NULL,
+  246   `sender` VARCHAR(8) NOT NULL DEFAULT 'user',
+  247   `text` TEXT NULL,
+  248   `file_id` VARCHAR(255) NULL,
+  249   `file_type` VARCHAR(16) NULL,
+  250   `created_at` DATETIME NOT NULL,
+  251   KEY `idx_ticket` (`ticket_id`)
+  252 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  253 
+  254 CREATE TABLE IF NOT EXISTS {p}tutorials (
+---- end dump tickets_tbl ----
+changelog json: entry added
+build: fixed144 (was fixed143)
 exit: 0
 exit: 0
