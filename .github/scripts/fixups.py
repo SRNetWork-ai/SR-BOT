@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-# fixed157 - 0.0.2 #22: Zarinpal admin UI in gateways.php (save handler, kind card, fieldset, JS) + bot recon.
+# fixed158 - 0.0.2 #22: wire Zarinpal into bot buttons, deep links, pollers and miniapp flags.
 import io, os, sys, json
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed157').strip() or 'fixed157'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed158').strip() or 'fixed158'
 
 CACHE = {}
 NEW = set()
@@ -12,7 +12,11 @@ WARN = []
 SKIP_DIRS = {'.git', 'node_modules', 'vendor', 'storage', 'uploads', 'backups'}
 EXT = ('.php', '.sql', '.js', '.html', '.json')
 
-GWP = 'admin/pages/gateways.php'
+BTN = 'app/Service/Btn.php'
+BOT = 'app/Bot/Bot.php'
+PAY = 'admin/pages/payments.php'
+API = 'miniapp/api.php'
+CRON = 'cron/tasks.php'
 
 
 def load(path):
@@ -40,6 +44,25 @@ def rep_lit(path, old, new, marker, optional=False):
     CACHE[path] = src.replace(old, new)
     NEW.add(path)
     print('patched: %s (%s)' % (path, marker))
+
+
+def rep_all(path, old, new, marker, optional=True):
+    src = load(path)
+    if marker in src:
+        print('skip (already applied): %s' % marker)
+        return
+    n = src.count(old)
+    if n < 1:
+        msg = '%s: anchor for %s matched 0 times' % (path, marker)
+        if optional:
+            WARN.append(msg)
+            print('SKIP optional: ' + msg)
+        else:
+            ERRORS.append(msg)
+        return
+    CACHE[path] = src.replace(old, new)
+    NEW.add(path)
+    print('patched: %s (%s x%d)' % (path, marker, n))
 
 
 def dump(tag, path, start, end):
@@ -108,162 +131,75 @@ def grep_all(needle, limit=20, only=None):
     print('---- end grep: %s (%d) ----' % (needle, n))
 
 
-# ==================================================================
-# 1) save handler
-# ==================================================================
-HP_TAIL = (
-    "            DB::setSetting('hp_enabled',  (string)pchk('enabled'));\n"
-    "        }\n"
-)
-
-ZP_SAVE = r"""
-        if (ptxt('kind') === 'zarinpal') { /* 0.0.2 #22 */
-            DB::setSetting('zp_merchant', ptxt('zp_merchant', 60));
-            DB::setSetting('zp_unit',     ptxt('zp_unit', 20));
-            DB::setSetting('zp_audience', ptxt('zp_audience', 20));
-            DB::setSetting('zp_min',      (string)max(0, pint('zp_min', 0)));
-            DB::setSetting('zp_max',      (string)max(0, pint('zp_max', 0)));
-            DB::setSetting('zp_desc',     ptxt('zp_desc', 200));
-            DB::setSetting('zp_sandbox',  (string)pchk('zp_sandbox'));
-            DB::setSetting('zp_label',    ptxt('label', 120));
-            DB::setSetting('zp_icon',     ptxt('icon', 20));
-            DB::setSetting('zp_enabled',  (string)pchk('enabled'));
-        }
-"""
-
-rep_lit(GWP, HP_TAIL, HP_TAIL + ZP_SAVE, "ptxt('kind') === 'zarinpal'")
+ZPICON = '\\u{1F3E6}'
+ZPLBL = '\u0634\u0627\u0631\u0698 \u0622\u0646\u06cc \u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644'
+WALGRP = '\u06a9\u06cc\u0641 \u067e\u0648\u0644'
 
 # ==================================================================
-# 2) kind description
+# 1) bot button registry
 # ==================================================================
 rep_lit(
-    GWP,
-    "                  'hooshpay' => '",
-    "                  'zarinpal' => '\u067e\u0631\u062f\u0627\u062e\u062a \u0622\u0646\u0644\u0627\u06cc\u0646 \u0628\u0627 \u06a9\u0627\u0631\u062a \u0634\u062a\u0627\u0628 (\u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644)',\n"
-    "                  'hooshpay' => '",
-    "'zarinpal' => '",
-)
-
-# ==================================================================
-# 3) list card flags
-# ==================================================================
-rep_lit(
-    GWP,
-    "        $isHp   = $g['kind'] === 'hooshpay';\n",
-    "        $isHp   = $g['kind'] === 'hooshpay';\n"
-    "        $isZp   = $g['kind'] === 'zarinpal'; /* 0.0.2 #22 */\n",
-    "$isZp   = $g['kind']",
+    BTN,
+    "        'wal_hash'   => ['",
+    "        'wal_zp'     => [\"" + ZPICON + "\", '" + ZPLBL + "', 'all', '" + WALGRP + "'], /* 0.0.2 #22 */\n"
+    "        'wal_hash'   => ['",
+    "'wal_zp'     => [",
 )
 
 rep_lit(
-    GWP,
-    "        elseif ($isHp) { $val = class_exists('HooshPay') ? HooshPay::callbackUrl() : 'HooshPay'; }\n",
-    "        elseif ($isHp) { $val = class_exists('HooshPay') ? HooshPay::callbackUrl() : 'HooshPay'; }\n"
-    "        elseif ($isZp) { $val = class_exists('Zarinpal') ? Zarinpal::callbackUrl() : 'ZarinPal'; }\n",
-    "$isZp) { $val",
+    BTN,
+    "        'wal_hash'   => 'wallet',",
+    "        'wal_zp'     => 'wallet',\n"
+    "        'wal_hash'   => 'wallet',",
+    "'wal_zp'     => 'wallet'",
 )
 
 # ==================================================================
-# 4) settings fieldset in the modal
+# 2) bot callbacks / deep links
 # ==================================================================
-ZP_FIELDSET = r"""          <?php if (class_exists('Zarinpal')): ?>
-          <div class="fieldset accent" id="gwZp">
-            <div class="lg"><span class="n"><?= "\u{1F3E6}" ?></span> تنظیمات زرین‌پال (ZarinPal)</div>
-            <div class="fs-hint">مرچنت کد ۳۶ کاراکتری را از پنل زرین‌پال بخش «درگاه‌های پرداخت» بگیرید. با ذخیره، درگاه فعال می‌شود.</div>
-            <div class="form-grid g2">
-              <div class="field" style="grid-column:1/-1"><label>مرچنت کد <span style="color:var(--red)">*</span></label>
-                <input class="mono ltr" type="text" name="zp_merchant" autocomplete="off" maxlength="60"
-                  value="<?= h((string)DB::setting('zp_merchant', '')) ?>" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-                <div class="hint">بدون مرچنت کد، درگاه روشن نمی‌شود.</div></div>
-
-              <div class="field"><label>واحد مبلغ فروشگاه</label>
-                <select name="zp_unit">
-                  <?php $zpU = (string)DB::setting('zp_unit', 'toman'); ?>
-                  <?php foreach (Zarinpal::UNITS as $uk => $uv): ?>
-                    <option value="<?= h((string)$uk) ?>" <?= $zpU === (string)$uk ? 'selected' : '' ?>><?= h((string)$uv) ?></option>
-                  <?php endforeach; ?>
-                </select>
-                <div class="hint">همین واحد به زرین‌پال اعلام می‌شود (تومان = IRT، ریال = IRR).</div></div>
-
-              <div class="field"><label>مخاطب درگاه</label>
-                <select name="zp_audience">
-                  <?php $zpA = (string)DB::setting('zp_audience', 'all'); ?>
-                  <?php foreach (Gateway::AUDIENCE as $ak => $av): ?>
-                    <option value="<?= h((string)$ak) ?>" <?= $zpA === (string)$ak ? 'selected' : '' ?>><?= h((string)$av) ?></option>
-                  <?php endforeach; ?>
-                </select></div>
-
-              <div class="field"><label>حداقل مبلغ</label>
-                <input type="number" name="zp_min" min="0" value="<?= (int)DB::setting('zp_min', 0) ?>" placeholder="0 = بدون محدودیت"></div>
-
-              <div class="field"><label>حداکثر مبلغ</label>
-                <input type="number" name="zp_max" min="0" value="<?= (int)DB::setting('zp_max', 0) ?>" placeholder="0 = بدون محدودیت"></div>
-
-              <div class="field" style="grid-column:1/-1"><label>توضیح تراکنش</label>
-                <input type="text" name="zp_desc" maxlength="120"
-                  value="<?= h((string)DB::setting('zp_desc', '')) ?>" placeholder="شارژ کیف پول"></div>
-
-              <div class="field" style="grid-column:1/-1">
-                <label class="pick"><input type="checkbox" name="zp_sandbox" value="1" <?= (string)DB::setting('zp_sandbox', '0') === '1' ? 'checked' : '' ?>> حالت تست (Sandbox)</label>
-                <div class="hint">فقط برای آزمایش؛ در حالت عادی خاموش باشد.</div>
-              </div>
-
-              <div class="field" style="grid-column:1/-1">
-                <div class="hint">آدرس بازگشت: <b class="mono ltr"><?= h(Zarinpal::callbackUrl()) ?></b></div>
-                <div class="hint">همین آدرس در هر تراکنش ارسال می‌شود؛ در پنل زرین‌پال نیازی به ثبت دستی نیست.</div>
-              </div>
-            </div>
-          </div>
-          <?php endif; ?>
-
-"""
+rep_lit(
+    BOT,
+    "case 'wal_hash':   self::askAmount($chatId, 'crypto_hash'); return true;",
+    "case 'wal_zp':     self::askAmount($chatId, 'zarinpal'); return true; /* 0.0.2 #22 */\n"
+    "            case 'wal_hash':   self::askAmount($chatId, 'crypto_hash'); return true;",
+    "case 'wal_zp':",
+)
 
 rep_lit(
-    GWP,
-    "          <?php if (class_exists('HooshPay')): ?>\n",
-    ZP_FIELDSET + "          <?php if (class_exists('HooshPay')): ?>\n",
-    'id="gwZp"',
+    BOT,
+    "elseif ($arg === 'hp') self::askAmount($chatId, 'hooshpay');",
+    "elseif ($arg === 'hp') self::askAmount($chatId, 'hooshpay');\n"
+    "            elseif ($arg === 'zp') self::askAmount($chatId, 'zarinpal');",
+    "$arg === 'zp')",
 )
 
 # ==================================================================
-# 5) modal JS
+# 3) admin payments poller
 # ==================================================================
 rep_lit(
-    GWP,
-    "bn = $('gwNp'), bh = $('gwHp'),",
-    "bn = $('gwNp'), bh = $('gwHp'), bz = $('gwZp'),",
-    "bz = $('gwZp')",
+    PAY,
+    "if ($mth === 'hooshpay' && class_exists('HooshPay'))   $pr = HooshPay::poll($tx);",
+    "if ($mth === 'hooshpay' && class_exists('HooshPay'))   $pr = HooshPay::poll($tx);\n"
+    "        if ($mth === 'zarinpal' && class_exists('Zarinpal'))   $pr = Zarinpal::poll($tx); /* 0.0.2 #22 */",
+    'Zarinpal::poll($tx)',
 )
 
+# ==================================================================
+# 4) miniapp gateway availability flag
+# ==================================================================
 rep_lit(
-    GWP,
-    "    if (bh) bh.style.display = k === 'hooshpay' ? '' : 'none';\n",
-    "    if (bh) bh.style.display = k === 'hooshpay' ? '' : 'none';\n"
-    "    if (bz) bz.style.display = k === 'zarinpal' ? '' : 'none';\n",
-    'bz.style.display',
+    API,
+    "'hooshpay' => class_exists('HooshPay') ? HooshPay::enabled() : false,",
+    "'hooshpay' => class_exists('HooshPay') ? HooshPay::enabled() : false,\n"
+    "        'zarinpal' => class_exists('Zarinpal') ? Zarinpal::enabled() : false,",
+    "'zarinpal' => class_exists('Zarinpal')",
 )
 
-rep_lit(
-    GWP,
-    "var KIND_T = { crypto: ",
-    "var KIND_T = { zarinpal: '\u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644', crypto: ",
-    'KIND_T = { zarinpal',
-)
-
-rep_lit(
-    GWP,
-    "(k === 'hooshpay' ? '#f59e0b' : (COLORS[ak] || '#22c55e'))",
-    "(k === 'zarinpal' ? '#ffd400' : (k === 'hooshpay' ? '#f59e0b' : (COLORS[ak] || '#22c55e')))",
-    "k === 'zarinpal' ? '#ffd400'",
-)
-
-rep_lit(
-    GWP,
-    "    if (k === 'hooshpay') val = 'HooshPay';\n",
-    "    if (k === 'hooshpay') val = 'HooshPay';\n"
-    "    if (k === 'zarinpal') val = 'ZarinPal';\n",
-    "val = 'ZarinPal'",
-)
+# ==================================================================
+# 5) auto-method fallback lists
+# ==================================================================
+rep_all(PAY, '"\'hooshpay\',\'nowpay\'"', '"\'hooshpay\',\'nowpay\',\'zarinpal\'"', "nowpay','zarinpal'")
+rep_all(CRON, '"\'hooshpay\',\'nowpay\'"', '"\'hooshpay\',\'nowpay\',\'zarinpal\'"', "nowpay','zarinpal'")
 
 # ---------------- write ----------------
 if ERRORS:
@@ -285,31 +221,33 @@ for p in sorted(NEW):
 print('changed files: %d' % len(NEW))
 
 SANITY = [
-    (GWP, "ptxt('kind') === 'zarinpal'"),
-    (GWP, 'id="gwZp"'),
-    (GWP, "name=\"zp_merchant\""),
-    (GWP, "bz = $('gwZp')"),
-    (GWP, "val = 'ZarinPal'"),
-    (GWP, "$isZp   = $g['kind']"),
+    (BTN, "'wal_zp'     => ["),
+    (BTN, "'wal_zp'     => 'wallet'"),
+    (BOT, "case 'wal_zp':"),
+    (BOT, "$arg === 'zp')"),
+    (PAY, 'Zarinpal::poll($tx)'),
+    (API, "'zarinpal' => class_exists('Zarinpal')"),
 ]
 ok = 0
 for p, needle in SANITY:
     good = needle in load(p)
-    print('sanity %s : %s' % (needle[:44], 'ok' if good else 'MISSING'))
+    print('sanity %s / %s : %s' % (p, needle[:34], 'ok' if good else 'MISSING'))
     if good:
         ok += 1
 print('sanity: %d/%d' % (ok, len(SANITY)))
 
-# ---------------- recon: bot wallet flow ----------------
-print('===== Btn.php =====')
-dump('btn', 'app/Service/Btn.php', 1, 110)
-print('===== magic dispatch? =====')
-grep_all('__callStatic', 8)
-grep_all('Amount(int', 20, only='app/Bot')
-print('===== hooshpay inside bot =====')
-grep_all('hooshpay', 30, only='app/Bot')
-print('===== HooshPay:: usages =====')
-grep_all('HooshPay::', 30)
+# ---------------- recon for the deposit flow ----------------
+print('===== bot deposit branch =====')
+dump(BOT, BOT, 1400, 1476)
+print('===== bot askAmount definition hunt =====')
+grep_all('function ask', 20, only='app/Bot')
+grep_all('wal_hp', 20)
+print('===== cron hooshpay poll =====')
+dump('cron_hp', CRON, 92, 122)
+print('===== miniapp hooshpay deposit =====')
+dump('ma_hp', API, 1475, 1525)
+print('===== adminbot method labels =====')
+dump('ab_lbl', 'app/Bot/AdminBot.php', 483, 496)
 
 # ---------------- version bump ----------------
 vpath = os.path.join(ROOT, 'version.json')
@@ -317,7 +255,7 @@ with io.open(vpath, 'r', encoding='utf-8') as fh:
     vj = json.load(fh)
 old_build = vj.get('build')
 vj['build'] = BUILD
-note = '0.0.2 #22: \u0641\u0631\u0645 \u062a\u0646\u0638\u06cc\u0645\u0627\u062a \u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644 \u062f\u0631 \u067e\u0646\u0644 \u0645\u062f\u06cc\u0631\u06cc\u062a'
+note = '0.0.2 #22: \u062f\u06a9\u0645\u0647\u0654 \u0632\u0631\u06cc\u0646\u200c\u067e\u0627\u0644 \u062f\u0631 \u0631\u0628\u0627\u062a \u0648 \u067e\u06cc\u06af\u06cc\u0631\u06cc \u062e\u0648\u062f\u06a9\u0627\u0631 \u062a\u0631\u0627\u06a9\u0646\u0634'
 cl = vj.get('changelog')
 if isinstance(cl, list):
     vj['changelog'] = ([note] + cl)[:60]
