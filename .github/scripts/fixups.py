@@ -1,19 +1,16 @@
 # -*- coding: utf-8 -*-
-# fixed163 - recon only: reply-keyboard text matching pipeline.
+# fixed164 - recon only: runButton switch + Kb constants + state/verify gates.
 import io, os, sys, json
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed163').strip() or 'fixed163'
 
 CACHE = {}
-NEW = set()
-ERRORS = []
-WARN = []
 SKIP_DIRS = {'.git', 'node_modules', 'vendor', 'storage', 'uploads', 'backups'}
 EXT = ('.php', '.sql', '.js', '.html', '.json')
 
 BOT = 'app/Bot/Bot.php'
 BTN = 'app/Service/Btn.php'
+KB = 'app/Bot/Kb.php'
 
 
 def load(path):
@@ -37,6 +34,19 @@ def dump(tag, path, start, end):
             s = s[:200] + ' ...'
         print('%5d %s' % (i, s))
     print('---- end dump %s ----' % tag)
+
+
+def dump_find(tag, path, needle, before=3, after=30):
+    try:
+        lines = load(path).split(chr(10))
+    except Exception as e:
+        print('---- dump %s FAILED (%s) ----' % (tag, e))
+        return
+    for i, ln in enumerate(lines, 1):
+        if needle in ln:
+            dump(tag, path, i - before, i + after)
+            return
+    print('---- dump %s : needle not found (%s) ----' % (tag, needle))
 
 
 ALL = []
@@ -81,30 +91,22 @@ def grep_all(needle, limit=20, only=None, ci=False):
 
 print('changed files: 0 (recon only)')
 
-print('===== SEED more/rest =====')
-dump('seed_rest', BTN, 150, 262)
-print('===== normalize / all / save =====')
-dump('btn_norm', BTN, 377, 452)
-print('===== withVirtual / labels / match =====')
-dump('btn_match', BTN, 741, 800)
-print('===== visible + replyRows =====')
-dump('btn_vis', BTN, 691, 740)
-dump('btn_rows', BTN, 852, 900)
-print('===== syncBuiltins =====')
-dump('btn_sync', BTN, 966, 1010)
-print('===== autoScan / scanHandlers =====')
-dump('btn_scan', BTN, 1446, 1520)
-dump('btn_auto', BTN, 1583, 1615)
-print('===== bot text dispatch =====')
-dump('bot_disp', BOT, 150, 230)
-print('===== who calls sync/seed/autoFix/autoScan =====')
-grep_all('syncBuiltins(', 12)
-grep_all('seedMenus(', 12)
-grep_all('autoFix(', 12)
-grep_all('autoScan(', 12)
-
-vpath = os.path.join(ROOT, 'version.json')
-with io.open(vpath, 'r', encoding='utf-8') as fh:
-    vj = json.load(fh)
-print('build stays: %s' % vj.get('build'))
+print('===== runButton switch =====')
+dump_find('run', BOT, 'function runButton(', 2, 140)
+print('===== submenu opener =====')
+dump('bot_menu', BOT, 415, 470)
+print('===== Kb constants =====')
+dump('kb_head', KB, 1, 120)
+print('===== Kb::isMenuButton =====')
+dump_find('kb_ismenu', KB, 'function isMenuButton', 2, 40)
+print('===== handleState head =====')
+dump_find('bot_state', BOT, 'function handleState', 2, 55)
+print('===== verifyGate =====')
+dump_find('bot_vg', BOT, 'function verifyGate', 2, 40)
+print('===== section handlers =====')
+grep_all('function section', 30, only=BOT)
+print('===== Btn::meta / guessMeta / scanReport / autoFix =====')
+dump_find('btn_meta', BTN, 'public static function meta(', 2, 26)
+dump_find('btn_report', BTN, 'function scanReport', 2, 42)
+dump('btn_fix', BTN, 1249, 1300)
 print('exit: 0')
