@@ -1,7 +1,424 @@
 Python 3.12.3
-Thu Sep 24 13:50:17 UTC 2026
-  File "/home/runner/work/SR-BOT/SR-BOT/.github/scripts/fixups.py", line 121
-    "if (b.flags.zarinpal) ms.push(['zarinpal', '\u{1F3E6} زرین‌پال (آنلاین)']);\n"
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 44-45: truncated \uXXXX escape
-exit: 1
+Thu Sep 24 22:46:14 UTC 2026
+patched: miniapp/index.php (b.flags.zarinpal) ms.push)
+patched: miniapp/index.php (b.flags.zarinpal) m.push)
+wrote miniapp/index.php
+changed files: 1
+===== Btn.php head (BUILTIN / SUBMENU / SEED) =====
+---- dump btn_head : app/Service/Btn.php (1679 lines) ----
+    1 <?php
+    2 declare(strict_types=1);
+    3 
+    4 /**
+    5  * مدیریت دکمه‌های ربات
+    6  *
+    7  * • افزودن / حذف / تغییر ترتیب دکمه‌های منوی اصلی
+    8  * • دکمهٔ سفارشی: لینک، متن دلخواه یا مینی‌اپ
+    9  * • دو حالت نمایش: کیبورد پایین (معمولی) یا دکمهٔ شیشه‌ای (اینلاین)
+   10  * • رنگ‌بندی: تلگرام رنگ واقعی دکمه را پشتیبانی نمی‌کند، پس با
+   11  *   نشانگرهای رنگی (🟦 🔵 …) و سبک‌های مختلف شبیه‌سازی می‌شود.
+   12  */
+   13 class Btn
+   14 {
+   15     public const KEY = 'bot_buttons';
+   16 
+   17     /** دکمه‌های درون‌ساخت: کلید => [آیکون، برچسب، مخاطب پیش‌فرض، گروه] */
+   18     public const BUILTIN = [
+   19         /* fixed76: دکمه‌های جدید (پیش‌فرض خاموش — از «دکمه‌های ربات» روشن کنید) */
+   20         'prices'     => ['💰', 'تعرفه‌ها', 'all', 'منوی اصلی'],
+   21         'campaign'   => ['🔥', 'پیشنهاد ویژه', 'all', 'منوی اصلی'],
+   22         'renew'      => ['🔄', 'تمدید سرویس', 'all', 'منوی اصلی'],
+   23         'tickets'    => ['🎫', 'تیکت‌های من', 'all', 'منوی اصلی'],
+   24         'orders'     => ['🧾', 'سوابق خرید', 'all', 'منوی اصلی'], /* fixed79 */
+   25         /* ---------- منوی اصلی ---------- */
+   26         'products'   => ['🛒', 'محصولات', 'all', 'منوی اصلی'],
+   27         'custom'     => ['📐', 'حجم و زمان دلخواه', 'all', 'منوی اصلی'],
+   28         'services'   => ['📦', 'سرویس‌های من', 'all', 'منوی اصلی'],
+   29         'wallet'     => ['💳', 'شارژ کیف پول', 'all', 'منوی اصلی'],
+   30         'account'    => ['👤', 'حساب کاربری', 'all', 'منوی اصلی'],
+   31         'test'       => ['🧪', 'اکانت تست', 'all', 'منوی اصلی'],
+   32         'gift'       => ['🎁', 'کد هدیه', 'all', 'منوی اصلی'],
+   33         'tutorial'   => ['🎓', 'آموزش', 'all', 'منوی اصلی'],
+   34         'support'    => ['🆘', 'پشتیبانی', 'all', 'منوی اصلی'],
+   35         'referral'   => ['🎯', 'معرفی به دوستان', 'all', 'منوی اصلی'],
+   36         'miniapp'    => ['🚀', 'اپلیکیشن', 'all', 'منوی اصلی'],
+   37         'stock'      => ['🏪', 'انبار ملی', 'all', 'منوی اصلی'],
+   38         'home'       => ['🏠', 'منوی اصلی', 'all', 'منوی اصلی'],
+   39 
+   40         /* ---------- کیف پول ---------- */
+   41         'wal_card'   => ['🧾', 'شارژ با کارت به کارت', 'all', 'کیف پول'],
+   42         'wal_crypto' => ['🪙', 'شارژ با رمزارز', 'all', 'کیف پول'],
+   43         'wal_np'     => ['🌐', 'شارژ خودکار (NowPayments)', 'all', 'کیف پول'],
+   44         'wal_hp'     => ['🪙', 'شارژ آنی هوش‌پی', 'all', 'کیف پول'],
+   45         'wal_zp'     => ["\u{1F3E6}", 'شارژ آنی زرین‌پال', 'all', 'کیف پول'], /* 0.0.2 #22 */
+   46         'wal_hash'   => ['🔗', 'ثبت هش تراکنش', 'all', 'کیف پول'],
+   47         'wal_hist'   => ['📜', 'تاریخچهٔ کیف پول', 'all', 'کیف پول'],
+   48 
+   49         /* ---------- حساب کاربری ---------- */
+   50         'acc_phone'  => ['📱', 'ثبت شماره تماس', 'all', 'حساب کاربری'],
+   51         'acc_email'  => ['📧', 'ثبت ایمیل', 'all', 'حساب کاربری'],
+   52         'acc_name'   => ['✏️', 'ثبت نام و نام خانوادگی', 'all', 'حساب کاربری'],
+   53         'verify'     => ['✅', 'تایید حساب', 'all', 'حساب کاربری'],
+   54         'refs'       => ['👥', 'زیرمجموعه‌های من', 'all', 'حساب کاربری'],
+   55 
+   56         /* ---------- نمایندگی ---------- */
+   57         'reseller'   => ['🏷', 'نمایندگی', 'reseller', 'نمایندگی'],
+   58         'rssvcs'     => ['🧩', 'کانفیگ های نمایندگی', 'reseller', 'نمایندگی'],
+   59         'rsapp'      => ['🖥', 'پنل نمایندگی (مینی‌اپ)', 'reseller', 'نمایندگی'],
+   60         'rspay'      => ['💰', 'تسویه و اعتبار نمایندگی', 'reseller', 'نمایندگی'],
+   61         'rsreq'      => ['📝', 'درخواست نمایندگی', 'user', 'نمایندگی'],
+   62 
+   63         /* ---------- مدیریت ---------- */
+   64         'admin'      => ['🛠', 'پنل مدیریت', 'admin', 'مدیریت'],
+   65         'admin_web'  => ['🔐', 'پنل وب مدیریت', 'admin', 'مدیریت'],
+   66     ];
+   67 
+   68     /**
+   69      * زیرمنوها: کلید دکمهٔ درون‌ساخت => منویی که دکمه داخل آن دیده می‌شود
+   70      *
+   71      * این دکمه‌ها زیرمجموعهٔ یک بخش دیگر هستند و نباید روی کیبورد منوی اصلی
+   72      * بیایند؛ جای آن‌ها فقط داخل همان زیرمنو است.
+   73      */
+   74     public const SUBMENU = [
+   75         'wal_card'   => 'wallet',
+   76         'wal_crypto' => 'wallet',
+   77         'wal_np'     => 'wallet',
+   78         'wal_hp'     => 'wallet',
+   79         'wal_zp'     => 'wallet',
+   80         'wal_hash'   => 'wallet',
+   81         'wal_hist'   => 'wallet',
+   82         'acc_phone'  => 'account',
+   83         'acc_email'  => 'account',
+   84         'acc_name'   => 'account',
+   85         'verify'     => 'account',
+   86         'refs'       => 'account',
+   87     ];
+   88 
+   89     /** منوهایی که یک دکمه می‌تواند داخلشان بنشیند */
+   90     /**
+   91      * دکمه‌های پیشنهادی هر منو — برای «تکمیل» زیرمنوهای خالی
+   92      *
+   93      * قالب هر ردیف: [کلید، آیکون، برچسب، مخاطب، عرض، روشن؟، نوع (اختیاری)]
+   94      * این دکمه‌ها روی همان بخش‌های واقعی ربات سوار می‌شوند؛ پس بدون هیچ
+   95      * تنظیم دیگری کار می‌کنند و فقط جای نمایششان زیرمنو است.
+   96      */
+   97     public const SEED = [
+   98         /* بازکننده‌های زیرمنو روی کیبورد اصلی (پیش‌فرض خاموش) */
+   99         'main' => [
+  100             ['shop', '🛒', 'خرید و محصولات',   'all', 'half', 0, 'menu'],
+  101             ['svc',  '📦', 'سرویس‌های من',     'all', 'half', 0, 'menu'],
+  102             ['help', '🆘', 'پشتیبانی و آموزش', 'all', 'half', 0, 'menu'],
+  103             ['more', '➕', 'امکانات بیشتر',    'all', 'half', 0, 'menu'],
+  104         ],
+  105 
+  106         'wallet' => [
+  107             ['gift',     '🎁', 'کد هدیه',             'all', 'half', 1],
+  108             ['referral', '🎯', 'کسب اعتبار با معرفی', 'all', 'half', 1],
+  109             ['verify',   '✅', 'تایید حساب',          'all', 'half', 0],
+  110             ['home',     '🏠', 'بازگشت به منوی اصلی', 'all', 'full', 0],
+  111         ],
+  112 
+  113         'account' => [
+  114             ['wallet',   '👛', 'کیف پول و شارژ',      'all', 'half', 1],
+  115             ['services', '📦', 'سرویس‌های من',        'all', 'half', 1],
+  116             ['referral', '🎯', 'معرفی به دوستان',     'all', 'half', 1],
+  117             ['home',     '🏠', 'بازگشت به منوی اصلی', 'all', 'full', 0],
+  118         ],
+  119 
+  120         'shop' => [
+  121             ['products', '🛒', 'همهٔ محصولات',        'all', 'half', 1],
+  122             ['custom',   '📐', 'حجم و زمان دلخواه',   'all', 'half', 1],
+  123             ['stock',    '🏪', 'انبار ملی کانفیگ',    'all', 'half', 1],
+  124             ['test',     '🧪', 'اکانت تست رایگان',    'all', 'half', 1],
+  125             ['gift',     '🎁', 'کد هدیه و تخفیف',     'all', 'half', 1],
+  126             ['miniapp',  '🚀', 'خرید در اپلیکیشن',    'all', 'full', 1],
+  127             ['prices',   '💰', 'تعرفه‌ها',            'all', 'half', 0], /* fixed79 */
+  128             ['campaign', '🔥', 'پیشنهاد ویژه',        'all', 'half', 0],
+  129             ['home',     '🏠', 'بازگشت به منوی اصلی', 'all', 'full', 0],
+  130         ],
+  131 
+  132         'svc' => [
+  133             ['services', '📦', 'سرویس‌های فعال من',     'all',      'half', 1],
+  134             ['rssvcs',   '🧩', 'کانفیگ‌های نمایندگی',   'reseller', 'half', 1],
+  135             ['stock',    '🏪', 'خریدهای انبار ملی',     'all',      'half', 1],
+  136             ['tutorial', '🎓', 'آموزش اتصال',           'all',      'half', 1],
+  137             ['support',  '🆘', 'مشکل در سرویس',         'all',      'half', 1],
+  138             ['renew',    '🔄', 'تمدید سرویس',           'all',      'half', 0], /* fixed79 */
+  139             ['orders',   '🧾', 'سوابق خرید و پرداخت',   'all',      'half', 0],
+  140             ['home',     '🏠', 'بازگشت به منوی اصلی',   'all',      'full', 0],
+  141         ],
+  142 
+  143         'help' => [
+  144             ['support',  '🆘', 'ارسال تیکت پشتیبانی', 'all', 'half', 1],
+  145             ['tutorial', '🎓', 'آموزش‌های اتصال',     'all', 'half', 1],
+  146             ['verify',   '✅', 'تایید حساب',          'all', 'half', 0],
+  147             ['tickets',  '🎫', 'تیکت‌های من',         'all', 'half', 0], /* fixed79 */
+  148             ['miniapp',  '🚀', 'راهنما در اپلیکیشن',  'all', 'full', 0],
+  149             ['home',     '🏠', 'بازگشت به منوی اصلی', 'all', 'full', 0],
+  150         ],
+---- end dump btn_head ----
+===== Btn.php api =====
+
+---- funcs: app/Service/Btn.php ----
+   15 public const KEY = 'bot_buttons';
+   18 public const BUILTIN = [
+   74 public const SUBMENU = [
+   97 public const SEED = [
+  179 public const MENUS = [
+  192 public const DEFAULT_ON = [
+  198 public const DEFAULT_WIDE = [
+  202 public const KINDS = [
+  215 public const AUDIENCES = [
+  224 public const WIDTHS = [
+  232 public const COLORS = [
+  245 public const STYLES = [
+  261 public static function mode(): string
+  267 public static function perRow(): int
+  275 public static function defaults(): array
+  308 public static function seedRows(?string $only = null): array
+  338 public static function seedMissing(): array
+  358 public static function seedMenus(?string $only = null): int
+  377 public static function normalize(array $r): array
+  422 public static function all(): array
+  426 usort($rows, function (array $a, array $b) {
+  436 public static function save(array $rows): void
+  448 public static function reset(): void
+  453 public static function byId(string $id): ?array
+  463 public static function upsert(array $in): array
+  502 public static function remove(string $id): bool
+  514 public static function toggle(string $id): bool
+  529 public static function move(string $id, int $dir): bool
+  548 public static function moveEdge(string $id, bool $toTop): bool
+  564 public static function moveTo(string $id, int $pos): bool
+  583 public static function setWidth(string $id, string $width): bool
+  602 public static function setColor(string $id, string $color, string $style = ''): bool
+  619 public static function toggleMany(array $ids, ?bool $on = null): int
+  642 public static function group(string $key): string
+  648 public static function groups(): array
+  662 public static function label(array $b): string
+  684 public static function css(array $b): string
+  691 public static function visible(bool $isAdmin = false, bool $isReseller = false, string $menu = 'main'): array
+  725 public static function customPlanOn(): bool
+  741 private static function withVirtual(array $rows): array
+  765 public static function labels(): array
+  775 public static function match(string $text): ?array
+  789 public static function miniappUrl(): string
+  800 private static function capacity(array $b, int $per): int
+  820 private static function pack(array $items): array
+  852 public static function replyRows(bool $isAdmin = false, bool $isReseller = false): array
+  873 public static function inlineRows(bool $isAdmin = false, bool $isReseller = false): array
+  897 public static function menuOf(array $b): string
+  906 public static function menuTitle(string $menu): string
+  912 public static function menuHas(string $menu, bool $isAdmin = false, bool $isReseller = false): bool
+  924 public static function isOn(string $key, bool $isAdmin = false, bool $isReseller = false, string $menu = 'main'): bool
+  934 public static function hasKey(string $key): bool
+  948 public static function subRows(string $menu, bool $isAdmin = false, bool $isReseller = false, array $skipKeys = []): array
+  966 public static function maxPerRow(): int
+  973 public static function syncBuiltins(): int
+ 1006 public static function editorRows(): array
+ 1024 public static function saveLayout(string $layout): array
+ 1072 private static function inlineBtn(array $b): ?array
+ 1107 public static function menuCounts(): array
+ 1138 public static function health(): array
+ 1238 public const SUBMENU_PARENT = [
+ 1249 public static function autoFix(): array
+ 1368 public static function exportJson(): string
+ 1379 public static function importJson(string $json): array
+ 1408 public static function setMenu(string $id, string $menu): bool
+ 1426 public static function duplicate(string $id): ?string
+ 1446 public static function scanFiles(): array
+ 1452 public static function scanSig(): string
+ 1463 public static function scanHandlers(bool $fresh = false): array
+ 1498 public static function discovered(): array
+ 1515 public static function builtinAll(): array
+ 1524 public static function meta(string $key): ?array
+ 1533 private static function guessMeta(string $key): array
+ 1545 public static function scanReport(bool $fresh = false): array
+ 1583 public static function autoScan(bool $force = false): array
+ 1612 public static function setDiscovered(string $key, array $meta): bool
+ 1631 public static function forgetDiscovered(string $key): bool
+ 1647 private static function resetRegistry(): void
+ 1652 public static function stats(): array
+---- end funcs: app/Service/Btn.php ----
+===== how Bot.php resolves reply-keyboard text =====
+---- grep: Btn:: ----
+app/Bot/Bot.php:176: $bm = Btn::match($text);
+app/Bot/Bot.php:436: $rows = Btn::subRows($menu, self::isAdmin(), self::isRs());
+app/Bot/Bot.php:443: $txt = '<b>' . h(Btn::menuTitle($menu)) . "</b>
+app/Bot/Bot.php:908: $bmode = Btn::mode();
+app/Bot/Bot.php:910: $irows = Btn::inlineRows(self::isAdmin(), self::isRs());
+app/Bot/Bot.php:960: $b = class_exists('Btn') ? Btn::byId((string)$arg) : null;
+---- end grep: Btn:: (6) ----
+===== main text dispatcher =====
+---- grep: function kbMain ----
+app/Bot/Bot.php:890: public static function kbMain(): array
+---- end grep: function kbMain (1) ----
+---- dump bot_text : needle not found (private static function route) ----
+===== zarinpal branch placement check =====
+---- dump bot_zp : app/Bot/Bot.php (3104 lines) ----
+ 1418                     Logs::send('financial', Logs::fmt('⚡️ فاکتور ارزی جدید', [
+ 1419                         'کاربر'  => (($u2 = self::$u)['first_name'] ?? '-') . ' (' . (int)$u2['tg_id'] . ')',
+ 1420                         'مبلغ'   => money($amount) . ' ' . currency(),
+ 1421                         'معادل'  => $inv['usd'] . ' $',
+ 1422                         'فاکتور' => (string)$inv['order'],
+ 1423                     ]));
+ 1424                     return true;
+ 1425                 } elseif ($method === 'zarinpal') { /* 0.0.2 #22 */
+ 1426                     self::setState(null);
+ 1427                     $waitId = self::waitMsg(
+ 1428                         $chatId,
+ 1429                         "\u{1F3E6} <b>در حال ساخت لینک پرداخت…</b>\n\n\u{23F3} اتصال به زرین‌پال، چند لحظه صبر کنید.",
+ 1430                         self::kbMain()
+ 1431                     );
+ 1432 
+ 1433                     if (!class_exists('Zarinpal') || !Zarinpal::enabled()) {
+ 1434                         self::waitEdit($chatId, $waitId, "\u{26A0} درگاه زرین‌پال در دسترس نیست.");
+ 1435                         return true;
+ 1436                     }
+ 1437 
+ 1438                     $invZ = Zarinpal::createInvoice(self::$u, $amount);
+ 1439                     if (empty($invZ['ok'])) {
+ 1440                         self::waitEdit($chatId, $waitId, "\u{274C} " . (string)($invZ['message'] ?? 'ساخت لینک پرداخت ناموفق بود.'));
+ 1441                         Logs::send('errors', Logs::fmt("\u{26A0} خطای ساخت تراکنش زرین‌پال", [
+ 1442                             'کاربر' => (int)self::$u['tg_id'],
+ 1443                             'مبلغ'  => money($amount) . ' ' . currency(),
+ 1444                             'خطا'   => (string)($invZ['message'] ?? '-'),
+ 1445                         ]));
+ 1446                         return true;
+ 1447                     }
+ 1448 
+ 1449                     $txZ = (int)($invZ['tx'] ?? 0);
+ 1450                     $txt = "\u{1F3E6} <b>پرداخت آنلاین با کارت بانکی</b>\n\n"
+ 1451                         . 'مبلغ: <b>' . money($amount) . ' ' . currency() . "</b>\n"
+ 1452                         . 'شماره پیگیری: <code>#' . $txZ . "</code>\n\n"
+ 1453                         . "روی دکمهٔ زیر بزنید و پرداخت را در درگاه زرین‌پال کامل کنید.\n"
+ 1454                         . "پس از پرداخت موفق، کیف پول شما <b>خودکار</b> شارژ می‌شود.";
+ 1455 
+ 1456                     self::waitEdit($chatId, $waitId, $txt, Tg::ikb([
+ 1457                         [Tg::url("\u{1F3E6} رفتن به درگاه پرداخت", (string)$invZ['url'])],
+ 1458                     ]));
+ 1459                     Logs::send('financial', Logs::fmt("\u{1F3E6} تراکنش زرین‌پال جدید", [
+ 1460                         'کاربر'  => (($uZ = self::$u)['first_name'] ?? '-') . ' (' . (int)$uZ['tg_id'] . ')',
+ 1461                         'مبلغ'   => money($amount) . ' ' . currency(),
+ 1462                         'پیگیری' => '#' . $txZ,
+ 1463                     ]));
+ 1464                     return true;
+ 1465                 } elseif ($method === 'hooshpay') {
+ 1466                     self::setState(null);
+ 1467                     $waitId = self::waitMsg(
+ 1468                         $chatId,
+ 1469                         "🪙 <b>در حال ساخت لینک پرداخت…</b>\n\n⏳ اتصال به هوش‌پی و رزرو کارت دریافت، چند لحطه صبر کنید.",
+ 1470                         self::kbMain()
+---- end dump bot_zp ----
+===== miniapp render branch 1 =====
+---- dump ma_r1 : miniapp/index.php (4234 lines) ----
+ 2200 
+ 2201     api('topup', { amount: v, method: S.pm }).then(function (r) {
+ 2202       if (!r.ok) { toast(r.message, 'err'); return; }
+ 2203 
+ 2204       var h = '<div class="card tight"><div style="font-size:11.5px;color:var(--dim)">مبلغ سفارش</div>' +
+ 2205         '<div style="font-weight:700;font-size:17px">' + esc(r.amount_txt) + '</div></div>';
+ 2206 
+ 2207       if (r.method === 'card') {
+ 2208         h += '<div class="sec-t"><span>💳 واریز کارت به کارت</span></div>' +
+ 2209           c3dShopCard(r.card) + copyBox(r.card.number);
+ 2210         if (r.card.holder) h += '<div class="card tight">' + row('👤', 'به نام', '', esc(r.card.holder)) +
+ 2211           (r.card.bank ? row('🏦', 'بانک', '', esc(r.card.bank)) : '') + '</div>';
+ 2212 
+ 2213         /* آپلود رسید در همین صفحه – دیگر لازم نیست کاربر به چت ربات برود */
+ 2214         if (r.tx) {
+ 2215           S.rcp = { tx: r.tx, img: '' };
+ 2216           h += '<div class="sec-t"><span>🧾 مرحلهٔ آخر: ارسال رسید</span>' +
+ 2217             '<span class="bdg b">پیگیری #' + esc(String(r.tx)) + '</span></div>' +
+ 2218             '<div class="card tight">' +
+ 2219             '<div style="font-size:12px;color:var(--dim);line-height:2">' +
+ 2220               '<div>۱ – مبلغ بالا را به شمارهٔ کارت واریز کنید.</div>' +
+ 2221               '<div>۲ – از رسید، عکس یا اسکرین‌شات بگیرید.</div>' +
+ 2222               '<div>۳ – عکس را همین‌جا آپلود کنید.</div>' +
+ 2223             '</div>' +
+ 2224             '<input id="rcpFile" type="file" accept="image/*" style="display:none">' +
+ 2225             '<button type="button" class="btn gh w" id="rcpPick" style="margin-top:9px">📷 انتخاب عکس رسید</button>' +
+ 2226             '<div id="rcpPrev"></div>' +
+ 2227             '<button type="button" class="btn w" id="rcpGo" style="margin-top:8px;display:none">✅ ارسال رسید برای بررسی</button>' +
+ 2228             '<div class="hint">اگر ترجیح می‌دهید، می‌توانید عکس رسید را در چت ربات هم بفرستید.</div>' +
+ 2229             '</div>';
+ 2230         }
+ 2231       } else if (r.method === 'hooshpay') {
+ 2232         h += hpPayBox(r);
+ 2233       } else {
+ 2234         if (r.rate_txt) {
+ 2235           h += '<div class="card tight"><div style="font-size:11.5px;color:var(--dim)">نرخ لحظه‌ای دلار</div>' +
+ 2236             '<div style="font-weight:700">' + esc(r.rate_txt) + '</div></div>';
+ 2237         }
+ 2238         var opts = '';
+ 2239         (r.assets || []).forEach(function (a) {
+ 2240           h += '<div class="sec-t"><span>' + a.icon + ' ' + esc(a.label) + '</span>' +
+ 2241             '<span class="bdg b">' + esc(a.network) + '</span></div>' +
+ 2242             '<div class="card tight">' +
+ 2243             (a.qty_txt ? '<div style="font-size:11.5px;color:var(--dim)">مقدار واریزی</div>' +
+ 2244               '<div style="font-weight:700;font-size:15px" class="mono">' + esc(a.qty_txt) + ' ' + esc(a.key) + '</div>' : '') +
+ 2245             copyBox(a.address) +
+ 2246             (a.memo ? '<div style="font-size:11.5px;color:var(--dim);margin-top:7px">🏷 ممو / تگ (الزامی)</div>' + copyBox(a.memo) : '') +
+ 2247             (a.note ? '<div class="hint">ℹ️ ' + esc(a.note) + '</div>' : '') +
+ 2248             '</div>';
+ 2249           opts += '<option value="' + esc(a.id) + '">' + esc(a.label) + ' • ' + esc(a.network) + '</option>';
+ 2250         });
+---- end dump ma_r1 ----
+===== miniapp render branch 2 =====
+---- dump ma_r2 : miniapp/index.php (4234 lines) ----
+ 3612 
+ 3613     h += '<div class="amt3"><div class="l">مبلغ قابل پرداخت</div>' +
+ 3614       '<div><span class="v">' + esc(r.amount_txt) + '</span></div></div>';
+ 3615 
+ 3616     if (r.method === 'card') {
+ 3617       h += '<div class="sec-t"><span>💳 شماره کارت</span></div>' +
+ 3618         c3dShopCard(r.card) + copyBox(r.card.number);
+ 3619       if (r.card.holder) {
+ 3620         h += '<div class="card tight">' + row('👤', 'به نام', '', esc(r.card.holder)) +
+ 3621           (r.card.bank ? row('🏦', 'بانک', '', esc(r.card.bank)) : '') + '</div>';
+ 3622       }
+ 3623       if (r.tx) {
+ 3624         S.rcp = { tx: r.tx, img: '' };
+ 3625         h += '<div class="sec-t"><span>🧾 ارسال رسید</span>' +
+ 3626           '<span class="bdg b">پیگیری #' + esc(String(r.tx)) + '</span></div>' +
+ 3627           '<div class="card tight">' +
+ 3628           '<div style="font-size:12px;color:var(--dim);line-height:2">' +
+ 3629           '<div>۱ – مبلغ بالا را به شمارهٔ کارت واریز کنید.</div>' +
+ 3630           '<div>۲ – از رسید عکس یا اسکرین‌شات بگیرید.</div>' +
+ 3631           '<div>۳ – عکس را همین‌جا آپلود کنید؛ لازم نیست به چت ربات بروید.</div>' +
+ 3632           '</div>' +
+ 3633           '<input id="rcpFile" type="file" accept="image/*" style="display:none">' +
+ 3634           '<button type="button" class="btn gh w" id="rcpPick" style="margin-top:9px">📷 انتخاب عکس رسید</button>' +
+ 3635           '<div id="rcpPrev"></div>' +
+ 3636           '<button type="button" class="btn w" id="rcpGo" style="margin-top:8px;display:none">✅ ارسال رسید برای بررسی</button>' +
+ 3637           '</div>';
+ 3638       }
+ 3639     } else if (r.method === 'hooshpay') {
+ 3640       h += hpPayBox(r);
+ 3641     } else {
+ 3642       if (r.rate_txt) {
+ 3643         h += '<div class="card tight"><div style="font-size:11.5px;color:var(--dim)">نرخ لحظه‌ای دلار</div>' +
+ 3644           '<div style="font-weight:700">' + esc(r.rate_txt) + '</div></div>';
+ 3645       }
+ 3646       var opts = '';
+ 3647       (r.assets || []).forEach(function (a) {
+ 3648         h += '<div class="sec-t"><span>' + a.icon + ' ' + esc(a.label) + '</span>' +
+ 3649           '<span class="bdg b">' + esc(a.network) + '</span></div><div class="card tight">' +
+ 3650           (a.qty_txt ? '<div style="font-size:11.5px;color:var(--dim)">مقدار واریزی</div>' +
+ 3651             '<div style="font-weight:700;font-size:15px" class="mono">' + esc(a.qty_txt) + ' ' + esc(a.key) + '</div>' : '') +
+ 3652           copyBox(a.address) +
+ 3653           (a.memo ? '<div style="font-size:11.5px;color:var(--dim);margin-top:7px">🏷 ممو / تگ (الزامی)</div>' + copyBox(a.memo) : '') +
+ 3654           (a.note ? '<div class="hint">ℹ️ ' + esc(a.note) + '</div>' : '') + '</div>';
+ 3655         opts += '<option value="' + esc(a.id) + '">' + esc(a.label) + ' • ' + esc(a.network) + '</option>';
+ 3656       });
+ 3657       S.tu = { amount: r.amount || TP.amount, gw: '' };
+ 3658       if (r.can_hash) {
+ 3659         h += '<div class="sec-t"><span>🔗 ثبت هش تراکنش</span></div><div class="card tight">' +
+ 3660           '<div class="fld"><label>واریز از کدام ش����که انجام شد؟</label>' +
+ 3661           '<select id="hxGw">' + opts + '</select></div>' +
+ 3662           '<div class="fld"><label>هش تراکنش (TXID)</label>' +
+---- end dump ma_r2 ----
+changelog: entry added
+build: fixed162 (was fixed160)
+exit: 0
+exit: 0

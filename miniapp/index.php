@@ -2148,6 +2148,7 @@ body.light .amt3 .v{-webkit-text-fill-color:initial;background:none}
     var b = S.boot;
     var ms = [];
     if (b.flags.card) ms.push(['card', '💳 کارت به کارت']);
+    if (b.flags.zarinpal) ms.push(['zarinpal', '\u{1F3E6} زرین‌پال (آنلاین)']);
     if (b.flags.hooshpay) ms.push(['hooshpay', '🪙 هوش‌پی (آنی)']);
     if (b.flags.crypto) ms.push(['crypto', '🌐 پرداخت ارزی']);
 
@@ -2882,6 +2883,7 @@ body.light .amt3 .v{-webkit-text-fill-color:initial;background:none}
   function tpMethods() {
     var b = S.boot, m = [];
     if (b.flags.card) m.push(['card', '💳', 'کارت به کارت', 'واریز به شماره کارت و آپلود رسید در همین صفحه']);
+    if (b.flags.zarinpal) m.push(['zarinpal', '\u{1F3E6}', 'زرین‌پال — پرداخت آنلاین', 'اتصال به درگاه بانکی؛ پس از پرداخت موفق، کیف پول خودکار شارژ می‌شود']);
     if (b.flags.hooshpay) m.push(['hooshpay', '🪙', 'هوش‌پی — کارت به کارت آنی', 'لینک پرداخت با تایید خودکار و شارژ فوری کیف پول']);
     if (b.flags.crypto) m.push(['crypto', '🌐', 'پرداخت ارزی', 'تتر و ارزهای دیگر با نرخ لحظه‌ای و تایید خودکار']);
     return m;
