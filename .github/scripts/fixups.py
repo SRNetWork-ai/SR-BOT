@@ -1,22 +1,23 @@
 # -*- coding: utf-8 -*-
-# fixed141 - the panel now returns a real happ://crypt5 link, so the manual
-# "copy this subscription URL" fallback added in fixed139 only leaks the raw
-# sub address (and lets the customer bypass HWID). Remove it.
+# fixed142 - RECON ONLY (no patches): map the discount/gift code plumbing
+# so row 17 (discount codes) can be wired into admin, bot and mini-app.
 import io, os, re, sys, json, subprocess
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed141').strip() or 'fixed141'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed142').strip() or 'fixed142'
 
 CACHE = {}
 NEW = set()
 ERRORS = []
 WARN = []
+SKIP_DIRS = {'.git', '.github', 'node_modules', 'vendor', 'storage', 'uploads', 'backups'}
+EXT = ('.php', '.sql', '.js', '.html', '.json')
 
 
 def load(path):
     if path in CACHE:
         return CACHE[path]
-    with io.open(os.path.join(ROOT, path), 'r', encoding='utf-8') as fh:
+    with io.open(os.path.join(ROOT, path), 'r', encoding='utf-8', errors='replace') as fh:
         CACHE[path] = fh.read()
     return CACHE[path]
 
@@ -29,7 +30,10 @@ def dump(tag, path, start, end):
         return
     print('---- dump %s : %s (%d lines) ----' % (tag, path, len(lines)))
     for i in range(max(1, start), min(len(lines), end) + 1):
-        print('%5d %s' % (i, lines[i - 1]))
+        s = lines[i - 1]
+        if len(s) > 200:
+            s = s[:200] + ' ...'
+        print('%5d %s' % (i, s))
     print('---- end dump %s ----' % tag)
 
 
@@ -46,109 +50,100 @@ def dump_find(tag, path, needle, before=4, after=40):
     print('---- dump %s : needle not found ----' % tag)
 
 
-def rep_rx(path, pattern, fn, marker, expect=1, optional=False, flags=re.M):
+ALL = []
+
+
+def files_all():
+    if ALL:
+        return ALL
+    for base, dirs, fns in os.walk(ROOT):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for fn in sorted(fns):
+            if fn.endswith(EXT):
+                ALL.append(os.path.relpath(os.path.join(base, fn), ROOT))
+    ALL.sort()
+    return ALL
+
+
+def grep_all(needle, limit=60, only=None):
+    print('---- grep: %s ----' % needle)
+    n = 0
+    for p in files_all():
+        if only and not p.startswith(only):
+            continue
+        try:
+            lines = load(p).split(chr(10))
+        except Exception:
+            continue
+        for i, ln in enumerate(lines, 1):
+            if needle in ln:
+                s = ln.strip()
+                if len(s) > 150:
+                    s = s[:150] + ' ...'
+                print('%s:%d: %s' % (p, i, s))
+                n += 1
+                if n >= limit:
+                    print('---- end grep: %s (truncated at %d) ----' % (needle, n))
+                    return
+    print('---- end grep: %s (%d) ----' % (needle, n))
+
+
+def listdir(tag, rel):
+    d = os.path.join(ROOT, rel)
+    print('---- ls %s : %s ----' % (tag, rel))
     try:
-        src = load(path)
+        for fn in sorted(os.listdir(d)):
+            fp = os.path.join(d, fn)
+            print('%9d  %s' % (os.path.getsize(fp) if os.path.isfile(fp) else 0, fn))
     except Exception as e:
-        msg = '%s: cannot read (%s)' % (path, e)
-        (WARN if optional else ERRORS).append(msg)
-        print(('warn: ' if optional else 'ERROR: ') + msg)
-        return
-    if marker in src:
-        print('skip (already applied): %s / %s' % (path, marker))
-        return
-    rx = re.compile(pattern, flags)
-    n = len(rx.findall(src))
-    if n != expect:
-        msg = '%s: regex for %s matched %d times (want %d)' % (path, marker, n, expect)
-        if optional:
-            WARN.append(msg)
-            print('warn: ' + msg)
-            return
-        ERRORS.append(msg)
-        print('ERROR: ' + msg)
-        return
-    CACHE[path] = rx.sub(fn, src, count=expect)
-    NEW.add(path)
-    print('patched: %s / %s (%d)' % (path, marker, expect))
+        print('FAILED (%s)' % e)
+    print('---- end ls %s ----' % tag)
 
 
-def write_all():
-    if ERRORS:
-        print('ABORTED - anchors not found:')
-        for e in ERRORS:
-            print(' - ' + e)
-        sys.exit(1)
-    for p in sorted(NEW):
-        with io.open(os.path.join(ROOT, p), 'w', encoding='utf-8') as fh:
-            fh.write(CACHE[p])
-        print('wrote ' + p)
-    php = None
+# ------------------------------- RECON -------------------------------
+listdir('admin_pages', 'admin/pages')
+listdir('services', 'app/Service')
+
+grep_all('discount_codes', 40)
+grep_all('gift_codes', 30)
+grep_all('discount_uses', 20)
+grep_all('Codes::', 40)
+grep_all('discount', 90)
+
+# where a purchase price is computed / charged
+grep_all('Wallet::debit', 40)
+grep_all('function buy', 30)
+
+# migration runner + schema tail
+dump_find('migrate_run', 'app/Service/Migrate.php', 'migrations', 6, 50)
+
+print('---- functions: app/Service/Orders.php ----')
+try:
+    for i, ln in enumerate(load('app/Service/Orders.php').split(chr(10)), 1):
+        if 'function ' in ln:
+            print('%5d %s' % (i, ln.strip()[:150]))
+except Exception as e:
+    print('FAILED (%s)' % e)
+print('---- end functions ----')
+
+print('---- functions: app/Service/Wallet.php ----')
+try:
+    for i, ln in enumerate(load('app/Service/Wallet.php').split(chr(10)), 1):
+        if 'function ' in ln:
+            print('%5d %s' % (i, ln.strip()[:150]))
+except Exception as e:
+    print('FAILED (%s)' % e)
+print('---- end functions ----')
+
+print('---- file sizes ----')
+for p in ['app/Bot/Bot.php', 'miniapp/api.php', 'miniapp/index.php', 'admin/pages/settings.php',
+          'database/schema.sql', 'app/Service/Migrate.php', 'app/Service/Orders.php',
+          'app/Service/Wallet.php', 'app/Service/Svc.php', 'app/Service/Codes.php']:
     try:
-        r = subprocess.run(['php', '-v'], capture_output=True)
-        if r.returncode == 0:
-            php = 'php'
-    except Exception:
-        php = None
-    print('php lint: %s' % ('on' if php else 'n/a'))
-    if php:
-        for p in sorted(NEW):
-            if not p.endswith('.php'):
-                continue
-            r = subprocess.run([php, '-l', os.path.join(ROOT, p)], capture_output=True)
-            if r.returncode != 0:
-                print('PHP LINT FAILED: ' + p)
-                print(r.stdout.decode('utf-8', 'replace'))
-                print(r.stderr.decode('utf-8', 'replace'))
-                sys.exit(1)
-    print('changed files: %d' % len(NEW))
-    if WARN:
-        print('warnings (optional patches skipped):')
-        for w in WARN:
-            print(' - ' + w)
-
-
-BOT = 'app/Bot/Bot.php'
-X3 = 'app/Panel/Xui3.php'
-
-OFF = "\u0622\u062f\u0631\u0633 \u062e\u0627\u0645 \u0627\u0634\u062a\u0631\u0627\u06a9 \u0639\u0645\u062f\u0627\u064b \u0646\u0645\u0627\u06cc\u0634 \u062f\u0627\u062f\u0647 \u0646\u0645\u06cc\u200c\u0634\u0648\u062f \u062a\u0627 \u0641\u0642\u0637 \u0644\u06cc\u0646\u06a9 \u0631\u0645\u0632\u0646\u06af\u0627\u0631\u06cc\u200c\u0634\u062f\u0647\u0654 Happ \u0628\u0647 \u0645\u0634\u062a\u0631\u06cc \u0628\u0631\u0633\u062f \u0648 \u0645\u062d\u062f\u0648\u062f\u06cc\u062a \u0647\u0627\u0631\u062f\u0648\u06cc\u0631 \u062f\u0648\u0631 \u0632\u062f\u0647 \u0646\u0634\u0648\u062f"
-
-rep_rx(
-    BOT,
-    r"\n([ \t]*)/\* 0\.0\.2 #happ-plain:[^\n]*\n.*?\. '</code>' \. \"\\n\";\n[ \t]*\}\n",
-    lambda m: '\n' + m.group(1) + '/* 0.0.2 #happ-plain-off: ' + OFF + ' */\n',
-    '#happ-plain-off',
-    flags=re.S,
-)
-
-write_all()
-
-# ================================ SANITY ================================
-SANITY = [
-    (BOT, '#happ-plain-off'),
-    (X3, '#happ-post'),
-    (X3, "'encryptedLink', 'happLink', 'link', 'url', 'happ'"),
-]
-for p, needle in SANITY:
-    try:
-        ok = needle in load(p)
-    except Exception:
-        ok = False
-    print('sanity %s / %s : %s' % (p, needle, 'ok' if ok else 'MISSING'))
-
-ABSENT = [
-    (BOT, 'Add subscription:'),
-    (BOT, '#happ-plain:'),
-    (BOT, '$psub'),
-]
-for p, needle in ABSENT:
-    try:
-        gone = needle not in load(p)
-    except Exception:
-        gone = False
-    print('absent %s / %s : %s' % (p, needle, 'ok' if gone else 'STILL PRESENT'))
-
-dump_find('happ_view', BOT, '#happ-plain-off', 34, 8)
+        print('%6d lines  %s' % (len(load(p).split(chr(10))), p))
+    except Exception as e:
+        print('   n/a  %s (%s)' % (p, e))
+print('---- end file sizes ----')
 
 # ============================== version bump ==============================
 vpath = os.path.join(ROOT, 'version.json')
@@ -156,17 +151,9 @@ with io.open(vpath, 'r', encoding='utf-8') as fh:
     vj = json.load(fh)
 old_build = vj.get('build')
 vj['build'] = BUILD
-notes = [
-    'در صفحهٔ «افزودن به Happ» دیگر آدرس خام اشتراک نمایش داده نمی‌شود؛ فقط لینک رمزنگاری‌شدهٔ پنل تحویل می‌شود',
-]
-cl = vj.get('changelog')
-if isinstance(cl, list):
-    vj['changelog'] = (notes + cl)[:60]
-    print('changelog: entry added')
-else:
-    print('changelog: skipped (no list)')
 with io.open(vpath, 'w', encoding='utf-8') as fh:
     json.dump(vj, fh, ensure_ascii=False, indent=2)
     fh.write('\n')
 print('build: %s (was %s)' % (BUILD, old_build))
+print('changed files: 0 (recon)')
 print('exit: 0')
