@@ -235,9 +235,14 @@ CREATE TABLE IF NOT EXISTS {p}tickets (
   `tg_id` BIGINT NOT NULL,
   `subject` VARCHAR(190) NULL,
   `status` VARCHAR(16) NOT NULL DEFAULT 'open',
+  `priority` VARCHAR(8) NOT NULL DEFAULT 'normal',
+  `category` VARCHAR(32) NULL,
+  `admin_id` INT NULL,
+  `closed_at` DATETIME NULL,
   `created_at` DATETIME NOT NULL,
   `updated_at` DATETIME NOT NULL,
-  KEY `idx_status` (`status`)
+  KEY `idx_status` (`status`),
+  KEY `idx_tk_priority` (`priority`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS {p}ticket_messages (

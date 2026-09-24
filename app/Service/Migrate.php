@@ -90,6 +90,13 @@ class Migrate
             /* قیمت ویژهٔ نماینده — ۰ یعنی همان قیمت عمومی */
             'rs_price' => 'BIGINT NOT NULL DEFAULT 0',
         ],
+        'tickets' => [
+            /* 0.0.2 #21: پشتیبانی حرفه‌ای — اولویت، دسته‌بندی و مدیر مسئول */
+            'priority'  => "VARCHAR(8) NOT NULL DEFAULT 'normal'",
+            'category'  => 'VARCHAR(32) NULL',
+            'admin_id'  => 'INT NULL',
+            'closed_at' => 'DATETIME NULL',
+        ],
         'ticket_messages' => [
             'file_type' => 'VARCHAR(16) NULL',
         ],
@@ -149,8 +156,9 @@ class Migrate
             'idx_us_created' => '(`created_at`)',
         ],
         'tickets' => [
-            'idx_tk_user'    => '(`user_id`)',
-            'idx_tk_updated' => '(`updated_at`)',
+            'idx_tk_user'     => '(`user_id`)',
+            'idx_tk_updated'  => '(`updated_at`)',
+            'idx_tk_priority' => '(`priority`)',
         ],
         'ticket_messages' => [
             'idx_tm_created' => '(`created_at`)',

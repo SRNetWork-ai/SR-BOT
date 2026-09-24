@@ -1,194 +1,202 @@
 Python 3.12.3
-Thu Sep 24 12:40:03 UTC 2026
-patched: app/Service/Migrate.php (idx_sv_user)
-patched: app/Service/Migrate.php (indexReady(string $table)
-patched: app/Service/Migrate.php (indexReady($t, (string)$cols)) continue; /* 0.0.2 #33 */
-                    $miss)
-patched: app/Service/Migrate.php (indexReady($t, (string)$cols)) continue; /* 0.0.2 #33 */
-                $exec)
+Thu Sep 24 12:43:14 UTC 2026
+patched: database/schema.sql (idx_tk_priority)
+patched: app/Service/Migrate.php ('closed_at' => 'DATETIME NULL',)
+patched: app/Service/Migrate.php ('idx_tk_priority' => '(`priority`)')
 wrote app/Service/Migrate.php
-changed files: 1
-sanity app/Service/Migrate.php / public static function indexReady(string $table, : ok
-sanity app/Service/Migrate.php / public static function hasIndexOn(string $table, : ok
-sanity app/Service/Migrate.php / 'idx_sv_user' : ok
-sanity app/Service/Migrate.php / 'idx_or_created' : ok
+wrote database/schema.sql
+changed files: 2
+sanity database/schema.sql / `priority` VARCHAR(8) NOT NULL DEFAULT 'normal : ok
+sanity database/schema.sql / KEY `idx_tk_priority` (`priority`) : ok
+sanity app/Service/Migrate.php / 'closed_at' => 'DATETIME NULL', : ok
+sanity app/Service/Migrate.php / 'idx_tk_priority' => '(`priority`)', : ok
 sanity: 4/4
-===== schema columns (index validation + next batch) =====
----- dump tbl{p}services ( : database/schema.sql ----
-  116 CREATE TABLE IF NOT EXISTS {p}services (
-  117   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  118   `user_id` INT UNSIGNED NOT NULL,
-  119   `tg_id` BIGINT NOT NULL,
-  120   `panel_id` INT UNSIGNED NOT NULL,
-  121   `product_id` INT UNSIGNED NULL,
-  122   `inbound_id` INT NOT NULL,
-  123   `client_uuid` VARCHAR(64) NOT NULL,
-  124   `client_email` VARCHAR(190) NOT NULL,
-  125   `sub_id` VARCHAR(64) NULL,
-  126   `sub_link` VARCHAR(512) NULL,
-  127   `config_link` TEXT NULL,
-  128   `volume_gb` DECIMAL(10,2) NOT NULL DEFAULT 0,
-  129   `days` INT NOT NULL DEFAULT 0,
-  130   `expire_at` DATETIME NULL,
-  131   `used_bytes` BIGINT NOT NULL DEFAULT 0,
-  132   `is_test` TINYINT(1) NOT NULL DEFAULT 0,
-  133   `status` VARCHAR(16) NOT NULL DEFAULT 'active',
-  134   `renew_count` INT NOT NULL DEFAULT 0,
-  135   `notified` VARCHAR(32) NULL,
-  136   `last_sync` DATETIME NULL,
-  137   `is_reseller` TINYINT(1) NOT NULL DEFAULT 0,
-  138   `group_key` VARCHAR(32) NULL,
-  139   `group_quota_gb` DECIMAL(10,2) NOT NULL DEFAULT 0,
-  140   `created_at` DATETIME NOT NULL,
-  141   KEY `idx_user` (`user_id`),
-  142   KEY `idx_email` (`client_email`),
----- end dump tbl{p}services ( ----
----- dump tbl{p}orders ( : database/schema.sql ----
-  146 CREATE TABLE IF NOT EXISTS {p}orders (
-  147   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  148   `user_id` INT UNSIGNED NOT NULL,
-  149   `tg_id` BIGINT NOT NULL,
-  150   `product_id` INT UNSIGNED NULL,
-  151   `service_id` INT UNSIGNED NULL,
-  152   `type` VARCHAR(16) NOT NULL DEFAULT 'new',
-  153   `amount` BIGINT NOT NULL DEFAULT 0,
-  154   `discount_code` VARCHAR(64) NULL,
-  155   `discount_amount` BIGINT NOT NULL DEFAULT 0,
-  156   `final_amount` BIGINT NOT NULL DEFAULT 0,
-  157   `status` VARCHAR(16) NOT NULL DEFAULT 'pending',
-  158   `created_at` DATETIME NOT NULL,
-  159   KEY `idx_user` (`user_id`)
-  160 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-  161 
-  162 CREATE TABLE IF NOT EXISTS {p}transactions (
-  163   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  164   `user_id` INT UNSIGNED NOT NULL,
-  165   `tg_id` BIGINT NOT NULL,
-  166   `type` VARCHAR(16) NOT NULL DEFAULT 'deposit',
-  167   `method` VARCHAR(16) NOT NULL DEFAULT 'card',
-  168   `amount` BIGINT NOT NULL DEFAULT 0,
-  169   `status` VARCHAR(16) NOT NULL DEFAULT 'pending',
-  170   `ref` VARCHAR(64) NULL,
-  171   `txid` VARCHAR(190) NULL,
-  172   `receipt_file` VARCHAR(255) NULL,
----- end dump tbl{p}orders ( ----
----- dump tbl{p}transactions ( : database/schema.sql ----
-  162 CREATE TABLE IF NOT EXISTS {p}transactions (
-  163   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  164   `user_id` INT UNSIGNED NOT NULL,
-  165   `tg_id` BIGINT NOT NULL,
-  166   `type` VARCHAR(16) NOT NULL DEFAULT 'deposit',
-  167   `method` VARCHAR(16) NOT NULL DEFAULT 'card',
-  168   `amount` BIGINT NOT NULL DEFAULT 0,
-  169   `status` VARCHAR(16) NOT NULL DEFAULT 'pending',
-  170   `ref` VARCHAR(64) NULL,
-  171   `txid` VARCHAR(190) NULL,
-  172   `receipt_file` VARCHAR(255) NULL,
-  173   `note` VARCHAR(255) NULL,
-  174   `admin_msg` TEXT NULL,
-  175   `admin_id` BIGINT NULL,
-  176   `created_at` DATETIME NOT NULL,
-  177   `decided_at` DATETIME NULL,
-  178   KEY `idx_user` (`user_id`),
-  179   KEY `idx_status` (`status`),
-  180   KEY `idx_txid` (`txid`)
-  181 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-  182 
-  183 CREATE TABLE IF NOT EXISTS {p}discount_codes (
-  184   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  185   `code` VARCHAR(64) NOT NULL,
-  186   `type` VARCHAR(16) NOT NULL DEFAULT 'percent',
-  187   `value` BIGINT NOT NULL DEFAULT 0,
-  188   `max_uses` INT NOT NULL DEFAULT 0,
----- end dump tbl{p}transactions ( ----
----- dump tbl{p}users ( : database/schema.sql ----
-    7 CREATE TABLE IF NOT EXISTS {p}users (
-    8   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    9   `tg_id` BIGINT NOT NULL,
-   10   `username` VARCHAR(64) NULL,
-   11   `first_name` VARCHAR(128) NULL,
-   12   `last_name` VARCHAR(128) NULL,
-   13   `phone` VARCHAR(32) NULL,
-   14   `email` VARCHAR(128) NULL,
-   15   `balance` BIGINT NOT NULL DEFAULT 0,
-   16   `total_paid` BIGINT NOT NULL DEFAULT 0,
-   17   `is_banned` TINYINT(1) NOT NULL DEFAULT 0,
-   18   `test_count` INT NOT NULL DEFAULT 0,
-   19   `referrer_id` BIGINT NULL,
-   20   `state` VARCHAR(64) NULL,
-   21   `state_data` TEXT NULL,
-   22   `note` VARCHAR(255) NULL,
-   23   `last_seen` DATETIME NULL,
-   24   `created_at` DATETIME NOT NULL,
-   25   `email_verified` TINYINT(1) NOT NULL DEFAULT 0,
-   26   `phone_verified` TINYINT(1) NOT NULL DEFAULT 0,
-   27   `verify_kind` VARCHAR(16) NULL,
-   28   `verify_target` VARCHAR(190) NULL,
-   29   `verify_code` VARCHAR(16) NULL,
-   30   `verify_token` VARCHAR(64) NULL,
-   31   `verify_at` DATETIME NULL,
-   32   `verify_tries` INT NOT NULL DEFAULT 0,
-   33   `verified_at` DATETIME NULL,
----- end dump tbl{p}users ( ----
----- dump tbl{p}logs ( : database/schema.sql ----
-  284 CREATE TABLE IF NOT EXISTS {p}logs (
-  285   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  286   `actor` VARCHAR(64) NULL,
-  287   `action` VARCHAR(64) NOT NULL,
-  288   `meta` TEXT NULL,
-  289   `created_at` DATETIME NOT NULL,
-  290   KEY `idx_action` (`action`)
-  291 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-  292 
-  293 CREATE TABLE IF NOT EXISTS {p}broadcasts (
-  294   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  295   `title` VARCHAR(190) NULL,
-  296   `kind` VARCHAR(24) NOT NULL DEFAULT 'text',
-  297   `text` TEXT NULL,
-  298   `file_id` VARCHAR(255) NULL,
-  299   `file_type` VARCHAR(24) NULL,
-  300   `buttons` TEXT NULL,
-  301   `segment` VARCHAR(32) NOT NULL DEFAULT 'all',
-  302   `pin` TINYINT(1) NOT NULL DEFAULT 0,
-  303   `silent` TINYINT(1) NOT NULL DEFAULT 0,
-  304   `total` INT NOT NULL DEFAULT 0,
-  305   `sent` INT NOT NULL DEFAULT 0,
-  306   `failed` INT NOT NULL DEFAULT 0,
-  307   `status` VARCHAR(24) NOT NULL DEFAULT 'done',
-  308   `admin_id` INT NULL,
-  309   `created_at` DATETIME NOT NULL,
-  310   KEY `idx_bc_status` (`status`)
----- end dump tbl{p}logs ( ----
----- dump tbl{p}discount_uses ( : database/schema.sql ----
-  202 CREATE TABLE IF NOT EXISTS {p}discount_uses (
-  203   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  204   `code_id` INT UNSIGNED NOT NULL,
-  205   `user_id` INT UNSIGNED NOT NULL,
-  206   `order_id` INT UNSIGNED NULL,
-  207   `created_at` DATETIME NOT NULL,
-  208   KEY `idx_code_user` (`code_id`,`user_id`)
-  209 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-  210 
-  211 CREATE TABLE IF NOT EXISTS {p}gift_codes (
-  212   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  213   `code` VARCHAR(64) NOT NULL,
-  214   `amount` BIGINT NOT NULL DEFAULT 0,
-  215   `max_uses` INT NOT NULL DEFAULT 1,
-  216   `used` INT NOT NULL DEFAULT 0,
-  217   `expires_at` DATETIME NULL,
-  218   `note` VARCHAR(190) NULL,
-  219   `active` TINYINT(1) NOT NULL DEFAULT 1,
-  220   `created_at` DATETIME NOT NULL,
-  221   UNIQUE KEY `uq_gift` (`code`)
-  222 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-  223 
-  224 CREATE TABLE IF NOT EXISTS {p}gift_uses (
-  225   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  226   `code_id` INT UNSIGNED NOT NULL,
-  227   `user_id` INT UNSIGNED NOT NULL,
-  228   `created_at` DATETIME NOT NULL,
----- end dump tbl{p}discount_uses ( ----
+===== admin tickets page =====
+---- dump tk_head : admin/pages/tickets.php (767 lines) ----
+    1 <?php
+    2 /** پشتیبانی – مرکز تیکت (گفتگوی زنده، پیوست، پاسخ آماده و پایش زمان پاسخ) */
+    3 declare(strict_types=1);
+    4 
+    5 if (!can('tickets.view')) { echo denyBox('بخش پشتیبانی برای شما فعال نیست.'); return; }
+    6 
+    7 /* ---------- نمایش/دانلود فایل پیوست کاربر ----------
+    8  * فایل از سرور تلگرام خوانده و از طریق همین صفحه پخش می‌شود
+    9  * تا توکن ربات در مرورگر لو نرود. */
+   10 if (isset($_GET['att'])) {
+   11     $mid = (int)$_GET['att'];
+   12     $row = DB::one('SELECT * FROM {p}ticket_messages WHERE id = :id', [':id' => $mid]);
+   13     while (ob_get_level() > 0) ob_end_clean();
+   14 
+   15     if (!$row || empty($row['file_id'])) {
+   16         http_response_code(404);
+   17         header('Content-Type: text/plain; charset=utf-8');
+   18         echo 'فایل یافت نشد.';
+   19         exit;
+   20     }
+   21 
+   22     $src = Tg::fileUrl((string)$row['file_id']);
+   23     if ($src === '') {
+   24         http_response_code(404);
+   25         header('Content-Type: text/plain; charset=utf-8');
+   26         echo 'دریافت فایل از تلگرام ممکن نشد. (فایل‌های قدیمی پاک می‌شوند)';
+   27         exit;
+   28     }
+   29 
+   30     $ext   = strtolower((string)pathinfo((string)parse_url($src, PHP_URL_PATH), PATHINFO_EXTENSION));
+   31     $mimes = [
+   32         'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
+   33         'gif' => 'image/gif', 'webp' => 'image/webp', 'mp4' => 'video/mp4',
+   34         'pdf' => 'application/pdf', 'ogg' => 'audio/ogg', 'oga' => 'audio/ogg',
+   35         'mp3' => 'audio/mpeg', 'zip' => 'application/zip', 'txt' => 'text/plain',
+   36     ];
+   37     header('Content-Type: ' . ($mimes[$ext] ?? 'application/octet-stream'));
+   38     header('Cache-Control: private, max-age=900');
+   39     header('X-Content-Type-Options: nosniff');
+   40     if (!empty($_GET['dl'])) {
+   41         header('Content-Disposition: attachment; filename="ticket-' . $mid . '.' . ($ext ?: 'bin') . '"');
+   42     }
+   43     $fh = @fopen($src, 'rb');
+   44     if ($fh) { fpassthru($fh); fclose($fh); }
+   45     exit;
+   46 }
+   47 
+   48 $act = (string)($_POST['act'] ?? '');
+   49 
+   50 if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
+   51     $id = pint('id');
+   52     $tk = $id ? DB::one('SELECT t.*, u.tg_id AS utg, u.first_name FROM {p}tickets t LEFT JOIN {p}users u ON u.id = t.user_id WHERE t.id = :id', [':id' => $id]) : null;
+   53 
+   54     if ($tk && $act === 'reply') {
+   55         need('tickets.reply', 'tickets');
+   56 
+   57         $text = ptxt('text');
+   58 
+   59         /* فایل پیوست اختیاری از سمت مدیر */
+   60         $sentFile = false;
+   61         $tmpPath  = '';
+   62         /* 0.0.2 #10-ticket-att: فایل پیوست از فیلتر امنیتی رد شود */
+   63         if (!empty($_FILES['att']['tmp_name']) && is_uploaded_file($_FILES['att']['tmp_name'])
+   64             && (!class_exists('Upload') || Upload::check((array)$_FILES['att'], 20 * 1024 * 1024)['ok'])) {
+   65             $size = (int)($_FILES['att']['size'] ?? 0);
+   66             if ($size > 0 && $size <= 20 * 1024 * 1024) {
+   67                 /* 0.0.2 #10-ticket-name */
+   68                 $safe = class_exists('Upload')
+   69                     ? Upload::safeName((string)($_FILES['att']['name'] ?? 'file'))
+   70                     : (preg_replace('/[^A-Za-z0-9._-]/', '_', (string)($_FILES['att']['name'] ?? 'file')));
+   71                 $dir     = APP_ROOT . '/storage/tmp';
+   72                 if (!is_dir($dir)) @mkdir($dir, 0775, true);
+   73                 $tmpPath = $dir . '/' . time() . '-' . $safe;
+   74                 if (@move_uploaded_file($_FILES['att']['tmp_name'], $tmpPath)) $sentFile = true;
+   75             } else {
+   76                 flash('warn', '⚠️ حجم فایل باید کمتر از ۲۰ مگابایت باشد.');
+   77             }
+   78         }
+   79 
+   80         if ($text === '' && !$sentFile) {
+   81             flash('err', 'متن پاسخ یا فایل پیوست را وارد کنید.');
+   82             back('tickets', ['t' => $id]);
+   83         }
+   84 
+   85         DB::insert('ticket_messages', [
+   86             'ticket_id'  => $id,
+   87             'sender'     => 'admin',
+   88             'text'       => $text !== '' ? $text : '📎 فایل پیوست',
+   89             'created_at' => now(),
+   90         ]);
+   91         DB::update('tickets', ['status' => 'answered', 'updated_at' => now()], 'id = :id', [':id' => $id]);
+   92 
+   93         $head = "💬 <b>پاسخ پشتیبانی</b>\n"
+   94               . "🎫 تیکت شماره <code>" . $id . "</code> – " . h((string)$tk['subject']) . "\n"
+   95               . "<code>─────────────────</code>\n";
+   96         $kb = Tg::ikb([[Tg::btn('✍️ ارسال پاسخ', 'tkr:' . $id)]]);
+   97 
+   98         if ($text !== '') Tg::send((int)$tk['utg'], $head . h($text), $kb);
+   99 
+  100         if ($sentFile && $tmpPath !== '') {
+  101             Tg::document((int)$tk['utg'], $tmpPath, '📎 فایل پیوست پشتیبانی – تیکت #' . $id);
+  102             @unlink($tmpPath);
+  103         }
+  104 
+  105         flash('ok', '✅ پاسخ' . ($sentFile ? ' و فایل پیوست' : '') . ' برای کاربر ارسال شد.');
+  106         back('tickets', ['t' => $id]);
+  107     }
+  108 
+  109     if ($tk && $act === 'close') {
+  110         need('tickets.close', 'tickets');
+  111         DB::update('tickets', ['status' => 'closed', 'updated_at' => now()], 'id = :id', [':id' => $id]);
+  112         Tg::send((int)$tk['utg'], "✅ تیکت شماره <code>" . $id . "</code> بسته شد.\nدر صورت نیاز تیکت جدیدی باز کنید.");
+  113         flash('ok', '✅ تیکت بسته شد.');
+  114         back('tickets');
+  115     }
+  116 
+  117     if ($tk && $act === 'open') {
+  118         need('tickets.close', 'tickets');
+  119         DB::update('tickets', ['status' => 'open', 'updated_at' => now()], 'id = :id', [':id' => $id]);
+  120         back('tickets', ['t' => $id]);
+---- end dump tk_head ----
+---- grep: status ----
+admin/pages/tickets.php:91: DB::update('tickets', ['status' => 'answered', 'updated_at' => now()], 'id = :id', [':id' => $id]);
+admin/pages/tickets.php:111: DB::update('tickets', ['status' => 'closed', 'updated_at' => now()], 'id = :id', [':id' => $id]);
+admin/pages/tickets.php:119: DB::update('tickets', ['status' => 'open', 'updated_at' => now()], 'id = :id', [':id' => $id]);
+admin/pages/tickets.php:145: DB::update('tickets', ['status' => 'closed', 'updated_at' => now()], 'id = :id', [':id' => $tid]);
+admin/pages/tickets.php:151: DB::update('tickets', ['status' => 'open', 'updated_at' => now()], 'id = :id', [':id' => $tid]);
+admin/pages/tickets.php:169: $fStatus = (string)($_GET['status'] ?? '');
+admin/pages/tickets.php:172: $w = $fStatus !== '' ? 'WHERE t.status = :st' : '';
+admin/pages/tickets.php:177: $w ORDER BY (t.status = 'open') DESC, t.updated_at DESC LIMIT 200",
+admin/pages/tickets.php:185: $cOpen = (int)DB::val("SELECT COUNT(*) FROM {p}tickets WHERE status = 'open'", [], 0);
+admin/pages/tickets.php:186: $cAns  = (int)DB::val("SELECT COUNT(*) FROM {p}tickets WHERE status = 'answered'", [], 0);
+admin/pages/tickets.php:187: $cCls  = (int)DB::val("SELECT COUNT(*) FROM {p}tickets WHERE status = 'closed'", [], 0);
+admin/pages/tickets.php:196: $oldOpen = DB::one("SELECT updated_at FROM {p}tickets WHERE status = 'open' ORDER BY updated_at ASC LIMIT 1");
+admin/pages/tickets.php:452: <?= badge((string)$T['status']) ?>
+admin/pages/tickets.php:494: <?php if ((string)$T['status'] !== 'closed' && can('tickets.reply')): ?>
+admin/pages/tickets.php:523: <?php elseif ((string)$T['status'] === 'closed'): ?>
+admin/pages/tickets.php:530: <?php if ((string)$T['status'] !== 'closed'): ?>
+admin/pages/tickets.php:553: <a class="tk-nv <?= $fStatus === 'open' ? 'on' : '' ?>" href="index.php?p=tickets&amp;status=open">🕓 باز <span class="n"><?= fa_num($cOpen) ?></span>< ...
+admin/pages/tickets.php:554: <a class="tk-nv <?= $fStatus === 'answered' ? 'on' : '' ?>" href="index.php?p=tickets&amp;status=answered">✅ پاسخ داده شده <span class="n"><?= fa_num( ...
+admin/pages/tickets.php:555: <a class="tk-nv <?= $fStatus === 'closed' ? 'on' : '' ?>" href="index.php?p=tickets&amp;status=closed">🔒 بسته <span class="n"><?= fa_num($cCls) ?></sp ...
+admin/pages/tickets.php:594: $st  = (string)$t['status'];
+admin/pages/tickets.php:644: <td><?= badge((string)$t['status']) ?></td>
+admin/pages/tickets.php:648: <a class="btn btn-sm <?= (string)$t['status'] === 'open' ? 'btn-primary' : '' ?>" href="index.php?p=tickets&amp;t=<?= (int)$t['id'] ?>">👁 مشاهده</a>
+---- end grep: status (22) ----
+---- grep: tk_ ----
+---- end grep: tk_ (0) ----
+===== bot ticket flow =====
+---- grep: ticket ----
+app/Bot/AdminBot.php:32: $tickets = (int)DB::val("SELECT COUNT(*) FROM {p}tickets WHERE status = 'open'", [], 0);
+app/Bot/AdminBot.php:45: if ($tickets) $urgent[] = Tg::btn('🎫 تیکت باز (' . fa_num($tickets) . ')', 'adm:tk');
+app/Bot/AdminBot.php:52: $rows[] = [Tg::btn('📣 ارتباط و پشتیبانی' . ($tickets ? ' (' . fa_num($tickets) . ')' : ''), $hub ? 'adm:comm' : 'adm:tk'), Tg::btn('⚙️ تنظیمات سریع',  ...
+app/Bot/AdminBot.php:74: . '💳 پرداخت در انتظار: ' . fa_num($pending) . '  |  🪪 احراز کارت: ' . fa_num($cardsPd) . '  |  🎫 تیکت باز: ' . fa_num($tickets) . "\n"
+app/Bot/AdminBot.php:580: $list = DB::all("SELECT t.*, u.tg_id AS uid FROM {p}tickets t JOIN {p}users u ON u.id = t.user_id
+app/Bot/AdminBot.php:593: $t = DB::one('SELECT t.*, u.tg_id AS uid, u.first_name FROM {p}tickets t JOIN {p}users u ON u.id = t.user_id WHERE t.id = :id', [':id' => $id]);
+app/Bot/AdminBot.php:595: $msgs = DB::all('SELECT * FROM {p}ticket_messages WHERE ticket_id = :t ORDER BY id ASC LIMIT 20', [':t' => $id]);
+app/Bot/AdminBot.php:630: public static function notifyTicket(int $ticketId, string $text, ?string $fileId = null, ?string $fileType = null): void
+app/Bot/AdminBot.php:632: $t = DB::one('SELECT t.*, u.tg_id AS uid, u.username, u.first_name FROM {p}tickets t JOIN {p}users u ON u.id = t.user_id WHERE t.id = :id', [':id' =>  ...
+app/Bot/AdminBot.php:636: $head = "💬 <b>پیام جدید پشتیبانی #" . $ticketId . "</b>\n"
+app/Bot/AdminBot.php:642: $kb   = Tg::ikb([[Tg::btn('✍️ پاسخ', 'adm:tkr:' . $ticketId), Tg::btn('👁 مشاهده', 'adm:tkv:' . $ticketId)]]);
+app/Bot/AdminBot.php:655: Tg::media($id, $fileId, $fileType, '📎 پیوست تیکت #' . $ticketId);
+app/Bot/AdminBot.php:772: $t = DB::one('SELECT t.*, u.tg_id AS uid FROM {p}tickets t JOIN {p}users u ON u.id = t.user_id WHERE t.id = :id', [':id' => $tid]);
+app/Bot/AdminBot.php:777: DB::insert('ticket_messages', ['ticket_id' => $tid, 'sender' => 'admin', 'text' => $text,
+app/Bot/AdminBot.php:779: DB::update('tickets', ['status' => 'answered', 'updated_at' => now()], 'id = :id', [':id' => $tid]);
+app/Bot/AdminBot.php:790: Logs::send('tickets', Logs::fmt('🛠 پاسخ پشتیبانی', [
+app/Bot/AdminHub.php:1031: $open = (int)DB::val("SELECT COUNT(*) FROM {p}tickets WHERE status = 'open'", [], 0);
+app/Bot/AdminHub.php:1032: $ans  = (int)DB::val("SELECT COUNT(*) FROM {p}tickets WHERE status = 'answered'", [], 0);
+app/Bot/Bot.php:552: case 'tickets':  self::sectionSupport($chatId, $msgId); return true;
+app/Bot/Bot.php:1147: self::setState('ticket_new');
+app/Bot/Bot.php:1157: self::setState('ticket_reply', ['tid' => (int)$arg]);
+app/Bot/Bot.php:1688: case 'ticket_new': {
+app/Bot/Bot.php:1692: $tid = DB::insert('tickets', [
+app/Bot/Bot.php:1697: DB::insert('ticket_messages', [
+app/Bot/Bot.php:1698: 'ticket_id' => $tid, 'sender' => 'user', 'text' => $text,
+app/Bot/Bot.php:1706: Logs::send('tickets', Logs::fmt('🆕 تیکت جدید', [
+app/Bot/Bot.php:1714: case 'ticket_reply': {
+app/Bot/Bot.php:1716: $t = DB::one('SELECT * FROM {p}tickets WHERE id = :id AND user_id = :u', [':id' => $tid2, ':u' => (int)self::$u['id']]);
+app/Bot/Bot.php:1720: DB::insert('ticket_messages', ['ticket_id' => $tid2, 'sender' => 'user', 'text' => $text,
+app/Bot/Bot.php:1722: DB::update('tickets', ['status' => 'open', 'updated_at' => now()], 'id = :id', [':id' => $tid2]);
+app/Bot/Bot.php:1726: Logs::send('tickets', Logs::fmt('💬 پاسخ کاربر در تیکت', [
+---- end grep: ticket (31) ----
+---- grep: Tickets:: ----
+---- end grep: Tickets:: (0) ----
 changelog: entry added
-build: fixed145 (was fixed144)
+build: fixed146 (was fixed145)
 exit: 0
 exit: 0
