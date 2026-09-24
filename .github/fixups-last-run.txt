@@ -1,63 +1,124 @@
 Python 3.12.3
-Thu Sep 24 12:51:45 UTC 2026
-patched: admin/pages/tickets.php ($tkPrioLabel = [)
-patched: admin/pages/tickets.php ($pw);)
-patched: admin/pages/tickets.php (DESC, $ordPrio t.updated_at)
-patched: admin/pages/tickets.php (prio=urgent)
-patched: admin/pages/tickets.php ($t['priority'] ?? 'normal')
-patched: admin/pages/tickets.php (name="act" value="tkmeta"><input)
-wrote admin/pages/tickets.php
-changed files: 1
-sanity admin/pages/tickets.php / $tkPrioLabel = [ : ok
-sanity admin/pages/tickets.php / $pw); : ok
-sanity admin/pages/tickets.php / DESC, $ordPrio t.updated_at : ok
-sanity admin/pages/tickets.php / name="act" value="tkmeta"><input : ok
-sanity admin/pages/tickets.php / prio=urgent : ok
-sanity admin/pages/tickets.php / $t['priority'] ?? 'normal' : ok
-sanity: 6/6
-===== admin router / menu =====
----- dump router : admin/index.php (638 lines) ----
-  420         $page = $fallback;
-  421     } else {
-  422         $denied = true;
-  423     }
-  424 }
-  425 // basename لایهٔ دوم محافظت در برابر Path Traversal است
-  426 $pageFile = __DIR__ . '/pages/' . basename($page) . '.php';
-  427 
-  428 /* 0.0.2 #6: سپر سراسری CSRF روی همهٔ درخواست‌های POST پنل.
-  429    پیش‌فرض حالت گزارشی است؛ با تنظیم sec_csrf_strict = 1 درخواست بدون توکن مسدود می‌شود. */
-  430 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_ok()) {
-  431     $csrfStrict = (string)DB::setting('sec_csrf_strict', '1') === '1';
-  432     $csrfAct    = (string)preg_replace('/[^a-z0-9_\-]/i', '', (string)($_POST['act'] ?? ($_POST['action'] ?? '')));
-  433     app_log('sec', 'csrf ' . ($csrfStrict ? 'blocked' : 'report') . ': p=' . $page . ' act=' . $csrfAct . ' ip=' . $clientIp);
-  434     try {
-  435         if (class_exists('Logs')) {
-  436             Logs::send('security', Logs::fmt('🚫 درخواست بدون توکن امنیتی', [
-  437                 'صفحه'  => $page,
-  438                 'اقدام'  => $csrfAct !== '' ? $csrfAct : '-',
-  439                 'مدیر'   => (string)($ADMIN['username'] ?? '-'),
-  440                 'آی‌پی'  => $clientIp !== '' ? $clientIp : '-',
-  441                 'نتیجه'  => $csrfStrict ? 'مسدود شد' : 'فقط گزارش',
-  442             ]));
-  443         }
-  444     } catch (Throwable $e) { }
-  445     if ($csrfStrict) {
-  446         http_response_code(419);
-  447         header('Content-Type: text/html; charset=utf-8');
-  448         echo '<!doctype html><html dir="rtl" lang="fa"><meta charset="utf-8"><title>توکن امنیتی نامعتبر</title>'
----- end dump router ----
----- grep: 'tickets' ----
-admin/index.php:374: 'tickets'   => ['پشتیبانی', '🆘', 'تیکت‌ها'],
-admin/index.php:396: '🆘 پشتیبانی و محتوا' => ['tickets', 'tutorials'],
-admin/index.php:509: foreach (['dashboard', 'users', 'payments', 'services', 'resellers', 'panels', 'tickets', 'settings'] as $bk) {
-admin/index.php:513: $BADGE_OF = ['payments' => $pendingPay, 'tickets' => $openTk];
-admin/index.php:542: <?php if ($openTk > 0 && in_array('tickets', $VISIBLE, true)): ?>
----- end grep: 'tickets' (5) ----
----- grep: 'dashboard' => ----
-admin/index.php:366: 'dashboard' => ['داشبورد', '📊', 'نمای کلی'],
----- end grep: 'dashboard' => (1) ----
-changelog: entry added
-build: fixed148 (was fixed147)
+Thu Sep 24 12:54:27 UTC 2026
+===== admin router: page map + groups + visibility =====
+---- dump router_map : admin/index.php (638 lines) ----
+  358 $sysOk  = $hbAge >= 0 && $hbAge <= 1800;
+  359 $sysTip = $hbAge < 0
+  360     ? 'کران‌جاب هنوز اجرا نشده است — برای تمدید و هشدارها لازم است'
+  361     : ($sysOk
+  362         ? 'سیستم سالم است — آخرین اجرای کران‌جاب ' . fa_num((int)round($hbAge / 60)) . ' دقیقه پیش'
+  363         : 'کران‌جاب ' . fa_num((int)round($hbAge / 60)) . ' دقیقه است اجرا نشده است');
+  364 
+  365 $PAGES = [
+  366     'dashboard' => ['داشبورد', '📊', 'نمای کلی'],
+  367     'panels'    => ['سرورها و پنل‌ها', '🖧', 'مدیریت پنل‌ها و ظرفیت سرورها'],
+  368     'products'  => ['محصولات', '📦', 'طرح‌های فروش'],
+  369     'services'  => ['سرویس‌ها', '🔑', 'اکانت‌های ساخته شده'],
+  370     'stock'     => ['انبار ملی', '🏪', 'فروش دستی کانفیگ و اکانت'],
+  371     'users'     => ['کاربران', '👥', 'مدیریت کاربران'],
+  372     'payments'  => ['پرداخ��‌ها', '💳', 'تراکنش و سفارش'],
+  373     'codes'     => ['کد تخفیف و هدیه', '🎟', 'کدها'],
+  374     'tickets'   => ['پشتیبانی', '🆘', 'تیکت‌ها'],
+  375     'tutorials' => ['آموزش‌ها', '🎓', 'مطالب آموزشی'],
+  376     'resellers'  => ['نمایندگی', '🏷', 'نمایندگان و درخواست‌ها'],
+  377     'gateways'   => ['درگاه‌های پرداخت', '🏦', 'کارت و ارز دیجیتال'],
+  378     'cards'      => ['احراز کارت', '💳', 'تایید کارت بانکی کاربران'],
+  379     'botbuttons' => ['دکمه‌های ربات', '🎛', 'افزودن، حذف و رنگ'],
+  380     'join'       => ['جوین اجباری', '📢', 'عضویت اجباری در کانال‌ها'],
+  381     'bottexts'   => ['متن‌های ربات', '💬', 'ویرایش همهٔ پیام‌ها'],
+  382     'subs'      => ['مدیریت ساب', '🛰', 'آپشن‌های اشتراک'],
+  383     'settings'  => ['تنظیمات', '⚙️', 'پرداخت و ربات'],
+  384     'admins'    => ['مدیران پنل', '🛡️', 'دسترسی‌های سفارشی'],
+  385     'backup'    => ['بکاپ و بازگردانی', '💾', 'پشتیبان و بازیابی'],
+  386     'update'    => ['به‌روزرسانی', '⬆️', 'نسخه جدید'],
+  387     'audit'     => ['لاگ اقدامات', '📝', 'کی چه کاری کرد'],
+  388     'export'    => ['خروجی CSV', '📤', 'کاربران، سرویس‌ها، پرداخت‌ها'], /* fixed79 */
+  389     'health'    => ['سلامت سیستم', '🩺', 'وضعیت و عیب‌یابی'],
+  390 ];
+  391 
+  392 $NAV_GROUPS = [
+  393     '📈 فروش و عملیات'   => ['dashboard', 'panels', 'products', 'services', 'stock'],
+  394     '👥 کاربران و مالی'  => ['users', 'payments', 'cards', 'codes', 'gateways'],
+  395     '🏷 نمایندگی'         => ['resellers'],
+  396     '🆘 پشتیبانی و محتوا' => ['tickets', 'tutorials'],
+  397     '⚙️ پیکربندی'         => ['settings', 'join', 'subs', 'botbuttons', 'bottexts', 'admins'],
+  398     '🛠 نگهداری سیستم'  => ['backup', 'update', 'health', 'audit', 'export'],
+  399 ];
+  400 
+  401 /* فیلتر منو بر اساس دسترسی مدیر */
+  402 $VISIBLE = [];
+  403 foreach (array_keys($PAGES) as $k) if (Perm::canPage($ADMIN, $k)) $VISIBLE[] = $k;
+  404 
+  405 $NAV_GROUPS_VISIBLE = [];
+  406 foreach ($NAV_GROUPS as $gname => $items) {
+  407     $keep = array_values(array_filter($items, static fn($k) => in_array($k, $VISIBLE, true)));
+  408     if ($keep) $NAV_GROUPS_VISIBLE[$gname] = $keep;
+  409 }
+  410 
+  411 $page = (string)($_GET['p'] ?? '');
+  412 // فقط نام‌های موجود در فهرست سفید پذیرفته می‌شوند
+  413 if ($page === '' || !preg_match('/^[a-z0-9_]+$/', $page) || !isset($PAGES[$page])) $page = 'dashboard';
+  414 
+  415 /* اگر دسترسی ندارد، به اولین صفحه‌ی مجاز می‌رود */
+  416 $denied = false;
+  417 if (!Perm::canPage($ADMIN, $page)) {
+  418     $fallback = Perm::firstPage($ADMIN, array_keys($PAGES));
+---- end dump router_map ----
+===== permissions =====
+---- grep: function can( ----
+admin/index.php:303: function can(string $key): bool { return Perm::has($GLOBALS['ADMIN'] ?? null, $key); }
+---- end grep: function can( (1) ----
+---- grep: function need( ----
+admin/index.php:314: function need(string $key, string $page = ''): void
+---- end grep: function need( (1) ----
+---- grep: 'payments.view' ----
+admin/pages/payments.php:2: if (!can('payments.view')) { echo denyBox('این بخش برای شما فعال نیست.'); return; }
+app/Service/Perm.php:92: 'payments.view'    => 'مشاهده تراکنش‌ها',
+app/Service/Perm.php:255: 'payments.view', 'payments.approve', 'payments.reject',
+app/Service/Perm.php:281: 'payments.view', 'payments.approve', 'payments.reject',
+app/Service/Perm.php:293: 'users.view', 'payments.view', 'codes.view',
+app/Service/Perm.php:353: 'payments'  => ['payments.view'],
+---- end grep: 'payments.view' (6) ----
+---- grep: PERM_GROUPS ----
+---- end grep: PERM_GROUPS (0) ----
+---- dump perm_list : needle not found (payments.view) ----
+===== money / stats helpers for reports =====
+---- funcs app/Service/Stats.php ----
+(failed [Errno 2] No such file or directory: '/home/runner/work/SR-BOT/SR-BOT/app/Service/Stats.php')
+---- funcs app/Service/Orders.php ----
+   17 public static function stuckMinutes(): int
+   24 public static function stuck(?int $minutes = null, int $limit = 25): array
+   41 public static function stuckCount(?int $minutes = null): int
+   51 public static function refunded(int $orderId): bool
+   66 public static function findService(array $o): ?array
+   88 public static function recoverOne(array $o): array
+  154 public static function recoverStuck(?int $minutes = null, int $limit = 25): array
+  181 public static function recent(int $limit = 8): array
+  194 public static function dailySales(int $days = 14): array
+---- end funcs app/Service/Orders.php (219 lines) ----
+---- grep: dailySales ----
+admin/pages/dashboard.php:176: try { $d_sales = Orders::dailySales($d_days); } catch (Throwable $e) { $d_sales = []; }
+app/Service/Orders.php:194: public static function dailySales(int $days = 14): array
+---- end grep: dailySales (2) ----
+---- grep: SUM(amount) ----
+admin/pages/dashboard.php:148: $m_paySum     = (float)$d_val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'pending' AND method NOT IN ('hooshpay','nowpay')");
+admin/pages/dashboard.php:149: $m_depNow     = (float)$d_val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND created_at >= DATE_SUB(NOW ...
+admin/pages/dashboard.php:150: $m_depToday   = (float)$d_val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND DATE(created_at) = CURDATE ...
+admin/pages/dashboard.php:232: "SELECT method, COUNT(*) AS c, COALESCE(SUM(amount),0) AS s
+admin/pages/payments.php:293: $sumPend  = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'pending' AND method NOT IN ($autoIn)", [], 0);
+admin/pages/payments.php:295: $sumToday = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND DATE(decided_at) = CURDATE()" ...
+admin/pages/payments.php:296: $sumWeek  = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND decided_at >= (CURDATE() - IN ...
+admin/pages/payments.php:297: $sumMonth = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND decided_at >= (CURDATE() - IN ...
+admin/pages/payments.php:298: $sumAll   = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit'", [], 0);
+admin/pages/payments.php:878: $chartRaw = DB::all("SELECT DATE(decided_at) d, COALESCE(SUM(amount),0) s, COUNT(*) c
+admin/pages/payments.php:895: $byMethod = DB::all("SELECT method, COUNT(*) c, COALESCE(SUM(amount),0) s
+admin/pages/users.php:414: $uDep = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE user_id = :u AND amount > 0 AND status = 'approved'", [':u' => $uid], 0);
+app/Bot/AdminHub.php:403: $pendS = (int)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'pending'", [], 0);
+app/Service/AutoRenew.php:257: $out['sum_30d']     = abs((int)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE type = 'purchase' AND note LIKE 'تمدید خودکار:%' AND created_a ...
+---- end grep: SUM(amount) (truncated) ----
+===== dashboard chart markup (reuse) =====
+---- dump dash_chart : needle not found (canvas) ----
+changed files: 0 (recon)
+build: fixed149 (was fixed148)
 exit: 0
 exit: 0
