@@ -1,304 +1,219 @@
 Python 3.12.3
-Thu Sep 24 12:27:23 UTC 2026
----- ls admin_pages : admin/pages ----
-    43024  admins.php
-     8674  audit.php
-    37947  backup.php
-    71568  botbuttons.php
-    31799  bottexts.php
-    35947  cards.php
-    55112  codes.php
-    51357  dashboard.php
-     3743  export.php
-    47427  gateways.php
-    20731  health.php
-    10642  join.php
-    73251  panels.php
-    59168  payments.php
-    62728  products.php
-   152533  resellers.php
-    51718  services.php
-   202493  settings.php
-    45840  stock.php
-    74918  subs.php
-    39771  tickets.php
-    40985  tutorials.php
-    32615  update.php
-    77625  users.php
----- end ls admin_pages ----
----- ls services : app/Service ----
-    11138  Audit.php
-    13658  AutoRenew.php
-    26483  Backup.php
-    14420  Broadcast.php
-    72701  Btn.php
-     7817  Bulk.php
-    10311  Campaign.php
-    29178  CardAuth.php
-     5425  Cfg.php
-     5068  Codes.php
-     5253  Crypt.php
-     3540  Dedup.php
-     6857  Devices.php
-     9583  Export.php
-     3379  Flood.php
-    26986  Gateway.php
-     7471  Guard.php
-    27322  Health.php
-    23102  HooshPay.php
-     5761  Links.php
-    29881  Logs.php
-    25956  Migrate.php
-     6526  Net.php
-    11741  NowPay.php
-     9220  Orders.php
-    18667  Perm.php
-     6290  RateLimit.php
-    18458  Rates.php
-    13483  Referral.php
-    32023  Release.php
-    98311  Reseller.php
-    21264  RsBot.php
-    22632  Security.php
-     4125  Session.php
-    39170  Stock.php
-     7689  SubTheme.php
-   105409  Svc.php
-    21645  TxCheck.php
-    14949  Txt.php
-    31423  Updater.php
-     5275  Upload.php
-    25354  Wallet.php
----- end ls services ----
----- grep: discount_codes ----
-admin/pages/codes.php:13: $hasMax   = $hasCol('discount_codes', 'max_discount');
-admin/pages/codes.php:14: $hasStart = $hasCol('discount_codes', 'starts_at');
-admin/pages/codes.php:15: $hasNote  = $hasCol('discount_codes', 'note');
-admin/pages/codes.php:55: $dup = DB::one('SELECT id FROM {p}discount_codes WHERE code = :c AND id <> :id', [':c' => $code, ':id' => $id]);
-admin/pages/codes.php:58: DB::update('discount_codes', $base, 'id = :id', [':id' => $id]);
-admin/pages/codes.php:66: if (DB::one('SELECT id FROM {p}discount_codes WHERE code = :c', [':c' => $c])) continue;
-admin/pages/codes.php:70: DB::insert('discount_codes', $row);
-admin/pages/codes.php:81: DB::delete('discount_codes', 'id = :id', [':id' => $id]);
-admin/pages/codes.php:86: $c = DB::one('SELECT * FROM {p}discount_codes WHERE id = :id', [':id' => pint('id')]);
-admin/pages/codes.php:89: DB::update('discount_codes', ['active' => $new], 'id = :id', [':id' => (int)$c['id']]);
-admin/pages/codes.php:101: DB::q('UPDATE {p}discount_codes SET active = ' . ($do === 'on' ? 1 : 0) . ' WHERE id IN (' . $in . ')');
-admin/pages/codes.php:106: DB::q('DELETE FROM {p}discount_codes WHERE id IN (' . $in . ')');
-admin/pages/codes.php:175: $tbl  = $kind === 'gift' ? 'gift_codes' : 'discount_codes';
-admin/pages/codes.php:201: $e = $editId ? DB::one('SELECT * FROM {p}discount_codes WHERE id = :id', [':id' => $editId]) : null;
-admin/pages/codes.php:205: $dcs = DB::all('SELECT * FROM {p}discount_codes ORDER BY id DESC LIMIT 400');
-admin/pages/codes.php:778: FROM {p}discount_uses u JOIN {p}discount_codes c ON c.id = u.code_id
-admin/pages/codes.php:781: FROM {p}discount_uses u LEFT JOIN {p}discount_codes c ON c.id = u.code_id
-admin/pages/dashboard.php:157: $m_codes      = (int)$d_val('SELECT COUNT(*) FROM {p}discount_codes WHERE active = 1');
-app/Bot/AdminHub.php:411: $dcA   = (int)DB::val('SELECT COUNT(*) FROM {p}discount_codes WHERE active = 1', [], 0);
-app/Bot/AdminHub.php:472: $tbl   = $kind === 'gift' ? 'gift_codes' : 'discount_codes';
-app/Bot/AdminHub.php:510: $tbl = $kind === 'gift' ? 'gift_codes' : 'discount_codes';
-app/Bot/AdminHub.php:1426: $tbl  = $gift ? 'gift_codes' : 'discount_codes';
-app/Bot/AdminHub.php:1434: DB::insert('discount_codes', ['code' => $code, 'type' => $isPct ? 'percent' : 'amount', 'value' => $val, 'max_uses' => $max, 'used' => 0,
-app/Service/Codes.php:15: $row  = DB::one('SELECT * FROM {p}discount_codes WHERE code = :c', [':c' => $code]);
-app/Service/Codes.php:56: DB::q('UPDATE {p}discount_codes SET used = used + 1 WHERE id = :id', [':id' => (int)$code['id']]);
-app/Service/Migrate.php:13: 'discount_codes' => [
-database/schema.sql:183: CREATE TABLE IF NOT EXISTS {p}discount_codes (
----- end grep: discount_codes (27) ----
----- grep: gift_codes ----
-admin/pages/codes.php:16: $hasGNote = $hasCol('gift_codes', 'note');
-admin/pages/codes.php:123: if (DB::one('SELECT id FROM {p}gift_codes WHERE code = :c', [':c' => $code])) continue;
-admin/pages/codes.php:133: DB::insert('gift_codes', $row);
-admin/pages/codes.php:145: DB::delete('gift_codes', 'id = :id', [':id' => $id]);
-admin/pages/codes.php:150: $c = DB::one('SELECT * FROM {p}gift_codes WHERE id = :id', [':id' => pint('id')]);
-admin/pages/codes.php:151: if ($c) DB::update('gift_codes', ['active' => (int)$c['active'] ? 0 : 1], 'id = :id', [':id' => (int)$c['id']]);
-admin/pages/codes.php:161: DB::q('UPDATE {p}gift_codes SET active = ' . ($do === 'on' ? 1 : 0) . ' WHERE id IN (' . $in . ')');
-admin/pages/codes.php:166: DB::q('DELETE FROM {p}gift_codes WHERE id IN (' . $in . ')');
-admin/pages/codes.php:175: $tbl  = $kind === 'gift' ? 'gift_codes' : 'discount_codes';
-admin/pages/codes.php:206: $gcs = DB::all('SELECT * FROM {p}gift_codes ORDER BY id DESC LIMIT 400');
-admin/pages/codes.php:294: $giftPaid  = (int)$val('SELECT COALESCE(SUM(g.amount),0) FROM {p}gift_uses u JOIN {p}gift_codes g ON g.id = u.code_id');
-admin/pages/codes.php:784: FROM {p}gift_uses u LEFT JOIN {p}gift_codes g ON g.id = u.code_id
-app/Bot/AdminHub.php:412: $gfA   = (int)DB::val('SELECT COUNT(*) FROM {p}gift_codes WHERE active = 1', [], 0);
-app/Bot/AdminHub.php:472: $tbl   = $kind === 'gift' ? 'gift_codes' : 'discount_codes';
-app/Bot/AdminHub.php:510: $tbl = $kind === 'gift' ? 'gift_codes' : 'discount_codes';
-app/Bot/AdminHub.php:1426: $tbl  = $gift ? 'gift_codes' : 'discount_codes';
-app/Bot/AdminHub.php:1431: DB::insert('gift_codes', ['code' => $code, 'amount' => $val, 'max_uses' => max(1, $max), 'used' => 0, 'expires_at' => $exp, 'active' => 1, 'created_at ...
-app/Service/Codes.php:64: $row  = DB::one('SELECT * FROM {p}gift_codes WHERE code = :c', [':c' => $code]);
-app/Service/Codes.php:76: DB::q('UPDATE {p}gift_codes SET used = used + 1 WHERE id = :id', [':id' => (int)$row['id']]);
-app/Service/Migrate.php:18: 'gift_codes' => [
-database/schema.sql:211: CREATE TABLE IF NOT EXISTS {p}gift_codes (
----- end grep: gift_codes (21) ----
----- grep: discount_uses ----
-admin/pages/codes.php:80: DB::delete('discount_uses', 'code_id = :id', [':id' => $id]);
-admin/pages/codes.php:105: DB::q('DELETE FROM {p}discount_uses WHERE code_id IN (' . $in . ')');
-admin/pages/codes.php:176: $ut   = $kind === 'gift' ? 'gift_uses' : 'discount_uses';
-admin/pages/codes.php:295: $useTotal  = (int)$val('SELECT COUNT(*) FROM {p}discount_uses');
-admin/pages/codes.php:296: $useMonth  = (int)$val('SELECT COUNT(*) FROM {p}discount_uses WHERE created_at >= :d', [':d' => date('Y-m-d 00:00:00', strtotime('-30 days'))]);
-admin/pages/codes.php:765: $rowsD = DB::all('SELECT DATE(created_at) d, COUNT(*) c FROM {p}discount_uses WHERE created_at >= :f GROUP BY DATE(created_at)', [':f' => $from]);
-admin/pages/codes.php:778: FROM {p}discount_uses u JOIN {p}discount_codes c ON c.id = u.code_id
-admin/pages/codes.php:781: FROM {p}discount_uses u LEFT JOIN {p}discount_codes c ON c.id = u.code_id
-app/Service/Codes.php:29: $used = (int)DB::val('SELECT COUNT(*) FROM {p}discount_uses WHERE code_id = :c AND user_id = :u',
-app/Service/Codes.php:52: DB::insert('discount_uses', [
-database/schema.sql:202: CREATE TABLE IF NOT EXISTS {p}discount_uses (
----- end grep: discount_uses (11) ----
----- grep: Codes:: ----
-admin/pages/codes.php:20: return strtoupper(Codes::generate($p !== '' ? $p : ''));
-app/Bot/AdminHub.php:1417: $code = class_exists('Codes') ? Codes::generate($gift ? 'GIFT' : 'OFF') : strtoupper(($gift ? 'GIFT-' : 'OFF-') . substr(bin2hex(random_bytes(4)), 0,  ...
-app/Bot/Bot.php:1233: $r = Codes::redeemGift($text, self::$u);
-app/Bot/Bot.php:1242: $r = Codes::checkDiscount($text, self::$u, (int)$product['price'], $pid);
-app/Bot/Bot.php:2090: $chk = Codes::checkDiscount($dc, self::$u, $price, $pid);
-app/Bot/Bot.php:2604: $chk = Codes::checkDiscount($dc, self::$u, $price, $pid);
-app/Bot/Bot.php:2649: $chk = Codes::checkDiscount($dc, $user, $price, $pid);
-app/Bot/Bot.php:2709: if ($codeRow) Codes::useDiscount($codeRow, $user, $orderId);
-miniapp/api.php:782: $chk = Codes::checkDiscount($dc, $u, $price, $pid);
-miniapp/api.php:845: if ($codeRow && class_exists('Codes')) Codes::useDiscount($codeRow, $u, $orderId);
-miniapp/api.php:2681: $gr   = Codes::redeemGift($gcode, $me);
----- end grep: Codes:: (11) ----
----- grep: discount ----
-admin/pages/codes.php:13: $hasMax   = $hasCol('discount_codes', 'max_discount');
-admin/pages/codes.php:14: $hasStart = $hasCol('discount_codes', 'starts_at');
-admin/pages/codes.php:15: $hasNote  = $hasCol('discount_codes', 'note');
-admin/pages/codes.php:46: if ($hasMax)   $base['max_discount'] = pflt('max_discount');
-admin/pages/codes.php:55: $dup = DB::one('SELECT id FROM {p}discount_codes WHERE code = :c AND id <> :id', [':c' => $code, ':id' => $id]);
-admin/pages/codes.php:58: DB::update('discount_codes', $base, 'id = :id', [':id' => $id]);
-admin/pages/codes.php:66: if (DB::one('SELECT id FROM {p}discount_codes WHERE code = :c', [':c' => $c])) continue;
-admin/pages/codes.php:70: DB::insert('discount_codes', $row);
-admin/pages/codes.php:80: DB::delete('discount_uses', 'code_id = :id', [':id' => $id]);
-admin/pages/codes.php:81: DB::delete('discount_codes', 'id = :id', [':id' => $id]);
-admin/pages/codes.php:86: $c = DB::one('SELECT * FROM {p}discount_codes WHERE id = :id', [':id' => pint('id')]);
-admin/pages/codes.php:89: DB::update('discount_codes', ['active' => $new], 'id = :id', [':id' => (int)$c['id']]);
-admin/pages/codes.php:101: DB::q('UPDATE {p}discount_codes SET active = ' . ($do === 'on' ? 1 : 0) . ' WHERE id IN (' . $in . ')');
-admin/pages/codes.php:105: DB::q('DELETE FROM {p}discount_uses WHERE code_id IN (' . $in . ')');
-admin/pages/codes.php:106: DB::q('DELETE FROM {p}discount_codes WHERE id IN (' . $in . ')');
-admin/pages/codes.php:174: $kind = ptxt('kind') === 'gift' ? 'gift' : 'discount';
-admin/pages/codes.php:175: $tbl  = $kind === 'gift' ? 'gift_codes' : 'discount_codes';
-admin/pages/codes.php:176: $ut   = $kind === 'gift' ? 'gift_uses' : 'discount_uses';
-admin/pages/codes.php:185: back('codes', ['tab' => $kind === 'gift' ? 'gift' : 'discount']);
-admin/pages/codes.php:190: $tab = (string)($_GET['tab'] ?? 'discount');
-admin/pages/codes.php:191: if (!in_array($tab, ['discount', 'gift', 'report', 'guide'], true)) $tab = 'discount';
-admin/pages/codes.php:201: $e = $editId ? DB::one('SELECT * FROM {p}discount_codes WHERE id = :id', [':id' => $editId]) : null;
-admin/pages/codes.php:205: $dcs = DB::all('SELECT * FROM {p}discount_codes ORDER BY id DESC LIMIT 400');
-admin/pages/codes.php:242: if ($ex === 'discount' || $ex === 'gift') {
-admin/pages/codes.php:248: if ($ex === 'discount') {
-admin/pages/codes.php:255: isset($c['max_discount']) ? (float)$c['max_discount'] : 0,
-admin/pages/codes.php:295: $useTotal  = (int)$val('SELECT COUNT(*) FROM {p}discount_uses');
-admin/pages/codes.php:296: $useMonth  = (int)$val('SELECT COUNT(*) FROM {p}discount_uses WHERE created_at >= :d', [':d' => date('Y-m-d 00:00:00', strtotime('-30 days'))]);
-admin/pages/codes.php:325: <a class="btn btn-primary sm" href="index.php?p=codes&tab=discount#dcForm">➕ کد تخفیف</a>
-admin/pages/codes.php:341: <a class="cd-nv <?= $tab === 'discount' ? 'on' : '' ?>" href="<?= h($tabUrl('discount')) ?>">🎟 کد تخفیف <span class="n"><?= fa_num(count($dcs)) ?></sp ...
-admin/pages/codes.php:359: <?php if ($tab === 'discount'): ?>
-admin/pages/codes.php:426: <input class="mono ltr" type="text" name="max_discount" value="<?= h((string)$v('max_discount', '0')) ?>">
-admin/pages/codes.php:478: <a class="btn sm ghost" href="<?= h($tabUrl('discount')) ?>&export=discount">⬇️ خروجی CSV</a>
-admin/pages/codes.php:480: <form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="act" value="prune"><input type="hidden" name="kind" value="discount">
-admin/pages/codes.php:487: <input type="hidden" name="p" value="codes"><input type="hidden" name="tab" value="discount">
-admin/pages/codes.php:491: <?php if ($q !== ''): ?><a class="btn sm ghost" href="index.php?p=codes&tab=discount&st=<?= h($st) ?>">✕</a><?php endif; ?>
-admin/pages/codes.php:498: $u = 'index.php?p=codes&tab=discount&st=' . $k . ($q !== '' ? '&q=' . urlencode($q) : '');
-admin/pages/codes.php:546: <?php if ((string)$c['type'] === 'percent' && !empty($c['max_discount'])): ?>
-admin/pages/codes.php:547: <div class="muted xs">سقف <?= money((float)$c['max_discount']) ?></div>
-admin/pages/codes.php:765: $rowsD = DB::all('SELECT DATE(created_at) d, COUNT(*) c FROM {p}discount_uses WHERE created_at >= :f GROUP BY DATE(created_at)', [':f' => $from]);
-admin/pages/codes.php:778: FROM {p}discount_uses u JOIN {p}discount_codes c ON c.id = u.code_id
-admin/pages/codes.php:781: FROM {p}discount_uses u LEFT JOIN {p}discount_codes c ON c.id = u.code_id
-admin/pages/dashboard.php:141: $m_discount   = (float)$d_val("SELECT COALESCE(SUM(discount_amount),0) FROM {p}orders WHERE status = 'paid' AND created_at >= DATE_SUB(NOW(), INTERVAL ...
-admin/pages/dashboard.php:157: $m_codes      = (int)$d_val('SELECT COUNT(*) FROM {p}discount_codes WHERE active = 1');
-admin/pages/dashboard.php:430: <div class="mini warn"><div class="ic">🎟</div><div class="grow"><div class="t">تخفیف اعمال‌شده</div><div class="v"><?= $d_short($m_discount) ?></div>< ...
-admin/pages/payments.php:810: $ow = 'WHERE (u.first_name LIKE :q OR CAST(u.tg_id AS CHAR) LIKE :q OR p.name LIKE :q OR o.discount_code LIKE :q OR CAST(o.id AS CHAR) = :qe)';
-admin/pages/payments.php:823: $oDisc += (float)$o['discount_amount'];
-admin/pages/payments.php:861: <?php if ((float)$o['discount_amount'] > 0): ?>
-admin/pages/payments.php:862: <span style="color:var(--orange)"><?= money((float)$o['discount_amount']) ?></span>
-admin/pages/payments.php:863: <div class="mono muted" style="font-size:11px"><?= h((string)$o['discount_code']) ?></div>
-admin/pages/resellers.php:43: if (isset($_POST['discount'])) $opts['discount'] = max(0, min(90, pint('discount')));
-admin/pages/resellers.php:234: 'rs_ip_limit', 'rs_l1_discount', 'rs_l2_discount', 'rs_l2_credit'] as $k) {
-admin/pages/resellers.php:492: $csv = "id,tg_id,name,username,level,balance,credit,discount\n";
-admin/pages/resellers.php:724: <div class="s">میانگین تخفیف: <?= fa_num((string)$ovv('avg_discount', 0)) ?>٪</div>
-admin/pages/resellers.php:1605: $d1V    = (int)DB::setting('rs_l1_discount', 10);
-admin/pages/resellers.php:1606: $d2V    = (int)DB::setting('rs_l2_discount', 20);
-admin/pages/resellers.php:1718: <input id="fD1" class="mono ltr rsx-calcin" type="number" name="rs_l1_discount" min="0" max="90" value="<?= $d1V ?>"></div>
-admin/pages/resellers.php:1724: <input id="fD2" class="mono ltr rsx-calcin" type="number" name="rs_l2_discount" min="0" max="90" value="<?= $d2V ?>"></div>
-admin/pages/resellers.php:2340: <input type="number" name="discount" min="0" max="90" value="<?= (int)($u['reseller_discount'] ?? 0) ?>">
-admin/pages/users.php:98: 'discount' => max(0, min(90, pint('discount'))),
-admin/pages/users.php:656: $rsDc  = (int)($U['reseller_discount'] ?? 0);
-admin/pages/users.php:704: <input class="mono" type="number" name="discount" min="0" max="90" value="<?= $rsDc ?>">
-app/Bot/AdminHub.php:88: case 'codes':   Tg::answerCb($cbId); self::codesList($chatId, $msgId, 'discount', max(1, (int)$arg2)); return true;
-app/Bot/AdminHub.php:90: case 'dctg':    self::codeToggle($chatId, $msgId, $cbId, 'discount', $arg2); return true;
-app/Bot/AdminHub.php:411: $dcA   = (int)DB::val('SELECT COUNT(*) FROM {p}discount_codes WHERE active = 1', [], 0);
-app/Bot/AdminHub.php:472: $tbl   = $kind === 'gift' ? 'gift_codes' : 'discount_codes';
-app/Bot/AdminHub.php:510: $tbl = $kind === 'gift' ? 'gift_codes' : 'discount_codes';
-app/Bot/AdminHub.php:1426: $tbl  = $gift ? 'gift_codes' : 'discount_codes';
-app/Bot/AdminHub.php:1434: DB::insert('discount_codes', ['code' => $code, 'type' => $isPct ? 'percent' : 'amount', 'value' => $val, 'max_uses' => $max, 'used' => 0,
-app/Bot/Bot.php:1043: self::setState('discount_code', ['pid' => (int)$arg]);
-app/Bot/Bot.php:1238: case 'discount_code':
-app/Bot/Bot.php:1247: Tg::send($chatId, '✅ ' . $r['message'] . "\nمبلغ تخفیف: " . money((int)$r['discount']) . ' ' . currency(), self::kbMain());
-app/Bot/Bot.php:2088: $discount = 0;
-app/Bot/Bot.php:2091: if ($chk['ok']) $discount = (int)$chk['discount'];
-app/Bot/Bot.php:2097: $cb = Campaign::best($price, $pid, $discount, 'new');
-app/Bot/Bot.php:2098: if ($cb['source'] === 'camp') { $discount = (int)$cb['discount']; $campSrc = 'camp'; }
-app/Bot/Bot.php:2105: $pay  = max(0, $price - $discount);
-app/Bot/Bot.php:2131: if ($discount > 0 && $campSrc === 'camp') {
-app/Bot/Bot.php:2134: $l[] = '🔥 کمپین «' . h((string)($camp['title'] ?? 'تخفیف ویژه')) . '» اعمال شد (−' . money($discount) . ') • ⏳ ' . Campaign::remaining($camp);
-app/Bot/Bot.php:2136: } elseif ($discount > 0) {
-app/Bot/Bot.php:2138: $l[] = '🎟 کد <code>' . h($dc) . '</code> اعمال شد (−' . money($discount) . ')';
-app/Bot/Bot.php:2155: $rows[] = $discount > 0
-app/Bot/Bot.php:2221: /** fixed79: اعمال کمپین فعال روی قیمت پلن دلخواه — ['final','discount','line'] (همان منطق finalizePurchase) */
-app/Bot/Bot.php:2225: $b   = class_exists('Campaign') ? Campaign::best($price, $pid, 0, 'new') : ['final' => $price, 'discount' => 0, 'source' => ''];
-app/Bot/Bot.php:2227: $dis = (int)($b['discount'] ?? 0);
-app/Bot/Bot.php:2231: return ['final' => $fin, 'discount' => $dis, 'line' => $line];
-app/Bot/Bot.php:2259: . ((int)($o['discount_amount'] ?? 0) > 0 ? ' (تخفیف ' . money((int)$o['discount_amount']) . ')' : '')
-app/Bot/Bot.php:2602: $discount = 0;
-app/Bot/Bot.php:2605: if ($chk['ok']) $discount = (int)$chk['discount']; else $dc = '';
-app/Bot/Bot.php:2607: $final = max(0, $price - $discount);
----- end grep: discount (truncated at 90) ----
----- grep: Wallet::debit ----
-admin/pages/users.php:69: Wallet::debit($uid, abs($amount), $note, 'admin');
-app/Bot/AdminBot.php:744: Wallet::debit($uid, abs($amount), 'کسر دستی توسط مدیر', 'admin');
-app/Bot/Bot.php:2664: if (!Wallet::debit((int)$user['id'], $final, 'خرید: ' . $p['name'])) {
-app/Service/AutoRenew.php:156: if (!Wallet::debit((int)$user['id'], $final, 'تمدید خودکار: ' . (string)$p['name'], 'purchase')) {
-app/Service/Stock.php:820: Wallet::debit((int)$user['id'], $price,
-app/Service/Svc.php:2090: if ($pay > 0 && !Wallet::debit((int)$fresh['id'], $pay, 'تمدید: ' . (string)$p['name'])) {
-miniapp/api.php:710: if (!Wallet::debit($UID, $final, 'خرید (مینی‌اپ): ' . $planName)) {
-miniapp/api.php:807: if (!Wallet::debit($UID, $final, 'خرید (مینی‌اپ): ' . $p['name'])) {
----- end grep: Wallet::debit (8) ----
----- grep: function buy ----
-app/Service/Stock.php:762: public static function buy(array $user, int $catId, bool $asReseller = false): array
-miniapp/index.php:1541: function buySheet(id) {
----- end grep: function buy (2) ----
----- dump migrate_run : needle not found ----
----- functions: app/Service/Orders.php ----
-   17 public static function stuckMinutes(): int
-   24 public static function stuck(?int $minutes = null, int $limit = 25): array
-   41 public static function stuckCount(?int $minutes = null): int
-   51 public static function refunded(int $orderId): bool
-   66 public static function findService(array $o): ?array
-   88 public static function recoverOne(array $o): array
-  154 public static function recoverStuck(?int $minutes = null, int $limit = 25): array
-  181 public static function recent(int $limit = 8): array
-  194 public static function dailySales(int $days = 14): array
+Thu Sep 24 12:30:06 UTC 2026
+---- ls . ----
+      207  .dockerignore
+      700  .env.docker.example
+    <dir>  .git
+      935  .gitattributes
+    <dir>  .github
+      935  .gitignore
+     3148  .htaccess
+    28994  CHANGELOG.md
+     3229  CONTRIBUTING.md
+     1466  Dockerfile
+     4798  LICENSE
+    26419  README.md
+     2507  SECURITY.md
+    <dir>  admin
+    <dir>  app
+    <dir>  assets
+     5865  cli.php
+      602  composer.json
+     1253  config.sample.php
+    <dir>  cron
+    <dir>  database
+    <dir>  docker
+     1914  docker-compose.yml
+    <dir>  docs
+     4740  hooshpay.php
+     5499  index.php
+    <dir>  install
+    13822  install.sh
+    <dir>  miniapp
+     3609  nginx.conf.sample
+     1889  nowpay.php
+      731  phpstan.neon.dist
+     3426  rbot.php
+    <dir>  storage
+    42258  sub.php
+    <dir>  tools
+    12546  verify.php
+    13529  version.json
+---- end ls . ----
+---- ls .github/workflows ----
+     1663  ci.yml
+     1956  fixups.yml
+     4587  release.yml
+---- end ls .github/workflows ----
+---- ls docs ----
+      207  .htaccess
+     6724  DOCKER.md
+     9795  INSTALL-SR-UI.md
+     4297  RELEASE.md
+     2598  refactor-plan.md
+---- end ls docs ----
+---- ls tools ----
+      207  .htaccess
+    19694  botcheck.php
+      808  lint.sh
+    10547  sr-ui
+---- end ls tools ----
+---- ls cron ----
+      207  .htaccess
+    32789  tasks.php
+---- end ls cron ----
+---- functions: app/Service/AutoRenew.php ----
+   19 public static function enabled(): bool
+   24 public static function hours(): int
+   29 public static function trafficPercent(): int
+   35 public static function hasColumn(): bool
+   53 public static function userOn(array $u): bool
+   59 public static function setUser(int $userId, ?bool $on = null): bool
+   69 public static function planFor(array $s): ?array
+   90 public static function run(int $max = 30): array
+  128 public static function renewOne(array $s): array
+  206 private static function markFail(array $s): void
+  216 public static function stage2Days(): int
+  221 public static function remindStage2(int $max = 80): int
+  251 public static function stats(): array
 ---- end functions ----
----- functions: app/Service/Wallet.php ----
-   13 public static function isAuto(?string $method): bool
-   19 public static function autoSqlList(): string
-   24 public static function balance(int $userId): int
-   29 public static function credit(int $userId, int $amount, string $type = 'deposit', string $method = 'admin', string $note = '', ?int $adminId = null): 
-   57 public static function debit(int $userId, int $amount, string $note = '', string $type = 'purchase'): bool
-   89 public static function createDeposit(array $user, int $amount, string $method, array $extra = []): int
-  104 public static function pending(int $limit = 50): array
-  114 public static function approve(int $txId, $adminId = null, bool $notify = true): array
-  201 public static function reject(int $txId, $adminId = null, string $reason = '', bool $notify = true): array
-  222 public static function txButtons(array $tx, string $action): array
-  242 public static function logDecision(array $tx, string $action, $adminId = null, string $reason = ''): void
-  291 public static function undo(int $txId, $adminId = null): array
-  352 public static function rate(bool $fresh = false): int
-  359 public static function toUsd(int $amount, bool $fresh = false): float
-  364 public static function fromUsd(float $usd): int
-  371 public static function rememberAdminCard(int $txId, $chatId, $msgId): void
-  395 public static function stampAdminCards(array $tx, string $action, $adminId = null, string $reason = ''): int
-  447 public static function notifyDecision(array $tx, string $action, string $reason = ''): void
+---- grep: AutoRenew:: ----
+app/Bot/AdminHub.php:235: $turnOn = !AutoRenew::enabled();
+app/Bot/AdminHub.php:236: if ($turnOn && !AutoRenew::hasColumn()) {
+app/Bot/AdminHub.php:248: $r = AutoRenew::run(30);
+app/Bot/AdminHub.php:1483: $arnOn = class_exists('AutoRenew') && AutoRenew::enabled();
+app/Bot/AdminHub.php:1545: $on = AutoRenew::enabled();
+app/Bot/AdminHub.php:1546: $st = AutoRenew::stats();
+app/Bot/AdminHub.php:1547: $tp = AutoRenew::trafficPercent();
+app/Bot/AdminHub.php:1550: . '⏱ زمان اقدام: ' . fa_num(AutoRenew::hours()) . ' ساعت قبل از انقضا' . ($tp > 0 ? ' یا ' . fa_num($tp) . '٪ مصرف حجم' : '') . "\n"
+app/Bot/AdminHub.php:1554: . '⏰ یادآوری مرحلهٔ دوم: ' . (AutoRenew::stage2Days() > 0 ? fa_num(AutoRenew::stage2Days()) . ' روز قبل از انقضا' : 'خاموش') . "\n"
+app/Bot/Bot.php:1104: if (!class_exists('AutoRenew') || !AutoRenew::enabled()) { Tg::answerCb($cbId, 'این قابلیت فعلاً غیرفعال است.', true); return; }
+app/Bot/Bot.php:1105: $new = AutoRenew::setUser((int)self::$u['id'], $arg === 'on' ? true : ($arg === 'off' ? false : null));
+cron/tasks.php:304: if (class_exists('AutoRenew') && AutoRenew::enabled()) $kbw[] = [Tg::btn('🔁 فعال‌سازی تمدید خودکار', 'arn:on')];
+cron/tasks.php:315: $n2 = AutoRenew::remindStage2(80);
+cron/tasks.php:325: if (class_exists('AutoRenew') && AutoRenew::enabled()) {
+cron/tasks.php:327: $ar = AutoRenew::run(30);
+---- end grep: AutoRenew:: (15) ----
+---- grep: expire_soon ----
+---- end grep: expire_soon (0) ----
+---- grep: remind ----
+app/Service/AutoRenew.php:221: public static function remindStage2(int $max = 80): int
+cron/tasks.php:315: $n2 = AutoRenew::remindStage2(80);
+cron/tasks.php:316: if ($n2 > 0) { $report['warned_stage2'] = $n2; cron_say('stage2 reminders: ' . $n2); }
+cron/tasks.php:318: app_log('cron', 'stage2 reminder failed: ' . $e->getMessage());
+---- end grep: remind (4) ----
+---- grep: 'trial' ----
+---- end grep: 'trial' (0) ----
+---- grep: trial_used ----
+---- end grep: trial_used (0) ----
+---- functions: app/Service/Referral.php ----
+   18 public static function enabled(): bool
+   24 public static function bonus(): float
+   29 public static function percent(): float
+   34 public static function percentL2(): float
+   39 public static function firstOnly(): bool
+   44 public static function minAmount(): int
+   50 public static function capPerTx(): int
+   55 public static function active(): bool
+   63 public static function botUsername(): string
+   82 public static function code(array $u): string
+   87 public static function link(array $u): string
+   95 public static function shareText(array $u): string
+  109 public static function shareUrl(array $u): string
+  120 public static function stats(array $u): array
+  174 public static function invitees(int $tgId, int $limit = 20): array
+  223 public static function reward(int $userId, int $amount, bool $isFirstDeposit = false): array
+  296 public static function top(int $limit = 20): array
+  317 public static function overview(): array
 ---- end functions ----
+---- grep: ref_l2 ----
+---- end grep: ref_l2 (0) ----
+---- grep: priority ----
+---- end grep: priority (0) ----
+---- grep: canned ----
+admin/pages/botbuttons.php:532: <div class="hint" style="margin:0">آخرین اسکن: <b><?= (string)$scan['scanned_at'] !== '' ? h(to_jalali((string)$scan['scanned_at'], true)) : ...
+admin/pages/tickets.php:337: .tk-canned{ display:flex; gap:5px; flex-wrap:wrap; margin-bottom:var(--s3); }
+admin/pages/tickets.php:496: <div class="tk-canned">
+admin/pages/tickets.php:498: <button type="button" class="tk-cn" data-tk-canned="<?= h($body) ?>"><?= h($lbl) ?></button>
+admin/pages/tickets.php:748: document.querySelectorAll('[data-tk-canned]').forEach(function (btn) {
+admin/pages/tickets.php:751: var txt = btn.getAttribute('data-tk-canned') || '';
+app/Service/Btn.php:1569: 'scanned_at'  => (string)(is_array($cache) ? ($cache['at'] ?? '') : ''),
+---- end grep: canned (7) ----
+---- grep: GATEWAYS ----
+---- end grep: GATEWAYS (0) ----
+---- grep: case 'zarinpal ----
+---- end grep: case 'zarinpal (0) ----
+---- grep: zarinpal ----
+---- end grep: zarinpal (0) ----
+---- grep: 'lang' ----
+---- end grep: 'lang' (0) ----
+---- grep: i18n ----
+---- end grep: i18n (0) ----
+---- grep: p=reports ----
+---- end grep: p=reports (0) ----
+---- grep: profit ----
+app/Service/Stock.php:850: 'profit' => $asReseller ? max(0, (int)$c['price'] - $price) : 0];
+miniapp/api.php:2826: 'profit'     => $gain,
+miniapp/api.php:2827: 'profit_txt' => ma_money($gain),
+miniapp/api.php:2870: $gain  += (int)($r['profit'] ?? 0);
+miniapp/api.php:2891: 'profit'      => $gain,
+miniapp/api.php:2892: 'profit_txt'  => ma_money($gain),
+miniapp/api.php:2919: 'profit_txt' => ma_money($pf),
+miniapp/api.php:2926: ma_out(['ok' => true, 'items' => $rows, 'profit' => $gain, 'profit_txt' => ma_money($gain)]);
+miniapp/reseller.php:2335: S.stockMine = (r && r.ok) ? r : { items: [], profit_txt: '' };
+miniapp/reseller.php:2526: '<div class="pc g"><b>' + esc(c.profit_txt) + '</b><span>سود شما</span></div>' +
+miniapp/reseller.php:2532: '<span class="v">' + esc(c.profit_txt || '—') + '</span></div>';
+miniapp/reseller.php:2569: '<span class="wv b">' + esc(m.profit_txt || '') + '</span></div>' +
+miniapp/reseller.php:2583: if (x.profit_txt) sub.push('سود: ' + x.profit_txt);
+---- end grep: profit (13) ----
+---- grep: backup_cloud ----
+---- end grep: backup_cloud (0) ----
+---- grep: sendDocument ----
+app/Service/Broadcast.php:33: 'document'  => ['label' => '📎 فایل',        'method' => 'sendDocument'],
+app/Service/Broadcast.php:266: $method = self::KINDS[$kind]['method'] ?? 'sendDocument';
+app/Service/Logs.php:492: $res = self::call('sendDocument', $build($tid > 0 ? $tid : null), true);
+app/Service/Logs.php:497: $res = self::call('sendDocument', $build($new > 0 ? $new : null), true);
+app/Service/Logs.php:502: app_log('logs', 'sendDocument failed', [
+app/Service/Stock.php:940: $r = Tg::api('sendDocument', [
+app/Tg.php:83: * اگر نوع فایل مشخص نباشد، اول sendPhoto و در صورت خطا sendDocument امتحان می‌شود.
+app/Tg.php:92: 'document'  => ['sendDocument', 'document'],
+app/Tg.php:118: $last = self::api('sendDocument', $p);
+app/Tg.php:137: return self::api('sendDocument', [
+---- end grep: sendDocument (10) ----
+---- grep: rs_api ----
+---- end grep: rs_api (0) ----
+---- grep: api/v1 ----
+app/Service/HooshPay.php:7: * مستندات: https://hooshpay.xyz/api/v1
+app/Service/HooshPay.php:20: public const BASE = 'https://hooshpay.xyz/api/v1';
+---- end grep: api/v1 (2) ----
+---- grep: phpstan ----
+.github/workflows/ci.yml:42: phpstan:
+.github/workflows/ci.yml:43: name: PHPStan (level from phpstan.neon.dist)
+.github/workflows/ci.yml:53: tools: phpstan
+.github/workflows/ci.yml:55: run: phpstan analyse -c phpstan.neon.dist --no-progress --error-format=github || true
+CHANGELOG.md:156: - **ابزار توسعه**: tools/lint.sh (چک سینتکس)، phpstan.neon.dist (تحلیل استاتیک)، docs/refactor-plan.md (نقشه شکستن فایل‌های بزرگ).
+composer.json:16: "phpstan/phpstan": "^1.11"
+composer.json:20: "analyse": "phpstan analyse -c phpstan.neon.dist"
+docs/refactor-plan.md:29: - قبل از هر انتشار: `tools/lint.sh` و در صورت امکان `phpstan analyse`.
+install.sh:207: location ~* ^/(config\.php|config\.sample\.php|composer\.json|phpstan\.neon\.dist)$ { deny all; return 404; }
+phpstan.neon.dist:4: #   composer require --dev phpstan/phpstan
+---- end grep: phpstan (truncated) ----
+---- grep: phpunit ----
+---- end grep: phpunit (0) ----
+---- grep: CREATE INDEX ----
+---- end grep: CREATE INDEX (0) ----
 ---- file sizes ----
-  3062 lines  app/Bot/Bot.php
-  2932 lines  miniapp/api.php
-  4232 lines  miniapp/index.php
-  3091 lines  admin/pages/settings.php
-   546 lines  database/schema.sql
-   538 lines  app/Service/Migrate.php
-   219 lines  app/Service/Orders.php
-   468 lines  app/Service/Wallet.php
-  2134 lines  app/Service/Svc.php
-    87 lines  app/Service/Codes.php
+   263 lines  app/Service/AutoRenew.php
+   331 lines  app/Service/Referral.php
+   679 lines  app/Service/Gateway.php
+   583 lines  app/Service/Backup.php
+   354 lines  app/Service/Txt.php
+   664 lines  cron/tasks.php
+   767 lines  admin/pages/tickets.php
+   183 lines  CHANGELOG.md
+   378 lines  README.md
 ---- end file sizes ----
-build: fixed142 (was fixed141)
+build: fixed143 (was fixed142)
 changed files: 0 (recon)
 exit: 0
 exit: 0
