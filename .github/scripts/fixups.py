@@ -1,14 +1,19 @@
 # -*- coding: utf-8 -*-
-# fixed145 - 0.0.2 #33: performance indexes (Migrate::INDEXES) with column/dup guards.
+# fixed146 - 0.0.2 #21: ticket priority/category/admin/closed_at (DB layer) + UI recon.
 import io, os, re, sys, json
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed145').strip() or 'fixed145'
+BUILD = (os.environ.get('NEW_BUILD') or 'fixed146').strip() or 'fixed146'
 
 CACHE = {}
 NEW = set()
 ERRORS = []
+SCH = 'database/schema.sql'
 MIG = 'app/Service/Migrate.php'
+TKP = 'admin/pages/tickets.php'
+
+SKIP_DIRS = {'.git', 'node_modules', 'vendor', 'storage', 'uploads', 'backups'}
+EXT = ('.php', '.sql', '.js', '.html', '.json')
 
 
 def load(path):
@@ -25,7 +30,7 @@ def dump(tag, path, start, end):
     except Exception as e:
         print('---- dump %s FAILED (%s) ----' % (tag, e))
         return
-    print('---- dump %s : %s ----' % (tag, path))
+    print('---- dump %s : %s (%d lines) ----' % (tag, path, len(lines)))
     for i in range(max(1, start), min(len(lines), end) + 1):
         s = lines[i - 1]
         if len(s) > 200:
@@ -34,7 +39,7 @@ def dump(tag, path, start, end):
     print('---- end dump %s ----' % tag)
 
 
-def dump_find(tag, path, needle, before=1, after=30):
+def dump_find(tag, path, needle, before=2, after=30):
     try:
         lines = load(path).split(chr(10))
     except Exception as e:
@@ -45,6 +50,44 @@ def dump_find(tag, path, needle, before=1, after=30):
             dump(tag, path, i - before, i + after)
             return
     print('---- dump %s : needle not found (%s) ----' % (tag, needle))
+
+
+ALL = []
+
+
+def files_all():
+    if ALL:
+        return ALL
+    for base, dirs, fns in os.walk(ROOT):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for fn in sorted(fns):
+            if fn.endswith(EXT):
+                ALL.append(os.path.relpath(os.path.join(base, fn), ROOT))
+    ALL.sort()
+    return ALL
+
+
+def grep_all(needle, limit=40, only=None):
+    print('---- grep: %s ----' % needle)
+    n = 0
+    for p in files_all():
+        if only and not p.startswith(only):
+            continue
+        try:
+            lines = load(p).split(chr(10))
+        except Exception:
+            continue
+        for i, ln in enumerate(lines, 1):
+            if needle in ln:
+                s = ln.strip()
+                if len(s) > 150:
+                    s = s[:150] + ' ...'
+                print('%s:%d: %s' % (p, i, s))
+                n += 1
+                if n >= limit:
+                    print('---- end grep: %s (truncated) ----' % needle)
+                    return
+    print('---- end grep: %s (%d) ----' % (needle, n))
 
 
 def rep_lit(path, old, new, marker):
@@ -61,129 +104,63 @@ def rep_lit(path, old, new, marker):
     print('patched: %s (%s)' % (path, marker))
 
 
-# ---------------- P1: expand the INDEXES map ----------------
-OLD_IDX = (
-    "    public const INDEXES = [\n"
-    "        'transactions' => [\n"
-    "            'idx_txid' => '(`txid`)',\n"
-    "        ],\n"
-    "    ];\n"
+# ---------------- P1: schema.sql - new ticket columns ----------------
+OLD_SCH = (
+    "  `subject` VARCHAR(190) NULL,\n"
+    "  `status` VARCHAR(16) NOT NULL DEFAULT 'open',\n"
+    "  `created_at` DATETIME NOT NULL,\n"
+    "  `updated_at` DATETIME NOT NULL,\n"
+    "  KEY `idx_status` (`status`)\n"
 )
+NEW_SCH = (
+    "  `subject` VARCHAR(190) NULL,\n"
+    "  `status` VARCHAR(16) NOT NULL DEFAULT 'open',\n"
+    "  `priority` VARCHAR(8) NOT NULL DEFAULT 'normal',\n"
+    "  `category` VARCHAR(32) NULL,\n"
+    "  `admin_id` INT NULL,\n"
+    "  `closed_at` DATETIME NULL,\n"
+    "  `created_at` DATETIME NOT NULL,\n"
+    "  `updated_at` DATETIME NOT NULL,\n"
+    "  KEY `idx_status` (`status`),\n"
+    "  KEY `idx_tk_priority` (`priority`)\n"
+)
+rep_lit(SCH, OLD_SCH, NEW_SCH, 'idx_tk_priority')
 
-NEW_IDX = (
-    "    public const INDEXES = [\n"
-    "        /* 0.0.2 #33: \u0627\u06cc\u0646\u062f\u06a9\u0633\u200c\u0647\u0627\u06cc \u06a9\u0627\u0631\u0627\u06cc\u06cc \u2014 \u067e\u06cc\u0634 \u0627\u0632 \u0633\u0627\u062e\u062a\u060c \u0648\u062c\u0648\u062f \u0633\u062a\u0648\u0646 \u0648 \u0627\u06cc\u0646\u062f\u06a9\u0633 \u0645\u0634\u0627\u0628\u0647 \u0628\u0631\u0631\u0633\u06cc \u0645\u06cc\u200c\u0634\u0648\u062f */\n"
-    "        'transactions' => [\n"
-    "            'idx_txid'       => '(`txid`)',\n"
-    "            'idx_tx_user'    => '(`user_id`)',\n"
-    "            'idx_tx_status'  => '(`status`)',\n"
-    "            'idx_tx_created' => '(`created_at`)',\n"
+# ---------------- P2: Migrate::COLUMNS - tickets ----------------
+OLD_MIG = (
+    "        'ticket_messages' => [\n"
+    "            'file_type' => 'VARCHAR(16) NULL',\n"
     "        ],\n"
-    "        'services' => [\n"
-    "            'idx_sv_user'    => '(`user_id`)',\n"
-    "            'idx_sv_status'  => '(`status`)',\n"
-    "            'idx_sv_expire'  => '(`expire_at`)',\n"
-    "            'idx_sv_panel'   => '(`panel_id`)',\n"
-    "            'idx_sv_test'    => '(`is_test`)',\n"
+)
+NEW_MIG = (
+    "        'tickets' => [\n"
+    "            /* 0.0.2 #21: \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc \u062d\u0631\u0641\u0647\u200c\u0627\u06cc \u2014 \u0627\u0648\u0644\u0648\u06cc\u062a\u060c \u062f\u0633\u062a\u0647\u200c\u0628\u0646\u062f\u06cc \u0648 \u0645\u062f\u06cc\u0631 \u0645\u0633\u0626\u0648\u0644 */\n"
+    "            'priority'  => \"VARCHAR(8) NOT NULL DEFAULT 'normal'\",\n"
+    "            'category'  => 'VARCHAR(32) NULL',\n"
+    "            'admin_id'  => 'INT NULL',\n"
+    "            'closed_at' => 'DATETIME NULL',\n"
     "        ],\n"
-    "        'orders' => [\n"
-    "            'idx_or_user'    => '(`user_id`)',\n"
-    "            'idx_or_status'  => '(`status`)',\n"
-    "            'idx_or_created' => '(`created_at`)',\n"
+    "        'ticket_messages' => [\n"
+    "            'file_type' => 'VARCHAR(16) NULL',\n"
     "        ],\n"
-    "        'users' => [\n"
-    "            'idx_us_tg'      => '(`tg_id`)',\n"
-    "            'idx_us_created' => '(`created_at`)',\n"
-    "        ],\n"
+)
+rep_lit(MIG, OLD_MIG, NEW_MIG, "'closed_at' => 'DATETIME NULL',")
+
+# ---------------- P3: index for the new column ----------------
+OLD_IX = (
     "        'tickets' => [\n"
     "            'idx_tk_user'    => '(`user_id`)',\n"
     "            'idx_tk_updated' => '(`updated_at`)',\n"
     "        ],\n"
-    "        'ticket_messages' => [\n"
-    "            'idx_tm_created' => '(`created_at`)',\n"
+)
+NEW_IX = (
+    "        'tickets' => [\n"
+    "            'idx_tk_user'     => '(`user_id`)',\n"
+    "            'idx_tk_updated'  => '(`updated_at`)',\n"
+    "            'idx_tk_priority' => '(`priority`)',\n"
     "        ],\n"
-    "        'discount_uses' => [\n"
-    "            'idx_du_user'    => '(`user_id`)',\n"
-    "        ],\n"
-    "        'stock_items' => [\n"
-    "            'idx_si_order'   => '(`order_id`)',\n"
-    "        ],\n"
-    "    ];\n"
 )
-
-rep_lit(MIG, OLD_IDX, NEW_IDX, 'idx_sv_user')
-
-# ---------------- P2: helper methods ----------------
-OLD_HAS = (
-    "    public static function hasIndex(string $table, string $idx): bool\n"
-    "    {\n"
-    "        return (int)DB::val(\n"
-    "            'SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?',\n"
-    "            [DB::prefix() . $table, $idx], 0\n"
-    "        ) > 0;\n"
-    "    }\n"
-)
-
-NEW_HAS = OLD_HAS + (
-    "\n"
-    "    /** 0.0.2 #33: \u0622\u06cc\u0627 \u0627\u06cc\u0646\u062f\u06a9\u0633\u06cc \u0648\u062c\u0648\u062f \u062f\u0627\u0631\u062f \u06a9\u0647 \u0628\u0627 \u0627\u06cc\u0646 \u0633\u062a\u0648\u0646 \u0634\u0631\u0648\u0639 \u0634\u0648\u062f\u061f */\n"
-    "    public static function hasIndexOn(string $table, string $col): bool\n"
-    "    {\n"
-    "        try {\n"
-    "            return (int)DB::val(\n"
-    "                'SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? AND SEQ_IN_INDEX = 1',\n"
-    "                [DB::prefix() . $table, $col], 0\n"
-    "            ) > 0;\n"
-    "        } catch (Throwable $e) { return false; }\n"
-    "    }\n"
-    "\n"
-    "    /** \u0646\u0627\u0645 \u0633\u062a\u0648\u0646\u200c\u0647\u0627\u06cc \u062f\u0627\u062e\u0644 \u062a\u0639\u0631\u06cc\u0641 \u0627\u06cc\u0646\u062f\u06a9\u0633 */\n"
-    "    public static function indexCols(string $def): array\n"
-    "    {\n"
-    "        if (!preg_match_all('/`([A-Za-z0-9_]+)`/', $def, $m)) return [];\n"
-    "        return $m[1];\n"
-    "    }\n"
-    "\n"
-    "    /** \u0627\u06cc\u0646\u062f\u06a9\u0633 \u0641\u0642\u0637 \u0648\u0642\u062a\u06cc \u0633\u0627\u062e\u062a\u0647 \u0645\u06cc\u200c\u0634\u0648\u062f \u06a9\u0647 \u0633\u062a\u0648\u0646\u200c\u0647\u0627\u06cc\u0634 \u0645\u0648\u062c\u0648\u062f \u0628\u0627\u0634\u0646\u062f \u0648 \u0627\u06cc\u0646\u062f\u06a9\u0633 \u0645\u0634\u0627\u0628\u0647 \u0646\u0628\u0627\u0634\u062f */\n"
-    "    public static function indexReady(string $table, string $def): bool\n"
-    "    {\n"
-    "        $cols = self::indexCols($def);\n"
-    "        if (!$cols) return false;\n"
-    "        foreach ($cols as $c) {\n"
-    "            if (!self::hasColumn($table, $c)) return false;\n"
-    "        }\n"
-    "        return !self::hasIndexOn($table, (string)$cols[0]);\n"
-    "    }\n"
-)
-
-rep_lit(MIG, OLD_HAS, NEW_HAS, 'indexReady(string $table')
-
-# ---------------- P3: plan() guard ----------------
-OLD_PLAN = (
-    "                foreach ($ixs as $i => $cols) {\n"
-    "                    if (!self::hasIndex($t, $i)) $miss['indexes'][] = $t . '.' . $i;\n"
-    "                }\n"
-)
-NEW_PLAN = (
-    "                foreach ($ixs as $i => $cols) {\n"
-    "                    if (self::hasIndex($t, $i)) continue;\n"
-    "                    if (!self::indexReady($t, (string)$cols)) continue; /* 0.0.2 #33 */\n"
-    "                    $miss['indexes'][] = $t . '.' . $i;\n"
-    "                }\n"
-)
-rep_lit(MIG, OLD_PLAN, NEW_PLAN, 'indexReady($t, (string)$cols)) continue; /* 0.0.2 #33 */\n                    $miss')
-
-# ---------------- P4: run() guard ----------------
-OLD_RUN = (
-    "            foreach ($ixs as $i => $cols) {\n"
-    "                if (self::hasIndex($t, $i)) continue;\n"
-)
-NEW_RUN = (
-    "            foreach ($ixs as $i => $cols) {\n"
-    "                if (self::hasIndex($t, $i)) continue;\n"
-    "                if (!self::indexReady($t, (string)$cols)) continue; /* 0.0.2 #33 */\n"
-)
-rep_lit(MIG, OLD_RUN, NEW_RUN, 'indexReady($t, (string)$cols)) continue; /* 0.0.2 #33 */\n                $exec')
+rep_lit(MIG, OLD_IX, NEW_IX, "'idx_tk_priority' => '(`priority`)'")
 
 # ---------------- write ----------------
 if ERRORS:
@@ -199,25 +176,29 @@ for p in sorted(NEW):
     print('wrote ' + p)
 print('changed files: %d' % len(NEW))
 
-# ---------------- sanity ----------------
 SANITY = [
-    (MIG, 'public static function indexReady(string $table, string $def): bool'),
-    (MIG, 'public static function hasIndexOn(string $table, string $col): bool'),
-    (MIG, "'idx_sv_user'"),
-    (MIG, "'idx_or_created'"),
+    (SCH, "`priority` VARCHAR(8) NOT NULL DEFAULT 'normal'"),
+    (SCH, 'KEY `idx_tk_priority` (`priority`)'),
+    (MIG, "'closed_at' => 'DATETIME NULL',"),
+    (MIG, "'idx_tk_priority' => '(`priority`)',"),
 ]
 ok = 0
 for p, needle in SANITY:
     good = needle in load(p)
-    print('sanity %s / %s : %s' % (p, needle[:48], 'ok' if good else 'MISSING'))
+    print('sanity %s / %s : %s' % (p, needle[:46], 'ok' if good else 'MISSING'))
     if good:
         ok += 1
 print('sanity: %d/%d' % (ok, len(SANITY)))
 
-# ---------------- recon for next batch ----------------
-print('===== schema columns (index validation + next batch) =====')
-for t in ['{p}services (', '{p}orders (', '{p}transactions (', '{p}users (', '{p}logs (', '{p}discount_uses (']:
-    dump_find('tbl' + t, 'database/schema.sql', t, 0, 26)
+# ---------------- recon: ticket UI + bot flow ----------------
+print('===== admin tickets page =====')
+dump('tk_head', TKP, 1, 120)
+grep_all("status", 40, only=TKP)
+grep_all("tk_", 40, only=TKP)
+
+print('===== bot ticket flow =====')
+grep_all('ticket', 45, only='app/Bot/')
+grep_all('Tickets::', 25)
 
 # ---------------- version bump ----------------
 vpath = os.path.join(ROOT, 'version.json')
@@ -225,7 +206,7 @@ with io.open(vpath, 'r', encoding='utf-8') as fh:
     vj = json.load(fh)
 old_build = vj.get('build')
 vj['build'] = BUILD
-note = '0.0.2 #33: \u0627\u06cc\u0646\u062f\u06a9\u0633\u200c\u0647\u0627\u06cc \u06a9\u0627\u0631\u0627\u06cc\u06cc \u062f\u06cc\u062a\u0627\u0628\u06cc\u0633 (\u062a\u0631\u0627\u06a9\u0646\u0634\u060c \u0633\u0631\u0648\u06cc\u0633\u060c \u0633\u0641\u0627\u0631\u0634\u060c \u06a9\u0627\u0631\u0628\u0631\u060c \u062a\u06cc\u06a9\u062a) \u0628\u0627 \u0645\u062d\u0627\u0641\u0638 \u0636\u062f \u062e\u0637\u0627 + \u062a\u0633\u062a \u062e\u0648\u062f\u06a9\u0627\u0631 tests/'
+note = '0.0.2 #21: \u0633\u062a\u0648\u0646\u200c\u0647\u0627\u06cc \u0627\u0648\u0644\u0648\u06cc\u062a\u060c \u062f\u0633\u062a\u0647 \u0648 \u0645\u062f\u06cc\u0631 \u0645\u0633\u0626\u0648\u0644 \u0628\u0631\u0627\u06cc \u062a\u06cc\u06a9\u062a\u200c\u0647\u0627 (\u0644\u0627\u06cc\u0647\u0654 \u062f\u06cc\u062a\u0627\u0628\u06cc\u0633)'
 cl = vj.get('changelog')
 if isinstance(cl, list):
     vj['changelog'] = ([note] + cl)[:60]
