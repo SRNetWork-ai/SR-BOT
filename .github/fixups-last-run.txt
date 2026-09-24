@@ -1,124 +1,20 @@
 Python 3.12.3
-Thu Sep 24 12:54:27 UTC 2026
-===== admin router: page map + groups + visibility =====
----- dump router_map : admin/index.php (638 lines) ----
-  358 $sysOk  = $hbAge >= 0 && $hbAge <= 1800;
-  359 $sysTip = $hbAge < 0
-  360     ? 'کران‌جاب هنوز اجرا نشده است — برای تمدید و هشدارها لازم است'
-  361     : ($sysOk
-  362         ? 'سیستم سالم است — آخرین اجرای کران‌جاب ' . fa_num((int)round($hbAge / 60)) . ' دقیقه پیش'
-  363         : 'کران‌جاب ' . fa_num((int)round($hbAge / 60)) . ' دقیقه است اجرا نشده است');
-  364 
-  365 $PAGES = [
-  366     'dashboard' => ['داشبورد', '📊', 'نمای کلی'],
-  367     'panels'    => ['سرورها و پنل‌ها', '🖧', 'مدیریت پنل‌ها و ظرفیت سرورها'],
-  368     'products'  => ['محصولات', '📦', 'طرح‌های فروش'],
-  369     'services'  => ['سرویس‌ها', '🔑', 'اکانت‌های ساخته شده'],
-  370     'stock'     => ['انبار ملی', '🏪', 'فروش دستی کانفیگ و اکانت'],
-  371     'users'     => ['کاربران', '👥', 'مدیریت کاربران'],
-  372     'payments'  => ['پرداخ��‌ها', '💳', 'تراکنش و سفارش'],
-  373     'codes'     => ['کد تخفیف و هدیه', '🎟', 'کدها'],
-  374     'tickets'   => ['پشتیبانی', '🆘', 'تیکت‌ها'],
-  375     'tutorials' => ['آموزش‌ها', '🎓', 'مطالب آموزشی'],
-  376     'resellers'  => ['نمایندگی', '🏷', 'نمایندگان و درخواست‌ها'],
-  377     'gateways'   => ['درگاه‌های پرداخت', '🏦', 'کارت و ارز دیجیتال'],
-  378     'cards'      => ['احراز کارت', '💳', 'تایید کارت بانکی کاربران'],
-  379     'botbuttons' => ['دکمه‌های ربات', '🎛', 'افزودن، حذف و رنگ'],
-  380     'join'       => ['جوین اجباری', '📢', 'عضویت اجباری در کانال‌ها'],
-  381     'bottexts'   => ['متن‌های ربات', '💬', 'ویرایش همهٔ پیام‌ها'],
-  382     'subs'      => ['مدیریت ساب', '🛰', 'آپشن‌های اشتراک'],
-  383     'settings'  => ['تنظیمات', '⚙️', 'پرداخت و ربات'],
-  384     'admins'    => ['مدیران پنل', '🛡️', 'دسترسی‌های سفارشی'],
-  385     'backup'    => ['بکاپ و بازگردانی', '💾', 'پشتیبان و بازیابی'],
-  386     'update'    => ['به‌روزرسانی', '⬆️', 'نسخه جدید'],
-  387     'audit'     => ['لاگ اقدامات', '📝', 'کی چه کاری کرد'],
-  388     'export'    => ['خروجی CSV', '📤', 'کاربران، سرویس‌ها، پرداخت‌ها'], /* fixed79 */
-  389     'health'    => ['سلامت سیستم', '🩺', 'وضعیت و عیب‌یابی'],
-  390 ];
-  391 
-  392 $NAV_GROUPS = [
-  393     '📈 فروش و عملیات'   => ['dashboard', 'panels', 'products', 'services', 'stock'],
-  394     '👥 کاربران و مالی'  => ['users', 'payments', 'cards', 'codes', 'gateways'],
-  395     '🏷 نمایندگی'         => ['resellers'],
-  396     '🆘 پشتیبانی و محتوا' => ['tickets', 'tutorials'],
-  397     '⚙️ پیکربندی'         => ['settings', 'join', 'subs', 'botbuttons', 'bottexts', 'admins'],
-  398     '🛠 نگهداری سیستم'  => ['backup', 'update', 'health', 'audit', 'export'],
-  399 ];
-  400 
-  401 /* فیلتر منو بر اساس دسترسی مدیر */
-  402 $VISIBLE = [];
-  403 foreach (array_keys($PAGES) as $k) if (Perm::canPage($ADMIN, $k)) $VISIBLE[] = $k;
-  404 
-  405 $NAV_GROUPS_VISIBLE = [];
-  406 foreach ($NAV_GROUPS as $gname => $items) {
-  407     $keep = array_values(array_filter($items, static fn($k) => in_array($k, $VISIBLE, true)));
-  408     if ($keep) $NAV_GROUPS_VISIBLE[$gname] = $keep;
-  409 }
-  410 
-  411 $page = (string)($_GET['p'] ?? '');
-  412 // فقط نام‌های موجود در فهرست سفید پذیرفته می‌شوند
-  413 if ($page === '' || !preg_match('/^[a-z0-9_]+$/', $page) || !isset($PAGES[$page])) $page = 'dashboard';
-  414 
-  415 /* اگر دسترسی ندارد، به اولین صفحه‌ی مجاز می‌رود */
-  416 $denied = false;
-  417 if (!Perm::canPage($ADMIN, $page)) {
-  418     $fallback = Perm::firstPage($ADMIN, array_keys($PAGES));
----- end dump router_map ----
-===== permissions =====
----- grep: function can( ----
-admin/index.php:303: function can(string $key): bool { return Perm::has($GLOBALS['ADMIN'] ?? null, $key); }
----- end grep: function can( (1) ----
----- grep: function need( ----
-admin/index.php:314: function need(string $key, string $page = ''): void
----- end grep: function need( (1) ----
----- grep: 'payments.view' ----
-admin/pages/payments.php:2: if (!can('payments.view')) { echo denyBox('این بخش برای شما فعال نیست.'); return; }
-app/Service/Perm.php:92: 'payments.view'    => 'مشاهده تراکنش‌ها',
-app/Service/Perm.php:255: 'payments.view', 'payments.approve', 'payments.reject',
-app/Service/Perm.php:281: 'payments.view', 'payments.approve', 'payments.reject',
-app/Service/Perm.php:293: 'users.view', 'payments.view', 'codes.view',
-app/Service/Perm.php:353: 'payments'  => ['payments.view'],
----- end grep: 'payments.view' (6) ----
----- grep: PERM_GROUPS ----
----- end grep: PERM_GROUPS (0) ----
----- dump perm_list : needle not found (payments.view) ----
-===== money / stats helpers for reports =====
----- funcs app/Service/Stats.php ----
-(failed [Errno 2] No such file or directory: '/home/runner/work/SR-BOT/SR-BOT/app/Service/Stats.php')
----- funcs app/Service/Orders.php ----
-   17 public static function stuckMinutes(): int
-   24 public static function stuck(?int $minutes = null, int $limit = 25): array
-   41 public static function stuckCount(?int $minutes = null): int
-   51 public static function refunded(int $orderId): bool
-   66 public static function findService(array $o): ?array
-   88 public static function recoverOne(array $o): array
-  154 public static function recoverStuck(?int $minutes = null, int $limit = 25): array
-  181 public static function recent(int $limit = 8): array
-  194 public static function dailySales(int $days = 14): array
----- end funcs app/Service/Orders.php (219 lines) ----
----- grep: dailySales ----
-admin/pages/dashboard.php:176: try { $d_sales = Orders::dailySales($d_days); } catch (Throwable $e) { $d_sales = []; }
-app/Service/Orders.php:194: public static function dailySales(int $days = 14): array
----- end grep: dailySales (2) ----
----- grep: SUM(amount) ----
-admin/pages/dashboard.php:148: $m_paySum     = (float)$d_val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'pending' AND method NOT IN ('hooshpay','nowpay')");
-admin/pages/dashboard.php:149: $m_depNow     = (float)$d_val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND created_at >= DATE_SUB(NOW ...
-admin/pages/dashboard.php:150: $m_depToday   = (float)$d_val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND DATE(created_at) = CURDATE ...
-admin/pages/dashboard.php:232: "SELECT method, COUNT(*) AS c, COALESCE(SUM(amount),0) AS s
-admin/pages/payments.php:293: $sumPend  = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'pending' AND method NOT IN ($autoIn)", [], 0);
-admin/pages/payments.php:295: $sumToday = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND DATE(decided_at) = CURDATE()" ...
-admin/pages/payments.php:296: $sumWeek  = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND decided_at >= (CURDATE() - IN ...
-admin/pages/payments.php:297: $sumMonth = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit' AND decided_at >= (CURDATE() - IN ...
-admin/pages/payments.php:298: $sumAll   = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'approved' AND type = 'deposit'", [], 0);
-admin/pages/payments.php:878: $chartRaw = DB::all("SELECT DATE(decided_at) d, COALESCE(SUM(amount),0) s, COUNT(*) c
-admin/pages/payments.php:895: $byMethod = DB::all("SELECT method, COUNT(*) c, COALESCE(SUM(amount),0) s
-admin/pages/users.php:414: $uDep = (float)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE user_id = :u AND amount > 0 AND status = 'approved'", [':u' => $uid], 0);
-app/Bot/AdminHub.php:403: $pendS = (int)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE status = 'pending'", [], 0);
-app/Service/AutoRenew.php:257: $out['sum_30d']     = abs((int)DB::val("SELECT COALESCE(SUM(amount),0) FROM {p}transactions WHERE type = 'purchase' AND note LIKE 'تمدید خودکار:%' AND created_a ...
----- end grep: SUM(amount) (truncated) ----
-===== dashboard chart markup (reuse) =====
----- dump dash_chart : needle not found (canvas) ----
-changed files: 0 (recon)
-build: fixed149 (was fixed148)
+Thu Sep 24 13:01:23 UTC 2026
+new file: admin/pages/reports.php (10737 bytes)
+patched: admin/index.php ('reports'   => [)
+patched: admin/index.php ('payments', 'reports', 'cards')
+patched: app/Service/Perm.php ('reports'   => ['payments.view'])
+wrote admin/index.php
+wrote admin/pages/reports.php
+wrote app/Service/Perm.php
+changed files: 3
+sanity admin/pages/reports.php / if (!can('payments.view')) : ok
+sanity admin/pages/reports.php / GROUP BY DATE(created_at) ORDER BY d ASC : ok
+sanity admin/index.php / 'reports'   => [ : ok
+sanity admin/index.php / 'payments', 'reports', 'cards' : ok
+sanity app/Service/Perm.php / 'reports'   => ['payments.view'] : ok
+sanity: 5/5
+changelog: entry added
+build: fixed150 (was fixed149)
 exit: 0
 exit: 0

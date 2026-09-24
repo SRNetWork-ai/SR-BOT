@@ -363,6 +363,7 @@ $sysTip = $hbAge < 0
         : 'کران‌جاب ' . fa_num((int)round($hbAge / 60)) . ' دقیقه است اجرا نشده است');
 
 $PAGES = [
+    'reports'   => ['گزارش مالی', '📈', 'درآمد، فروش و مشتریان'], /* 0.0.2 #24 */
     'dashboard' => ['داشبورد', '📊', 'نمای کلی'],
     'panels'    => ['سرورها و پنل‌ها', '🖧', 'مدیریت پنل‌ها و ظرفیت سرورها'],
     'products'  => ['محصولات', '📦', 'طرح‌های فروش'],
@@ -391,7 +392,7 @@ $PAGES = [
 
 $NAV_GROUPS = [
     '📈 فروش و عملیات'   => ['dashboard', 'panels', 'products', 'services', 'stock'],
-    '👥 کاربران و مالی'  => ['users', 'payments', 'cards', 'codes', 'gateways'],
+    '👥 کاربران و مالی'  => ['users', 'payments', 'reports', 'cards', 'codes', 'gateways'],
     '🏷 نمایندگی'         => ['resellers'],
     '🆘 پشتیبانی و محتوا' => ['tickets', 'tutorials'],
     '⚙️ پیکربندی'         => ['settings', 'join', 'subs', 'botbuttons', 'bottexts', 'admins'],

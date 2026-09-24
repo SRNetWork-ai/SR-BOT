@@ -351,6 +351,7 @@ class Perm
             'services'  => ['services.view'],
             'users'     => ['users.view'],
             'payments'  => ['payments.view'],
+        'reports'   => ['payments.view'], /* 0.0.2 #24 */
             'codes'     => ['codes.view'],
             'tickets'   => ['tickets.view'],
             'tutorials' => ['tutorials.view'],
