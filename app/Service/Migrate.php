@@ -125,8 +125,41 @@ class Migrate
 
     /** ایندکس‌های لازم: جدول => [نام ایندکس => ستون‌ها] */
     public const INDEXES = [
+        /* 0.0.2 #33: ایندکس‌های کارایی — پیش از ساخت، وجود ستون و ایندکس مشابه بررسی می‌شود */
         'transactions' => [
-            'idx_txid' => '(`txid`)',
+            'idx_txid'       => '(`txid`)',
+            'idx_tx_user'    => '(`user_id`)',
+            'idx_tx_status'  => '(`status`)',
+            'idx_tx_created' => '(`created_at`)',
+        ],
+        'services' => [
+            'idx_sv_user'    => '(`user_id`)',
+            'idx_sv_status'  => '(`status`)',
+            'idx_sv_expire'  => '(`expire_at`)',
+            'idx_sv_panel'   => '(`panel_id`)',
+            'idx_sv_test'    => '(`is_test`)',
+        ],
+        'orders' => [
+            'idx_or_user'    => '(`user_id`)',
+            'idx_or_status'  => '(`status`)',
+            'idx_or_created' => '(`created_at`)',
+        ],
+        'users' => [
+            'idx_us_tg'      => '(`tg_id`)',
+            'idx_us_created' => '(`created_at`)',
+        ],
+        'tickets' => [
+            'idx_tk_user'    => '(`user_id`)',
+            'idx_tk_updated' => '(`updated_at`)',
+        ],
+        'ticket_messages' => [
+            'idx_tm_created' => '(`created_at`)',
+        ],
+        'discount_uses' => [
+            'idx_du_user'    => '(`user_id`)',
+        ],
+        'stock_items' => [
+            'idx_si_order'   => '(`order_id`)',
         ],
     ];
 
@@ -317,6 +350,35 @@ class Migrate
         ) > 0;
     }
 
+    /** 0.0.2 #33: آیا ایندکسی وجود دارد که با این ستون شروع شود؟ */
+    public static function hasIndexOn(string $table, string $col): bool
+    {
+        try {
+            return (int)DB::val(
+                'SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? AND SEQ_IN_INDEX = 1',
+                [DB::prefix() . $table, $col], 0
+            ) > 0;
+        } catch (Throwable $e) { return false; }
+    }
+
+    /** نام ستون‌های داخل تعریف ایندکس */
+    public static function indexCols(string $def): array
+    {
+        if (!preg_match_all('/`([A-Za-z0-9_]+)`/', $def, $m)) return [];
+        return $m[1];
+    }
+
+    /** ایندکس فقط وقتی ساخته می‌شود که ستون‌هایش موجود باشند و ایندکس مشابه نباشد */
+    public static function indexReady(string $table, string $def): bool
+    {
+        $cols = self::indexCols($def);
+        if (!$cols) return false;
+        foreach ($cols as $c) {
+            if (!self::hasColumn($table, $c)) return false;
+        }
+        return !self::hasIndexOn($table, (string)$cols[0]);
+    }
+
     /* ==================== کلیدهای تنظیمات ==================== */
 
     /** کلیدهای پیش‌فرض را از database/schema.sql می‌خواند */
@@ -375,7 +437,9 @@ class Migrate
             foreach (self::INDEXES as $t => $ixs) {
                 if (!self::hasTable($t)) continue;
                 foreach ($ixs as $i => $cols) {
-                    if (!self::hasIndex($t, $i)) $miss['indexes'][] = $t . '.' . $i;
+                    if (self::hasIndex($t, $i)) continue;
+                    if (!self::indexReady($t, (string)$cols)) continue; /* 0.0.2 #33 */
+                    $miss['indexes'][] = $t . '.' . $i;
                 }
             }
             $have = self::existingSettings();
@@ -451,6 +515,7 @@ class Migrate
             if (!self::hasTable($t)) continue;
             foreach ($ixs as $i => $cols) {
                 if (self::hasIndex($t, $i)) continue;
+                if (!self::indexReady($t, (string)$cols)) continue; /* 0.0.2 #33 */
                 $exec('ALTER TABLE {p}' . $t . ' ADD INDEX `' . $i . '` ' . $cols, 'ایندکس ' . $t . '.' . $i);
             }
         }
