@@ -1579,6 +1579,13 @@ switch ($action) {
                 'message' => 'این پرداخت ناموفق یا لغو شده است؛ لطفاً یک درخواست تازه بسازید.']);
         }
 
+        /* 0.0.2 #22 zp-chk-pending */
+        if (trim((string)($zpRow['txid'] ?? '')) === '') {
+            ma_out(['ok' => true, 'paid' => false, 'dead' => false,
+                'balance_txt' => ma_money($zpBal()),
+                'message' => 'هنوز پرداختی برای این فاکتور ثبت نشده است؛ اگر پرداخت را انجام داده‌اید، چند لحظه بعد دوباره بررسی کنید.']);
+        }
+
         $zpRes  = Zarinpal::poll((array)$zpRow);
         $zpSt2  = (string)DB::val('SELECT status FROM {p}transactions WHERE id = :i', [':i' => $zpTx], '');
         $zpPaid = ($zpSt2 === 'approved') || !empty($zpRes['paid']);

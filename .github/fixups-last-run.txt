@@ -1,51 +1,10 @@
 Python 3.12.3
-Thu Oct  1 10:38:03 UTC 2026
-patched: miniapp/index.php (zp-render1)
-patched: miniapp/index.php (zp-render2)
-patched: miniapp/index.php (zp-paybox)
-patched: miniapp/index.php (zp-bind)
-patched: miniapp/api.php (zp-chk-api)
-changed files: 2
-===== sanity =====
-  miniapp/index.php           2232| h += zpPayBox(r);
-  miniapp/index.php           2280| function zpPayBox(r) {
-  miniapp/index.php           3696| h += zpPayBox(r);
----- grep: zpPayBox (3) ----
-  miniapp/index.php           2303| function zpCheck(el) {
-  miniapp/index.php           3813| if ((el = t.closest('[data-zpchk]'))) { haptic(); zpCheck(el); return; } /* 0.0.2 #22 zp-bind */
----- grep: zpCheck (2) ----
-  miniapp/index.php           2297| h += '<button type="button" class="btn gh w" data-zpchk="' + esc(String(r.tx || 0)) +
-  miniapp/index.php           2304| var tx = parseInt(el.getAttribute('data-zpchk') || '0', 10) || 0;
-  miniapp/index.php           3813| if ((el = t.closest('[data-zpchk]'))) { haptic(); zpCheck(el); return; } /* 0.0.2 #22 zp-bind */
----- grep: data-zpchk (3) ----
-  miniapp/api.php             1556| case 'topup_zp_check': { /* 0.0.2 #22 zp-chk-api */
-  miniapp/index.php           2311| api('topup_zp_check', { tx: tx }).then(function (r) {
----- grep: topup_zp_check (2) ----
-  miniapp/api.php             1594| case 'topup_hp_check': {
-  miniapp/index.php           2371| api('topup_hp_check', { tx: tx }).then(function (r) {
----- grep: topup_hp_check (2) ----
----- dump zp_poll (app/Service/Zarinpal.php:316-332) ----
-  316|            'message' => 'پرداخت تایید و کیف پول شارژ شد.'];
-  317|    }
-  318|
-  319|    /** استعلام دستی یک تراکنش از پنل مدیریت */
-  320|    public static function poll(array $tx): array
-  321|    {
-  322|        $a = trim((string)($tx['txid'] ?? ''));
-  323|        if ($a === '') return ['ok' => false, 'message' => 'کد رهگیری برای این تراکنش ثبت نشده است.'];
-  324|        return self::apply($a, 'OK');
-  325|    }
-  326|
-  327|    /* ==================== وضعیت ==================== */
-  328|
-  329|    public static function health(): array
-  330|    {
-  331|        if (self::merchant() === '') return ['ok' => false, 'message' => 'مرچنت کد ثبت نشده است.'];
-  332|        if (strlen(self::merchant()) !== 36) return ['ok' => false, 'message' => 'مرچنت کد باید ۳۶ کاراکتر باشد.'];
----- end dump zp_poll ----
+Thu Oct  1 10:40:41 UTC 2026
+patched: miniapp/api.php (zp-chk-pending)
+changed files: 1
+miniapp/api.php: 3008 lines, 147819 bytes
 miniapp/index.php: 4293 lines, 220356 bytes
-miniapp/api.php: 3001 lines, 147364 bytes
-changelog: entry added
-build: fixed170 (was fixed168)
+app/Bot/Bot.php: 5036 lines, 264087 bytes
+build: fixed171 (was fixed170)
 exit: 0
 exit: 0
