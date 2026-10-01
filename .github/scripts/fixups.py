@@ -1,82 +1,110 @@
 # -*- coding: utf-8 -*-
-# fixed171 - zarinpal status check: clear message while the payment is still pending
-import io, os, sys, json
+# fixed172 - recon: Unknown column 'ssl_verify' in vs_panels
+import io, os, sys, json, re
 
 ROOT = os.environ.get('SRC_ROOT') or os.getcwd()
-BUILD = (os.environ.get('NEW_BUILD') or 'fixed171').strip() or 'fixed171'
 CACHE = {}
-ORIG = {}
-ERRORS = []
-WARN = []
+SKIP_DIRS = {'.git', 'node_modules', 'vendor', 'storage', 'uploads', 'backups'}
+EXT = ('.php', '.sql', '.js', '.html', '.json', '.sh', '.md')
 
 
 def load(path):
     if path in CACHE:
         return CACHE[path]
-    with io.open(os.path.join(ROOT, path), 'r', encoding='utf-8') as fh:
+    with io.open(os.path.join(ROOT, path), 'r', encoding='utf-8', errors='replace') as fh:
         s = fh.read()
     CACHE[path] = s
-    ORIG[path] = s
     return s
 
 
-def rep_lit(path, old, new, marker, optional=False):
-    s = load(path)
-    if marker in s:
-        print('skip (already applied): %s' % marker)
-        return
-    n = s.count(old)
-    if n != 1:
-        msg = '%s: anchor for %s matched %d times (want 1)' % (path, marker, n)
-        (WARN if optional else ERRORS).append(msg)
-        print('MISS: %s' % msg)
-        return
-    CACHE[path] = s.replace(old, new, 1)
-    print('patched: %s (%s)' % (path, marker))
+def files_all():
+    out = []
+    for base, dirs, names in os.walk(ROOT):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for n in names:
+            if n.endswith(EXT):
+                out.append(os.path.relpath(os.path.join(base, n), ROOT))
+    return sorted(out)
 
 
-API = 'miniapp/api.php'
+def grep_all(needle, limit=30):
+    hits = 0
+    for p in files_all():
+        if p.startswith('.github/'):
+            continue
+        try:
+            s = load(p)
+        except Exception:
+            continue
+        for i, ln in enumerate(s.split(chr(10))):
+            if needle in ln:
+                hits += 1
+                if hits <= limit:
+                    print('  %-34s %5d| %s' % (p, i + 1, ln.strip()[:130]))
+    print('---- grep: %s (%d) ----' % (needle, hits))
 
-old1 = "        $zpRes  = Zarinpal::poll((array)$zpRow);\n"
-new1 = (
-    "        /* 0.0.2 #22 zp-chk-pending */\n"
-    "        if (trim((string)($zpRow['txid'] ?? '')) === '') {\n"
-    "            ma_out(['ok' => true, 'paid' => false, 'dead' => false,\n"
-    "                'balance_txt' => ma_money($zpBal()),\n"
-    "                'message' => '\u0647\u0646\u0648\u0632 \u067e\u0631\u062f\u0627\u062e\u062a\u06cc \u0628\u0631\u0627\u06cc \u0627\u06cc\u0646 \u0641\u0627\u06a9\u062a\u0648\u0631 \u062b\u0628\u062a \u0646\u0634\u062f\u0647 \u0627\u0633\u062a\u061b \u0627\u06af\u0631 \u067e\u0631\u062f\u0627\u062e\u062a \u0631\u0627 \u0627\u0646\u062c\u0627\u0645 \u062f\u0627\u062f\u0647\u200c\u0627\u06cc\u062f\u060c \u0686\u0646\u062f \u0644\u062d\u0638\u0647 \u0628\u0639\u062f \u062f\u0648\u0628\u0627\u0631\u0647 \u0628\u0631\u0631\u0633\u06cc \u06a9\u0646\u06cc\u062f.']);\n"
-    "        }\n"
-    "\n"
-    "        $zpRes  = Zarinpal::poll((array)$zpRow);\n"
-)
-rep_lit(API, old1, new1, 'zp-chk-pending')
 
-if ERRORS:
-    print('ABORTED - anchors not found:')
-    for e in ERRORS:
-        print('  - %s' % e)
-    print('exit: 1')
-    sys.exit(1)
+def dump(tag, path, start, end):
+    lines = load(path).split(chr(10))
+    print('---- dump %s (%s:%d-%d of %d) ----' % (tag, path, start, end, len(lines)))
+    for i in range(max(0, start - 1), min(len(lines), end)):
+        print('%5d|%s' % (i + 1, lines[i]))
+    print('---- end dump %s ----' % tag)
 
-changed = 0
-for p, s in CACHE.items():
-    if ORIG.get(p) == s:
-        continue
-    with io.open(os.path.join(ROOT, p), 'w', encoding='utf-8') as fh:
-        fh.write(s)
-    changed += 1
-print('changed files: %d' % changed)
 
-for p in ['miniapp/api.php', 'miniapp/index.php', 'app/Bot/Bot.php']:
-    s = load(p)
-    print('%s: %d lines, %d bytes' % (p, len(s.split(chr(10))), len(s.encode('utf-8'))))
+def dump_find(tag, path, needle, before=3, after=30, limit=1):
+    lines = load(path).split(chr(10))
+    hits = 0
+    for i, ln in enumerate(lines):
+        if needle in ln:
+            hits += 1
+            if hits > limit:
+                break
+            dump('%s#%d' % (tag, hits), path, i + 1 - before, i + 1 + after)
+    if hits == 0:
+        print('---- dump %s : needle not found (%s) ----' % (tag, needle))
 
-vpath = os.path.join(ROOT, 'version.json')
-with io.open(vpath, 'r', encoding='utf-8') as fh:
-    vj = json.load(fh)
-old_build = vj.get('build')
-vj['build'] = BUILD
-with io.open(vpath, 'w', encoding='utf-8') as fh:
-    json.dump(vj, fh, ensure_ascii=False, indent=2)
-    fh.write(chr(10))
-print('build: %s (was %s)' % (BUILD, old_build))
+
+def funcs(path):
+    for i, ln in enumerate(load(path).split(chr(10))):
+        m = re.match(r'\s*(?:public|private|protected)?\s*(?:static\s+)?function\s+(\w+)\s*\(', ln)
+        if m:
+            print('  %5d| %s' % (i + 1, m.group(1)))
+    print('---- end funcs %s ----' % path)
+
+
+print('===== where ssl_verify is used =====')
+grep_all('ssl_verify', 40)
+
+print('===== Migrate.php structure =====')
+funcs('app/Service/Migrate.php')
+dump('mig_head', 'app/Service/Migrate.php', 1, 34)
+dump_find('mig_panels', 'app/Service/Migrate.php', "'panels'", 2, 40, 2)
+
+print('===== who runs the migrator =====')
+grep_all('Migrate::', 30)
+
+print('===== DB.php around the failing execute =====')
+funcs('app/DB.php')
+dump('db_exec', 'app/DB.php', 70, 125)
+
+print('===== panels.php save path =====')
+dump('panels_save', 'admin/pages/panels.php', 40, 130)
+
+print('===== schema.sql panels table =====')
+dump_find('schema_panels', 'database/schema.sql', '{p}panels', 1, 42, 1)
+
+print('===== migrations dir =====')
+md = os.path.join(ROOT, 'database', 'migrations')
+if os.path.isdir(md):
+    names = sorted(os.listdir(md))
+    print('count: %d' % len(names))
+    for n in names[-8:]:
+        print('  ' + n)
+else:
+    print('no database/migrations dir')
+
+vj = json.loads(load('version.json'))
+print('changed files: 0')
+print('build stays: %s' % vj.get('build'))
 print('exit: 0')
