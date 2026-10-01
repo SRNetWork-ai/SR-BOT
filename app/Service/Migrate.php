@@ -374,6 +374,46 @@ class Migrate
         return $data;
     }
 
+    /**
+     * 0.0.2 #auto-schema — یک بار برای هر نسخه/بیلد: اگر نسخهٔ نصب‌شده عوض شده باشد (نصب تازه،
+     * آپلود دستی، git pull) «تکمیل ساختار» خودکار اجرا می‌شود. در درخواست‌های عادی فقط یک تنظیم
+     * خوانده می‌شود.
+     */
+    public static function ensureBuild(): void
+    {
+        static $checked = false;
+        if ($checked) return;
+        $checked = true;
+        try {
+            $root = defined('APP_ROOT') ? (string)APP_ROOT : dirname(__DIR__, 2);
+            $vj   = json_decode((string)@file_get_contents($root . '/version.json'), true);
+            if (!is_array($vj)) return;
+            $want = trim((string)($vj['version'] ?? '')) . '|' . trim((string)($vj['build'] ?? ''));
+            if ($want === '|') return;
+            if ((string)DB::setting('schema_build', '') === $want) return;
+            if (!self::hasTable('settings')) return; /* هنوز نصب نشده است */
+
+            $locked = true;
+            try {
+                $locked = (int)DB::val("SELECT GET_LOCK(CONCAT(DATABASE(), ':srbot_schema'), 0)", [], 0) === 1;
+            } catch (Throwable $e) {
+                $locked = true;
+            }
+            if (!$locked) return;
+            try {
+                $r = self::run();
+                DB::setSetting('schema_build', $want);
+                if (function_exists('app_log')) {
+                    app_log('db', 'auto-schema ' . $want . ' | done=' . (int)($r['done'] ?? 0) . ' fail=' . (int)($r['fail'] ?? 0));
+                }
+            } finally {
+                try { DB::val("SELECT RELEASE_LOCK(CONCAT(DATABASE(), ':srbot_schema'))", [], 0); } catch (Throwable $e) {}
+            }
+        } catch (Throwable $e) {
+            if (function_exists('app_log')) app_log('db', 'auto-schema failed: ' . $e->getMessage());
+        }
+    }
+
     public static function hasTable(string $table): bool
     {
         return (int)DB::val(

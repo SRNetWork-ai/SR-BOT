@@ -98,7 +98,6 @@ class DB
     {
         $code = (int)($e->errorInfo[1] ?? 0);
         if (in_array($code, [2000, 1153, 2006, 2013], true)) return true;
-        if (($code === 1054 || $code === 1146) && self::autoMigrate()) return true; /* 0.0.2 #auto-migrate */
         $m = $e->getMessage();
         return stripos($m, 'Unknown or undefined error code') !== false
             || stripos($m, 'gone away') !== false;
@@ -169,6 +168,21 @@ class DB
         } catch (PDOException $e) {
             $inTx = false;
             try { $inTx = self::pdo()->inTransaction(); } catch (Throwable $x) {}
+
+            /* 0.0.2 #auto-migrate-q: ستون/جدول ناموجود → یک بار تکمیل ساختار و اجرای دوبارهٔ همان کوئری روی همین اتصال */
+            $ecode = (int)($e->errorInfo[1] ?? 0);
+            if (!$inTx && ($ecode === 1054 || $ecode === 1146) && self::autoMigrate()) {
+                try {
+                    $st = self::pdo()->prepare($raw);
+                    $st->execute($params);
+                    if (function_exists('app_log')) {
+                        app_log('db', 'retry-after-migrate | ' . mb_substr(trim((string)preg_replace('/\s+/', ' ', $raw)), 0, 160));
+                    }
+                    return $st;
+                } catch (PDOException $e3) {
+                    throw self::wrap($e3, $raw);
+                }
+            }
 
             if (!$inTx && self::retryable($e)) {
                 $emu = self::emu();

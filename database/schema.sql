@@ -43,6 +43,16 @@ CREATE TABLE IF NOT EXISTS {p}users (
   `reseller_domain` VARCHAR(120) NULL,
   `reseller_brand` VARCHAR(80) NULL,
   `reseller_note_pub` VARCHAR(255) NULL,
+  `test_ip` VARCHAR(64) NULL,
+  `test_dev` VARCHAR(64) NULL,
+  `test_at` DATETIME NULL,
+  `reseller_price_gb` INT NOT NULL DEFAULT 0,
+  `reseller_price_day` INT NOT NULL DEFAULT 0,
+  `reseller_max_gb` INT NOT NULL DEFAULT 0,
+  `reseller_max_days` INT NOT NULL DEFAULT 0,
+  `reseller_panels` VARCHAR(190) NULL,
+  `reseller_note` VARCHAR(400) NULL,
+  `auto_renew` TINYINT(1) NOT NULL DEFAULT 0,
   UNIQUE KEY `uq_tg` (`tg_id`),
   KEY `idx_ref` (`referrer_id`),
   KEY `idx_verify_token` (`verify_token`)
@@ -113,6 +123,8 @@ CREATE TABLE IF NOT EXISTS {p}products (
   `min_days` INT NOT NULL DEFAULT 1,
   `max_days` INT NOT NULL DEFAULT 90,
   `created_at` DATETIME NOT NULL,
+  `group_ids` VARCHAR(190) NULL,
+  `reset_days` INT NOT NULL DEFAULT 0,
   KEY `idx_panel` (`panel_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -141,6 +153,7 @@ CREATE TABLE IF NOT EXISTS {p}services (
   `group_key` VARCHAR(32) NULL,
   `group_quota_gb` DECIMAL(10,2) NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL,
+  `expired_at` DATETIME NULL,
   KEY `idx_user` (`user_id`),
   KEY `idx_email` (`client_email`),
   KEY `idx_group_key` (`group_key`)
@@ -178,6 +191,7 @@ CREATE TABLE IF NOT EXISTS {p}transactions (
   `admin_id` BIGINT NULL,
   `created_at` DATETIME NOT NULL,
   `decided_at` DATETIME NULL,
+  `card_id` INT UNSIGNED NULL,
   KEY `idx_user` (`user_id`),
   KEY `idx_status` (`status`),
   KEY `idx_txid` (`txid`)
@@ -527,6 +541,7 @@ CREATE TABLE IF NOT EXISTS {p}stock_cats (
   `active` TINYINT(1) NOT NULL DEFAULT 1,
   `sort` INT NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL,
+  `rs_price` BIGINT NOT NULL DEFAULT 0,
   KEY `idx_sc_active` (`active`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
