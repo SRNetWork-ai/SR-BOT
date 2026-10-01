@@ -1552,6 +1552,45 @@ switch ($action) {
 
     /* ---------------- ارسال هش تراکنش از داخل مینی‌اپ ---------------- */
     /* ---------------- بررسی وضعیت پرداخت هوش‌پی از داخل مینی‌اپ ---------------- */
+    /* ---------------- بررسی وضعیت پرداخت زرین‌پال از داخل مینی‌اپ ---------------- */
+    case 'topup_zp_check': { /* 0.0.2 #22 zp-chk-api */
+        if (!class_exists('Zarinpal')) ma_fail('درگاه زرین‌پال در دسترس نیست.');
+
+        $zpTx  = (int)($in['tx'] ?? 0);
+        $zpRow = DB::one("SELECT * FROM {p}transactions WHERE id = :i AND user_id = :u AND method = 'zarinpal'",
+            [':i' => $zpTx, ':u' => $UID]);
+        if (!$zpRow) ma_fail('این درخواست شارژ پیدا نشد.');
+
+        $zpBal = static function () use ($UID) {
+            return (int)DB::val('SELECT balance FROM {p}users WHERE id = :id', [':id' => $UID], 0);
+        };
+
+        $zpSt = (string)($zpRow['status'] ?? '');
+
+        if ($zpSt === 'approved') {
+            ma_out(['ok' => true, 'paid' => true, 'dead' => false,
+                'balance_txt' => ma_money($zpBal()),
+                'message' => 'پرداخت تایید شده و کیف پول شما شارژ شده است.']);
+        }
+
+        if ($zpSt === 'rejected') {
+            ma_out(['ok' => true, 'paid' => false, 'dead' => true,
+                'balance_txt' => ma_money($zpBal()),
+                'message' => 'این پرداخت ناموفق یا لغو شده است؛ لطفاً یک درخواست تازه بسازید.']);
+        }
+
+        $zpRes  = Zarinpal::poll((array)$zpRow);
+        $zpSt2  = (string)DB::val('SELECT status FROM {p}transactions WHERE id = :i', [':i' => $zpTx], '');
+        $zpPaid = ($zpSt2 === 'approved') || !empty($zpRes['paid']);
+        $zpDead = ($zpSt2 === 'rejected') || !empty($zpRes['dead']);
+
+        ma_out(['ok' => true, 'paid' => $zpPaid, 'dead' => $zpDead,
+            'balance_txt' => ma_money($zpBal()),
+            'message' => (string)($zpRes['message'] ?? ($zpPaid
+                ? 'پرداخت تایید شد و کیف پول شارژ شد.'
+                : 'هنوز پرداخت موفقی برای این فاکتور ثبت نشده است.'))]);
+    }
+
     case 'topup_hp_check': {
         if (!class_exists('HooshPay')) ma_fail('درگاه هوش‌پی در دسترس نیست.');
 

@@ -1,326 +1,51 @@
 Python 3.12.3
-Thu Oct  1 10:34:03 UTC 2026
-miniapp/index.php: 4234 lines, 217846 bytes
-miniapp/api.php: 2962 lines, 145311 bytes
-app/Service/Zarinpal.php: 350 lines, 15660 bytes
-===== what already mentions zarinpal =====
-   2151| if (b.flags.zarinpal) ms.push(['zarinpal', '\u{1F3E6} زرین‌پال (آنلاین)']);
-   2886| if (b.flags.zarinpal) m.push(['zarinpal', '\u{1F3E6}', 'زرین‌پال — پرداخت آنلاین', 'اتصال به درگاه بانکی؛ پس از پرداخت موفق، کیف پول خودکار شارژ می‌شود']);
----- grep zarinpal in miniapp/index.php (2) ----
-    521| 'zarinpal' => class_exists('Zarinpal') ? Zarinpal::enabled() : false,
-   1485| if ($method === 'zarinpal') { /* 0.0.2 #22 */
-   1499| ma_out(['ok' => true, 'method' => 'zarinpal',
----- grep zarinpal in miniapp/api.php (3) ----
-===== hooshpay render branches (mini-app) =====
----- dump render #1 : r.method === 'hooshpay' (miniapp/index.php:2231) ----
- 2225|            '<button type="button" class="btn gh w" id="rcpPick" style="margin-top:9px">📷 انتخاب عکس رسید</button>' +
- 2226|            '<div id="rcpPrev"></div>' +
- 2227|            '<button type="button" class="btn w" id="rcpGo" style="margin-top:8px;display:none">✅ ارسال رسید برای بررسی</button>' +
- 2228|            '<div class="hint">اگر ترجیح می‌دهید، می‌توانید عکس رسید را در چت ربات هم بفرستید.</div>' +
- 2229|            '</div>';
- 2230|        }
- 2231|      } else if (r.method === 'hooshpay') {
- 2232|        h += hpPayBox(r);
- 2233|      } else {
- 2234|        if (r.rate_txt) {
- 2235|          h += '<div class="card tight"><div style="font-size:11.5px;color:var(--dim)">نرخ لحظه‌ای دلار</div>' +
- 2236|            '<div style="font-weight:700">' + esc(r.rate_txt) + '</div></div>';
- 2237|        }
- 2238|        var opts = '';
- 2239|        (r.assets || []).forEach(function (a) {
- 2240|          h += '<div class="sec-t"><span>' + a.icon + ' ' + esc(a.label) + '</span>' +
- 2241|            '<span class="bdg b">' + esc(a.network) + '</span></div>' +
- 2242|            '<div class="card tight">' +
- 2243|            (a.qty_txt ? '<div style="font-size:11.5px;color:var(--dim)">مقدار واریزی</div>' +
- 2244|              '<div style="font-weight:700;font-size:15px" class="mono">' + esc(a.qty_txt) + ' ' + esc(a.key) + '</div>' : '') +
- 2245|            copyBox(a.address) +
- 2246|            (a.memo ? '<div style="font-size:11.5px;color:var(--dim);margin-top:7px">🏷 ممو / تگ (الزامی)</div>' + copyBox(a.memo) : '') +
- 2247|            (a.note ? '<div class="hint">ℹ️ ' + esc(a.note) + '</div>' : '') +
- 2248|            '</div>';
- 2249|          opts += '<option value="' + esc(a.id) + '">' + esc(a.label) + ' • ' + esc(a.network) + '</option>';
- 2250|        });
- 2251|
- 2252|        S.tu = { amount: r.amount || v, gw: '' };
- 2253|
----- dump render #2 : r.method === 'hooshpay' (miniapp/index.php:3639) ----
- 3633|          '<input id="rcpFile" type="file" accept="image/*" style="display:none">' +
- 3634|          '<button type="button" class="btn gh w" id="rcpPick" style="margin-top:9px">📷 انتخاب عکس رسید</button>' +
- 3635|          '<div id="rcpPrev"></div>' +
- 3636|          '<button type="button" class="btn w" id="rcpGo" style="margin-top:8px;display:none">✅ ارسال رسید برای بررسی</button>' +
- 3637|          '</div>';
- 3638|      }
- 3639|    } else if (r.method === 'hooshpay') {
- 3640|      h += hpPayBox(r);
- 3641|    } else {
- 3642|      if (r.rate_txt) {
- 3643|        h += '<div class="card tight"><div style="font-size:11.5px;color:var(--dim)">نرخ لحظه‌ای دلار</div>' +
- 3644|          '<div style="font-weight:700">' + esc(r.rate_txt) + '</div></div>';
- 3645|      }
- 3646|      var opts = '';
- 3647|      (r.assets || []).forEach(function (a) {
- 3648|        h += '<div class="sec-t"><span>' + a.icon + ' ' + esc(a.label) + '</span>' +
- 3649|          '<span class="bdg b">' + esc(a.network) + '</span></div><div class="card tight">' +
- 3650|          (a.qty_txt ? '<div style="font-size:11.5px;color:var(--dim)">مقدار واریزی</div>' +
- 3651|            '<div style="font-weight:700;font-size:15px" class="mono">' + esc(a.qty_txt) + ' ' + esc(a.key) + '</div>' : '') +
- 3652|          copyBox(a.address) +
- 3653|          (a.memo ? '<div style="font-size:11.5px;color:var(--dim);margin-top:7px">🏷 ممو / تگ (الزامی)</div>' + copyBox(a.memo) : '') +
- 3654|          (a.note ? '<div class="hint">ℹ️ ' + esc(a.note) + '</div>' : '') + '</div>';
- 3655|        opts += '<option value="' + esc(a.id) + '">' + esc(a.label) + ' • ' + esc(a.network) + '</option>';
- 3656|      });
- 3657|      S.tu = { amount: r.amount || TP.amount, gw: '' };
- 3658|      if (r.can_hash) {
- 3659|        h += '<div class="sec-t"><span>🔗 ثبت هش تراکنش</span></div><div class="card tight">' +
- 3660|          '<div class="fld"><label>واریز از کدام ش����که انجام شد؟</label>' +
- 3661|          '<select id="hxGw">' + opts + '</select></div>' +
----- end dump render : 2 hit(s) ----
-===== hpPayBox helper =====
----- dump hppaybox #1 : function hpPayBox (miniapp/index.php:2276) ----
- 2274|  /* ================= رسید کارت به کارت – داخل اپ ================= */
- 2275|  /* ================= هوش‌پی – کارت پرداخت و بررسی وضعیت ================= */
- 2276|  function hpPayBox(r) {
- 2277|    var h = '<div class="sec-t"><span>🪙 پرداخت آنی هوش‌پی</span>' +
- 2278|      (r.tx ? '<span class="bdg b">پیگیری #' + esc(String(r.tx)) + '</span>' : '') + '</div>' +
- 2279|      '<div class="card tight">';
- 2280|
- 2281|    if (r.payable_txt) {
- 2282|      h += '<div style="font-size:11.5px;color:var(--dim)">مبلغ قابل پرداخت — باید دقیقاً همین مبلغ واریز شود</div>' +
- 2283|        '<div class="mono" style="font-weight:800;font-size:17px;margin:2px 0 4px">' + esc(r.payable_txt) + '</div>';
- 2284|    }
- 2285|
- 2286|    if (r.card && r.card.number) {
- 2287|      h += '<div style="font-size:11.5px;color:var(--dim);margin-top:8px">کارت مقصد</div>' + copyBox(r.card.number);
- 2288|      if (r.card.holder) h += row('👤', 'به نام', '', esc(r.card.holder));
- 2289|      if (r.card.bank) h += row('🏦', 'بانک', '', esc(r.card.bank));
- 2290|    }
- 2291|
- 2292|    if (r.fee_txt) h += '<div class="hint">کارمزد درگاه: ' + esc(r.fee_txt) + '</div>';
- 2293|    if (r.expires) h += '<div class="hint">⏱ مهلت پرداخت: ' + esc(r.expires) + '</div>';
- 2294|    h += '</div>';
- 2295|
- 2296|    if (r.url) {
- 2297|      h += '<a class="btn w" href="' + esc(r.url) + '" target="_blank" rel="noopener" ' +
- 2298|        'style="margin-top:8px;display:block;text-align:center;text-decoration:none">🪙 رفتن به صفحهٔ پرداخت</a>';
- 2299|    }
- 2300|
- 2301|    h += '<button type="button" class="btn gh w" data-hpchk="' + esc(String(r.tx || 0)) +
- 2302|      '" style="margin-top:8px">🔄 بررسی وضعیت پرداخت</button><div id="hpChkOut"></div>';
- 2303|
- 2304|    return h;
- 2305|  }
- 2306|
- 2307|  function hpCheck(el) {
- 2308|    var tx = parseInt(el.getAttribute('data-hpchk') || '0', 10) || 0;
- 2309|    if (tx <= 0) { toast('شناسهٔ پرداخت پیدا نشد.', 'err'); return; }
- 2310|
----- end dump hppaybox : 1 hit(s) ----
-===== hpCheck handler + binding =====
----- dump hpcheck #1 : function hpCheck (miniapp/index.php:2307) ----
- 2305|  }
- 2306|
- 2307|  function hpCheck(el) {
- 2308|    var tx = parseInt(el.getAttribute('data-hpchk') || '0', 10) || 0;
- 2309|    if (tx <= 0) { toast('شناسهٔ پرداخت پیدا نشد.', 'err'); return; }
- 2310|
- 2311|    var old = el.innerHTML;
- 2312|    el.disabled = true;
- 2313|    el.innerHTML = '<span class="spin"></span> در حال بررسی…';
- 2314|
- 2315|    api('topup_hp_check', { tx: tx }).then(function (r) {
- 2316|      el.disabled = false;
- 2317|      el.innerHTML = old;
- 2318|
- 2319|      var msg = (r && r.message) ? r.message : 'پاسخی از سرور دریافت نشد.';
- 2320|      var cl = 'w';
- 2321|      if (r && r.paid) cl = 'i';
- 2322|      else if (r && r.dead) cl = 'e';
- 2323|
- 2324|      var out = $('hpChkOut');
- 2325|      if (out) {
- 2326|        out.innerHTML = '<div class="alert ' + cl + '" style="margin-top:8px">' + esc(msg) +
- 2327|          ((r && r.paid && r.balance_txt) ? '<br>موجودی جدید: ' + esc(r.balance_txt) : '') + '</div>';
- 2328|      } else {
- 2329|        toast(msg, (r && r.paid) ? 'ok' : 'i');
- 2330|      }
- 2331|
- 2332|      if (r && r.paid) toast('کیف پول شارژ شد.', 'ok');
- 2333|    });
- 2334|  }
- 2335|
----- end dump hpcheck : 1 hit(s) ----
----- dump hpchkbind #1 : data-hpchk (miniapp/index.php:2301) ----
- 2295|
- 2296|    if (r.url) {
- 2297|      h += '<a class="btn w" href="' + esc(r.url) + '" target="_blank" rel="noopener" ' +
- 2298|        'style="margin-top:8px;display:block;text-align:center;text-decoration:none">🪙 رفتن به صفحهٔ پرداخت</a>';
- 2299|    }
- 2300|
- 2301|    h += '<button type="button" class="btn gh w" data-hpchk="' + esc(String(r.tx || 0)) +
- 2302|      '" style="margin-top:8px">🔄 بررسی وضعیت پرداخت</button><div id="hpChkOut"></div>';
- 2303|
- 2304|    return h;
- 2305|  }
- 2306|
- 2307|  function hpCheck(el) {
- 2308|    var tx = parseInt(el.getAttribute('data-hpchk') || '0', 10) || 0;
- 2309|    if (tx <= 0) { toast('شناسهٔ پرداخت پیدا نشد.', 'err'); return; }
----- dump hpchkbind #2 : data-hpchk (miniapp/index.php:2308) ----
- 2302|      '" style="margin-top:8px">🔄 بررسی وضعیت پرداخت</button><div id="hpChkOut"></div>';
- 2303|
- 2304|    return h;
- 2305|  }
- 2306|
- 2307|  function hpCheck(el) {
- 2308|    var tx = parseInt(el.getAttribute('data-hpchk') || '0', 10) || 0;
- 2309|    if (tx <= 0) { toast('شناسهٔ پرداخت پیدا نشد.', 'err'); return; }
- 2310|
- 2311|    var old = el.innerHTML;
- 2312|    el.disabled = true;
- 2313|    el.innerHTML = '<span class="spin"></span> در حال بررسی…';
- 2314|
- 2315|    api('topup_hp_check', { tx: tx }).then(function (r) {
- 2316|      el.disabled = false;
----- dump hpchkbind #3 : data-hpchk (miniapp/index.php:3755) ----
- 3749|    if ((el = t.closest('.tstPick'))) { haptic(); doTestRun(+el.getAttribute('data-pid') || 0); return; } /* fixed79 */
- 3750|    if ((el = t.closest('#meEdit'))) { haptic(); profileSheet(); return; }
- 3751|    if ((el = t.closest('#gGo'))) { haptic(); redeemGift(el); return; }
- 3752|    if ((el = t.closest('#refShare'))) { haptic(); shareRef(); return; }
- 3753|    if ((el = t.closest('[data-go]'))) { haptic(); go(el.getAttribute('data-go')); return; }
- 3754|    if ((el = t.closest('[data-copy]'))) { copy(el.getAttribute('data-copy'), el); return; }
- 3755|    if ((el = t.closest('[data-hpchk]'))) { haptic(); hpCheck(el); return; }
- 3756|    if ((el = t.closest('#crdSave'))) { haptic(); doCardAdd(el); return; }
- 3757|    if ((el = t.closest('[data-crddel]'))) { haptic(); doCardDel(+el.getAttribute('data-crddel')); return; }
- 3758|    if ((el = t.closest('[data-crdpick]'))) {
- 3759|      haptic();
- 3760|      TP.card = +el.getAttribute('data-crdpick');
- 3761|      closeSheet();
- 3762|      tpNext();
- 3763|      return;
----- end dump hpchkbind : 3 hit(s) ----
-===== topup_hp_check endpoint =====
----- dump hpchk_api #1 : topup_hp_check (miniapp/api.php:1555) ----
- 1549|
- 1550|        ma_fail('روش پرداخت پشتیبانی نمی‌شود.');
- 1551|    }
- 1552|
- 1553|    /* ---------------- ارسال هش تراکنش از داخل مینی‌اپ ---------------- */
- 1554|    /* ---------------- بررسی وضعیت پرداخت هوش‌پی از داخل مینی‌اپ ---------------- */
- 1555|    case 'topup_hp_check': {
- 1556|        if (!class_exists('HooshPay')) ma_fail('درگاه هوش‌پی در دسترس نیست.');
- 1557|
- 1558|        $hpTx  = (int)($in['tx'] ?? 0);
- 1559|        $hpRow = DB::one("SELECT * FROM {p}transactions WHERE id = :i AND user_id = :u AND method = 'hooshpay'",
- 1560|            [':i' => $hpTx, ':u' => $UID]);
- 1561|        if (!$hpRow) ma_fail('این درخواست شارژ پیدا نشد.');
- 1562|
- 1563|        $hpBal = static function () use ($UID) {
- 1564|            return (int)DB::val('SELECT balance FROM {p}users WHERE id = :id', [':id' => $UID], 0);
- 1565|        };
- 1566|
- 1567|        $hpSt = (string)($hpRow['status'] ?? '');
- 1568|
- 1569|        if ($hpSt === 'approved') {
- 1570|            ma_out(['ok' => true, 'paid' => true, 'dead' => false,
- 1571|                'balance_txt' => ma_money($hpBal()),
- 1572|                'message' => 'پرداخت تایید شده و کیف پول شما شارژ شده است.']);
- 1573|        }
- 1574|
- 1575|        if ($hpSt === 'rejected') {
- 1576|            ma_out(['ok' => true, 'paid' => false, 'dead' => true,
- 1577|                'balance_txt' => ma_money($hpBal()),
- 1578|                'message' => 'این پرداخت ناموفق یا منقضی شده است؛ لطفاً یک درخواست تازه بسازید.']);
- 1579|        }
- 1580|
- 1581|        $hpRes  = HooshPay::poll((array)$hpRow);
- 1582|        $hpPaid = !empty($hpRes['paid']);
- 1583|        $hpDead = false;
- 1584|        if (!empty($hpRes['ok']) && !$hpPaid && empty($hpRes['pending']) && empty($hpRes['duplicate'])) {
- 1585|            $hpDead = true;
- 1586|        }
- 1587|
- 1588|        ma_out(['ok' => true, 'paid' => $hpPaid, 'dead' => $hpDead,
- 1589|            'balance_txt' => ma_money($hpBal()),
- 1590|            'message' => (string)($hpRes['message'] ?? 'هنوز پرداختی برای این فاکتور ثبت نشده است.')]);
- 1591|    }
- 1592|
- 1593|    case 'topup_hash': {
- 1594|        $amount = (int)($in['amount'] ?? 0);
- 1595|        $hash   = trim((string)($in['hash'] ?? ''));
- 1596|        $gwId   = trim((string)($in['gw'] ?? ''));
- 1597|        $min = (int)DB::setting('min_deposit', 0);
- 1598|        $max = (int)DB::setting('max_deposit', 0);
- 1599|
- 1600|        if (!ma_pay_on('crypto', $user)) ma_fail('پرداخت ارزی فعال نیست.');
- 1601|        if ($amount <= 0) ma_fail('مبلغ واریزی مشخص ن��ست.');
- 1602|        if ($min > 0 && $amount < $min) ma_fail('حداقل مبلغ شارژ ' . ma_money($min) . ' است.');
- 1603|        if ($max > 0 && $amount > $max) ma_fail('حداکثر مبلغ شارژ ' . ma_money($max) . ' است.');
----- end dump hpchk_api : 1 hit(s) ----
-===== zarinpal deposit block in api.php =====
----- dump zp_api #1 : 'zarinpal' (miniapp/api.php:521) ----
-  517|                'card'   => ma_pay_on('card', $user),
-  518|                'crypto' => ma_pay_on('crypto', $user),
-  519|                'nowpay' => class_exists('NowPay') ? NowPay::enabled() : false,
-  520|                'hooshpay' => class_exists('HooshPay') ? HooshPay::enabled() : false,
-  521|        'zarinpal' => class_exists('Zarinpal') ? Zarinpal::enabled() : false,
-  522|                'reseller' => (class_exists('Reseller') && Reseller::enabled() && Reseller::isReseller($user)),
-  523|                'stock'    => (class_exists('Stock') && Stock::enabled()),
-  524|            ],
-  525|        ]);
-  526|    }
-  527|
-  528|    /* ---------------- محصولات ---------------- */
-  529|    case 'products': {
-  530|        $rows = DB::all("SELECT pr.*, pa.name AS panel_name
-  531|            FROM {p}products pr
-  532|            LEFT JOIN {p}panels pa ON pa.id = pr.panel_id
-  533|            WHERE pr.active = 1 AND pr.stock <> 0
-  534|            ORDER BY pr.sort ASC, pr.price ASC");
-  535|
-  536|        $cats = [];
-  537|        $list = [];
-  538|        $pmap = [];
-  539|        foreach ($rows as $p) {
-  540|            /* fixed76: محصول «حجم و زمان دلخواه» از بخش پلن دلخواه (cus_info) عرضه می‌شود */
-  541|            if ((string)($p['type'] ?? 'fixed') === 'custom') continue;
-  542|            $r      = ma_product_row($p);
-  543|            $list[] = $r;
-  544|
-  545|            $c = (string)$r['category'];
-  546|            if (!in_array($c, $cats, true)) $cats[] = $c;
-  547|
----- dump zp_api #2 : 'zarinpal' (miniapp/api.php:1485) ----
- 1481|                'assets' => $assets, 'can_hash' => true,
- 1482|                'note' => 'مقادیر با نرخ همین لحظه محاسبه شد. پس از واریز، هش تراکنش (TXID) را همین‌جا ارسال کنید.']);
- 1483|        }
- 1484|
- 1485|        if ($method === 'zarinpal') { /* 0.0.2 #22 */
- 1486|            if (!class_exists('Zarinpal') || !Zarinpal::enabled()) ma_fail('درگاه زرین‌پال فعال نیست.');
- 1487|            if (!Zarinpal::forUser($isRs)) ma_fail('این درگاه برای حساب شما فعال نیست.');
- 1488|
- 1489|            $zpMin = Zarinpal::minAmount();
- 1490|            $zpMax = Zarinpal::maxAmount();
- 1491|            if ($zpMin > 0 && $amount < $zpMin) ma_fail('حداقل مبلغ این درگاه ' . ma_money($zpMin) . ' است.');
- 1492|            if ($zpMax > 0 && $amount > $zpMax) ma_fail('حداکثر مبلغ این درگاه ' . ma_money($zpMax) . ' است.');
- 1493|
- 1494|            $invZp = Zarinpal::createInvoice($user, $amount);
- 1495|            if (empty($invZp['ok'])) {
- 1496|                ma_fail((string)($invZp['message'] ?? 'ساخت لینک پرداخت زرین‌پال ناموفق بود.'));
- 1497|            }
- 1498|
- 1499|            ma_out(['ok' => true, 'method' => 'zarinpal',
- 1500|                'amount'     => $amount,
- 1501|                'amount_txt' => ma_money($amount),
- 1502|                'tx'         => (int)($invZp['tx'] ?? 0),
- 1503|                'url'        => (string)($invZp['url'] ?? ''),
- 1504|                'authority'  => (string)($invZp['authority'] ?? ''),
- 1505|                'note'       => 'روی دکمهٔ پرداخت بزنید؛ پس از پرداخت موفق، کیف پول شما خودکار شارژ می‌شود.']);
- 1506|        }
- 1507|
- 1508|        if ($method === 'hooshpay') {
- 1509|            if (!class_exists('HooshPay') || !HooshPay::enabled()) ma_fail('درگاه هوش‌پی فعال نیست.');
- 1510|            if (!HooshPay::forUser($isRs)) ma_fail('این درگاه برای حساب شما فعال نیست.');
- 1511|
----- end dump zp_api : 3 hit(s) ----
-changed files: 0
-build stays: fixed168
+Thu Oct  1 10:38:03 UTC 2026
+patched: miniapp/index.php (zp-render1)
+patched: miniapp/index.php (zp-render2)
+patched: miniapp/index.php (zp-paybox)
+patched: miniapp/index.php (zp-bind)
+patched: miniapp/api.php (zp-chk-api)
+changed files: 2
+===== sanity =====
+  miniapp/index.php           2232| h += zpPayBox(r);
+  miniapp/index.php           2280| function zpPayBox(r) {
+  miniapp/index.php           3696| h += zpPayBox(r);
+---- grep: zpPayBox (3) ----
+  miniapp/index.php           2303| function zpCheck(el) {
+  miniapp/index.php           3813| if ((el = t.closest('[data-zpchk]'))) { haptic(); zpCheck(el); return; } /* 0.0.2 #22 zp-bind */
+---- grep: zpCheck (2) ----
+  miniapp/index.php           2297| h += '<button type="button" class="btn gh w" data-zpchk="' + esc(String(r.tx || 0)) +
+  miniapp/index.php           2304| var tx = parseInt(el.getAttribute('data-zpchk') || '0', 10) || 0;
+  miniapp/index.php           3813| if ((el = t.closest('[data-zpchk]'))) { haptic(); zpCheck(el); return; } /* 0.0.2 #22 zp-bind */
+---- grep: data-zpchk (3) ----
+  miniapp/api.php             1556| case 'topup_zp_check': { /* 0.0.2 #22 zp-chk-api */
+  miniapp/index.php           2311| api('topup_zp_check', { tx: tx }).then(function (r) {
+---- grep: topup_zp_check (2) ----
+  miniapp/api.php             1594| case 'topup_hp_check': {
+  miniapp/index.php           2371| api('topup_hp_check', { tx: tx }).then(function (r) {
+---- grep: topup_hp_check (2) ----
+---- dump zp_poll (app/Service/Zarinpal.php:316-332) ----
+  316|            'message' => 'پرداخت تایید و کیف پول شارژ شد.'];
+  317|    }
+  318|
+  319|    /** استعلام دستی یک تراکنش از پنل مدیریت */
+  320|    public static function poll(array $tx): array
+  321|    {
+  322|        $a = trim((string)($tx['txid'] ?? ''));
+  323|        if ($a === '') return ['ok' => false, 'message' => 'کد رهگیری برای این تراکنش ثبت نشده است.'];
+  324|        return self::apply($a, 'OK');
+  325|    }
+  326|
+  327|    /* ==================== وضعیت ==================== */
+  328|
+  329|    public static function health(): array
+  330|    {
+  331|        if (self::merchant() === '') return ['ok' => false, 'message' => 'مرچنت کد ثبت نشده است.'];
+  332|        if (strlen(self::merchant()) !== 36) return ['ok' => false, 'message' => 'مرچنت کد باید ۳۶ کاراکتر باشد.'];
+---- end dump zp_poll ----
+miniapp/index.php: 4293 lines, 220356 bytes
+miniapp/api.php: 3001 lines, 147364 bytes
+changelog: entry added
+build: fixed170 (was fixed168)
 exit: 0
 exit: 0

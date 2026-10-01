@@ -2228,6 +2228,8 @@ body.light .amt3 .v{-webkit-text-fill-color:initial;background:none}
             '<div class="hint">اگر ترجیح می‌دهید، می‌توانید عکس رسید را در چت ربات هم بفرستید.</div>' +
             '</div>';
         }
+      } else if (r.method === 'zarinpal') { /* 0.0.2 #22 zp-render1 */
+        h += zpPayBox(r);
       } else if (r.method === 'hooshpay') {
         h += hpPayBox(r);
       } else {
@@ -2273,6 +2275,60 @@ body.light .amt3 .v{-webkit-text-fill-color:initial;background:none}
 
   /* ================= رسید کارت به کارت – داخل اپ ================= */
   /* ================= هوش‌پی – کارت پرداخت و بررسی وضعیت ================= */
+  /* ================= زرین‌پال – کارت پرداخت و بررسی وضعیت ================= */
+  /* 0.0.2 #22 zp-paybox */
+  function zpPayBox(r) {
+    var h = '<div class="sec-t"><span>🏦 پرداخت آنی زرین‌پال</span>' +
+      (r.tx ? '<span class="bdg b">پیگیری #' + esc(String(r.tx)) + '</span>' : '') + '</div>' +
+      '<div class="card tight">';
+
+    if (r.amount_txt) {
+      h += '<div style="font-size:11.5px;color:var(--dim)">مبلغ قابل پرداخت</div>' +
+        '<div class="mono" style="font-weight:800;font-size:17px;margin:2px 0 4px">' + esc(r.amount_txt) + '</div>';
+    }
+    if (r.note) h += '<div class="hint">ℹ️ ' + esc(r.note) + '</div>';
+    h += '</div>';
+
+    if (r.url) {
+      h += '<a class="btn w" href="' + esc(r.url) + '" target="_blank" rel="noopener" ' +
+        'style="margin-top:8px;display:block;text-align:center;text-decoration:none">🏦 رفتن به درگاه بانکی</a>';
+    }
+
+    h += '<button type="button" class="btn gh w" data-zpchk="' + esc(String(r.tx || 0)) +
+      '" style="margin-top:8px">🔄 بررسی وضعیت پرداخت</button><div id="zpChkOut"></div>';
+
+    return h;
+  }
+
+  function zpCheck(el) {
+    var tx = parseInt(el.getAttribute('data-zpchk') || '0', 10) || 0;
+    if (tx <= 0) { toast('شناسهٔ پرداخت پیدا نشد.', 'err'); return; }
+
+    var old = el.innerHTML;
+    el.disabled = true;
+    el.innerHTML = '<span class="spin"></span> در حال بررسی…';
+
+    api('topup_zp_check', { tx: tx }).then(function (r) {
+      el.disabled = false;
+      el.innerHTML = old;
+
+      var msg = (r && r.message) ? r.message : 'پاسخی از سرور دریافت نشد.';
+      var cl = 'w';
+      if (r && r.paid) cl = 'i';
+      else if (r && r.dead) cl = 'e';
+
+      var out = $('zpChkOut');
+      if (out) {
+        out.innerHTML = '<div class="alert ' + cl + '" style="margin-top:8px">' + esc(msg) +
+          ((r && r.paid && r.balance_txt) ? '<br>موجودی جدید: ' + esc(r.balance_txt) : '') + '</div>';
+      } else {
+        toast(msg, (r && r.paid) ? 'ok' : 'i');
+      }
+
+      if (r && r.paid) toast('کیف پول شارژ شد.', 'ok');
+    });
+  }
+
   function hpPayBox(r) {
     var h = '<div class="sec-t"><span>🪙 پرداخت آنی هوش‌پی</span>' +
       (r.tx ? '<span class="bdg b">پیگیری #' + esc(String(r.tx)) + '</span>' : '') + '</div>' +
@@ -3636,6 +3692,8 @@ body.light .amt3 .v{-webkit-text-fill-color:initial;background:none}
           '<button type="button" class="btn w" id="rcpGo" style="margin-top:8px;display:none">✅ ارسال رسید برای بررسی</button>' +
           '</div>';
       }
+    } else if (r.method === 'zarinpal') { /* 0.0.2 #22 zp-render2 */
+      h += zpPayBox(r);
     } else if (r.method === 'hooshpay') {
       h += hpPayBox(r);
     } else {
@@ -3752,6 +3810,7 @@ body.light .amt3 .v{-webkit-text-fill-color:initial;background:none}
     if ((el = t.closest('#refShare'))) { haptic(); shareRef(); return; }
     if ((el = t.closest('[data-go]'))) { haptic(); go(el.getAttribute('data-go')); return; }
     if ((el = t.closest('[data-copy]'))) { copy(el.getAttribute('data-copy'), el); return; }
+    if ((el = t.closest('[data-zpchk]'))) { haptic(); zpCheck(el); return; } /* 0.0.2 #22 zp-bind */
     if ((el = t.closest('[data-hpchk]'))) { haptic(); hpCheck(el); return; }
     if ((el = t.closest('#crdSave'))) { haptic(); doCardAdd(el); return; }
     if ((el = t.closest('[data-crddel]'))) { haptic(); doCardDel(+el.getAttribute('data-crddel')); return; }
