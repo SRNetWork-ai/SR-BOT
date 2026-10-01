@@ -156,6 +156,7 @@ function boot(bool $requireInstall = true): void
     DB::init((array)cfg('db', []));
     Tg::setToken((string)cfg('bot.token', ''));
     DB::loadSettings();
+    if (class_exists('Migrate') && method_exists('Migrate', 'ensureBuild')) Migrate::ensureBuild(); /* 0.0.2 #auto-schema-boot */
     $booted = true;
 
     /*

@@ -1,439 +1,49 @@
 Python 3.12.3
-Thu Oct  1 11:57:03 UTC 2026
-Migrate::COLUMNS parsed: 11 tables, 68 columns
-  + products       `group_ids` VARCHAR(190) NULL
-  + products       `reset_days` INT NOT NULL DEFAULT 0
-  + services       `expired_at` DATETIME NULL
-  + stock_cats     `rs_price` BIGINT NOT NULL DEFAULT 0
-  + transactions   `card_id` INT UNSIGNED NULL
-  + users          `test_ip` VARCHAR(64) NULL
-  + users          `test_dev` VARCHAR(64) NULL
-  + users          `test_at` DATETIME NULL
-  + users          `reseller_price_gb` INT NOT NULL DEFAULT 0
-  + users          `reseller_price_day` INT NOT NULL DEFAULT 0
-  + users          `reseller_max_gb` INT NOT NULL DEFAULT 0
-  + users          `reseller_max_days` INT NOT NULL DEFAULT 0
-  + users          `reseller_panels` VARCHAR(190) NULL
-  + users          `reseller_note` VARCHAR(400) NULL
-  + users          `auto_renew` TINYINT(1) NOT NULL DEFAULT 0
-schema.sql: 15 columns added in 5 tables
-patched: app/Service/Migrate.php (#auto-schema) at line 377
-patched: app/DB.php (#auto-migrate-q)
-patched: app/DB.php (retryable no longer handles 1054/1146)
+Thu Oct  1 12:01:58 UTC 2026
+patched: app/bootstrap.php (#auto-schema-boot) after line 158
+patched: install/index.php (#install-schema)
+NEW tools/schema-check.php
 changed files: 3
-===== parity after patch =====
-missing columns left: 0
----- dump schema_products (database/schema.sql:123-129 of 569) ----
-  123|  `min_days` INT NOT NULL DEFAULT 1,
-  124|  `max_days` INT NOT NULL DEFAULT 90,
-  125|  `created_at` DATETIME NOT NULL,
-  126|  `group_ids` VARCHAR(190) NULL,
-  127|  `reset_days` INT NOT NULL DEFAULT 0,
-  128|  KEY `idx_panel` (`panel_id`)
-  129|) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
----- end dump schema_products ----
----- dump schema_services (database/schema.sql:155-160 of 569) ----
-  155|  `created_at` DATETIME NOT NULL,
-  156|  `expired_at` DATETIME NULL,
-  157|  KEY `idx_user` (`user_id`),
-  158|  KEY `idx_email` (`client_email`),
-  159|  KEY `idx_group_key` (`group_key`)
-  160|) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
----- end dump schema_services ----
----- dump schema_stock_cats (database/schema.sql:541-546 of 569) ----
-  541|  `active` TINYINT(1) NOT NULL DEFAULT 1,
-  542|  `sort` INT NOT NULL DEFAULT 0,
-  543|  `created_at` DATETIME NOT NULL,
-  544|  `rs_price` BIGINT NOT NULL DEFAULT 0,
-  545|  KEY `idx_sc_active` (`active`)
-  546|) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
----- end dump schema_stock_cats ----
----- dump schema_transactions (database/schema.sql:193-198 of 569) ----
-  193|  `decided_at` DATETIME NULL,
-  194|  `card_id` INT UNSIGNED NULL,
-  195|  KEY `idx_user` (`user_id`),
-  196|  KEY `idx_status` (`status`),
-  197|  KEY `idx_txid` (`txid`)
-  198|) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
----- end dump schema_transactions ----
----- dump schema_users (database/schema.sql:45-59 of 569) ----
-   45|  `reseller_note_pub` VARCHAR(255) NULL,
-   46|  `test_ip` VARCHAR(64) NULL,
-   47|  `test_dev` VARCHAR(64) NULL,
-   48|  `test_at` DATETIME NULL,
-   49|  `reseller_price_gb` INT NOT NULL DEFAULT 0,
-   50|  `reseller_price_day` INT NOT NULL DEFAULT 0,
-   51|  `reseller_max_gb` INT NOT NULL DEFAULT 0,
-   52|  `reseller_max_days` INT NOT NULL DEFAULT 0,
-   53|  `reseller_panels` VARCHAR(190) NULL,
-   54|  `reseller_note` VARCHAR(400) NULL,
-   55|  `auto_renew` TINYINT(1) NOT NULL DEFAULT 0,
-   56|  UNIQUE KEY `uq_tg` (`tg_id`),
-   57|  KEY `idx_ref` (`referrer_id`),
-   58|  KEY `idx_verify_token` (`verify_token`)
-   59|) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
----- end dump schema_users ----
-Migrate::TABLES (4): stock_cats, stock_items, user_cards, broadcasts
-  not in schema.sql: user_cards
-===== recon =====
----- dump mig_hastable (app/Service/Migrate.php:416-425 of 714) ----
-  416|
-  417|    public static function hasTable(string $table): bool
-  418|    {
-  419|        return (int)DB::val(
-  420|            'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
-  421|            [DB::prefix() . $table], 0
-  422|        ) > 0;
-  423|    }
-  424|
-  425|    public static function hasColumn(string $table, string $col): bool
----- end dump mig_hastable ----
----- dump db_head (app/DB.php:1-69 of 342) ----
-    1|<?php
-    2|declare(strict_types=1);
-    3|
-    4|/**
-    5| * لایه دیتابیس (PDO) با پشتیبانی از پیشوند جدول
-    6| * در تمام کوئری‌ها به جای نام جدول از {p}table استفاده کنید.
-    7| */
-    8|class DB
-    9|{
-   10|    private static ?PDO $pdo = null;
-   11|    private static string $prefix = '';
-   12|    private static array $settings = [];
-   13|    private static bool $loaded = false;
-   14|    private static ?PDO $pdoEmu = null;
-   15|    private static array $cfg = [];
-   16|
-   17|    public static function init(array $cfg): void
-   18|    {
-   19|        self::$prefix = (string)($cfg['prefix'] ?? '');
-   20|        self::$cfg    = $cfg;
-   21|        $host = (string)($cfg['host'] ?? 'localhost');
-   22|        $port = (int)($cfg['port'] ?? 3306);
-   23|        $name = (string)($cfg['name'] ?? '');
-   24|        $dsn  = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
-   25|        self::$pdo = new PDO($dsn, (string)($cfg['user'] ?? ''), (string)($cfg['pass'] ?? ''), [
-   26|            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-   27|            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-   28|            PDO::ATTR_EMULATE_PREPARES   => false,
-   29|        ]);
-   30|    }
-   31|
-   32|    public static function connected(): bool { return self::$pdo instanceof PDO; }
-   33|
-   34|    public static function pdo(): PDO
-   35|    {
-   36|        if (!self::$pdo) throw new RuntimeException('اتصال به دیتابیس برقرار نشده است.');
-   37|        return self::$pdo;
-   38|    }
-   39|
-   40|    public static function prefix(): string { return self::$prefix; }
-   41|
-   42|    public static function raw(string $sql): string { return str_replace('{p}', self::$prefix, $sql); }
-   43|
-   44|    /**
-   45|     * اتصال کمکی با prepare شبیه‌سازی‌شده
-   46|     * برخی نسخه‌های MySQL/MariaDB هنگام فرستادن مقدارهای بزرگ (مانند JSON دکمه‌ها)
-   47|     * با prepare واقعی خطای مبهم «General error: 2000» می‌دهند؛ در این حالت یک بار روی این اتصال تکرار می‌کنیم.
-   48|     */
-   49|    private static function emu(): ?PDO
-   50|    {
-   51|        if (self::$pdoEmu instanceof PDO) return self::$pdoEmu;
-   52|        if (!self::$cfg) return null;
-   53|        try {
-   54|            $cfg = self::$cfg;
-   55|            $dsn = 'mysql:host=' . (string)($cfg['host'] ?? 'localhost')
-   56|                . ';port=' . (int)($cfg['port'] ?? 3306)
-   57|                . ';dbname=' . (string)($cfg['name'] ?? '') . ';charset=utf8mb4';
-   58|            self::$pdoEmu = new PDO($dsn, (string)($cfg['user'] ?? ''), (string)($cfg['pass'] ?? ''), [
-   59|                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-   60|                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-   61|                PDO::ATTR_EMULATE_PREPARES   => true,
-   62|            ]);
-   63|        } catch (Throwable $e) {
-   64|            self::$pdoEmu = null;
-   65|        }
-   66|        return self::$pdoEmu;
-   67|    }
-   68|
-   69|    /** خطاهایی که ارزش تکرار دارند (مشکل پروتکل/مقدار بزرگ، نه خطای منطقی) */
----- end dump db_head ----
----- dump db_setting (app/DB.php:269-299 of 342) ----
-  269|    public static function setting(string $key, $default = null)
-  270|    {
-  271|        self::loadSettings();
-  272|        $v = self::$settings[$key] ?? null;
-  273|        if ($v === null || $v === '') return $default;
-  274|        return $v;
-  275|    }
-  276|
-  277|    public static function setSetting(string $key, $value): void
-  278|    {
-  279|        self::loadSettings();
-  280|        $value = is_array($value) ? jenc($value) : (string)$value;
-  281|        if (strlen($value) > 60000 && function_exists('app_log')) {
-  282|            app_log('db', 'big-setting ' . $key . ' = ' . strlen($value) . 'B');
-  283|        }
-  284|        /* 0.0.2 #2: اسرار (توکن، کلید درگاه، رمز پنل و …) رمزنگاری‌شده ذخیره می‌شوند */
-  285|        $store = $value;
-  286|        if ($value !== '' && self::isSecretKey($key) && class_exists('Crypt')
-  287|            && Crypt::available() && !Crypt::isEnc($value)) {
-  288|            $store = Crypt::enc($value);
-  289|        }
-  290|
-  291|        self::q('INSERT INTO {p}settings (`k`,`v`) VALUES (:k,:v) ON DUPLICATE KEY UPDATE `v` = :v2', [
-  292|            ':k' => $key, ':v' => $store, ':v2' => $store,
-  293|        ]);
-  294|        self::$settings[$key] = $value;
-  295|    }
-  296|
-  297|    /** آیا این کلید تنظیمات «راز» است و باید رمزنگاری شود؟ */
-  298|    public static function isSecretKey(string $k): bool
-  299|    {
----- end dump db_setting ----
-  admin/index.php                    8| require dirname(__DIR__) . '/app/bootstrap.php';
-  app/Service/Updater.php          372| /* fixed80: ریشه = کوتاه‌ترین پوشه‌ای که app/bootstrap.php دارد (زیپ گیت‌هاب + پوشهٔ داخلی، با هر عمقی) */
-  app/Service/Updater.php          383| if ($best === null) $log[] = '⚠️ ساختار فایل ZIP ناشناخته است (app/bootstrap.php پیدا نشد).';
-  cli.php                           22| require __DIR__ . '/app/bootstrap.php';
-  cron/tasks.php                    16| require __DIR__ . '/../app/bootstrap.php';
-  hooshpay.php                      13| require __DIR__ . '/app/bootstrap.php';
-  index.php                          9| require __DIR__ . '/app/bootstrap.php';
-  install/index.php                 29| require dirname(__DIR__) . '/app/bootstrap.php';
-  miniapp/api.php                  111| require __DIR__ . '/../app/bootstrap.php';
-  miniapp/card.php                   9| require __DIR__ . '/../app/bootstrap.php';
-  miniapp/index.php                  8| require __DIR__ . '/../app/bootstrap.php';
-  miniapp/reseller.php               8| require __DIR__ . '/../app/bootstrap.php';
-  nowpay.php                        10| require __DIR__ . '/app/bootstrap.php';
-  rbot.php                          12| require __DIR__ . '/app/bootstrap.php';
-  sub.php                           19| require __DIR__ . '/app/bootstrap.php';
-  tests/run.php                      9| require_once __DIR__ . '/bootstrap.php';
-  tools/botcheck.php                10| require dirname(__DIR__) . '/app/bootstrap.php';
-  verify.php                         9| require __DIR__ . '/app/bootstrap.php';
-  zarinpal.php                      11| require __DIR__ . '/app/bootstrap.php';
----- grep: bootstrap.php (19) ----
-     58| if (class_exists('DB', false) && DB::connected() && class_exists('Logs')) {
-    156| DB::init((array)cfg('db', []));
-    158| DB::loadSettings();
-    189| $extra = (string)DB::setting('extra_admins', '');
-    208| function currency(): string { return (string)DB::setting('currency', (string)cfg('app.currency', 'تومان')); }
-    252| if (class_exists('DB') && DB::connected()) {
-    254| $old = trim((string)DB::setting($k, ''));
-    256| DB::setSetting($k, $live . substr($old, strlen($saved)));
----- grep DB:: in app/bootstrap.php (8) ----
----- dump adm_head (admin/index.php:1-30 of 639) ----
-    1|<?php
-    2|declare(strict_types=1);
-    3|
-    4|/**
-    5| * پنل مدیریت تحت وب
-    6| */
-    7|
-    8|require dirname(__DIR__) . '/app/bootstrap.php';
-    9|
-   10|if (!app_installed()) { header('Location: ../install/index.php'); exit; }
-   11|boot();
-   12|
-   13|/* ---------- کوکی امن نشست (باید پیش از session_start تنظیم شود) ---------- */
-   14|if (session_status() !== PHP_SESSION_ACTIVE) {
-   15|    $https = (($_SERVER['HTTPS'] ?? '') !== '' && strtolower((string)$_SERVER['HTTPS']) !== 'off')
-   16|        || (int)($_SERVER['SERVER_PORT'] ?? 0) === 443
-   17|        || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
-   18|    session_set_cookie_params([
-   19|        'lifetime' => 0,
-   20|        'path'     => '/',
-   21|        'secure'   => $https,
-   22|        'httponly' => true,
-   23|        'samesite' => 'Lax',
-   24|    ]);
-   25|    Session::start();
-   26|}
-   27|
-   28|/* ---------- هدرهای امنیتی ---------- */
-   29|header('X-Frame-Options: SAMEORIGIN');
-   30|header('X-Content-Type-Options: nosniff');
----- end dump adm_head ----
----- dump cron_head (cron/tasks.php:1-28 of 684) ----
-    1|<?php
-    2|/**
-    3| * وظایف دوره‌ای فروشگاه
-    4| * اجرا: php /path/to/cron/tasks.php   (هر ۵ تا ۱۵ دقیقه یکبار)
-    5| *
-    6| * کارها:
-    7| *  1) همگام‌سازی مصرف سرویس‌ها از پنل
-    8| *  2) هشدار نزدیک شدن انقضا و پر شدن حجم
-    9| *  3) منقضی کردن سرویس‌های تمام شده
-   10| *  4) پاکسازی لاگ‌ها و رسیدهای قدیمی
-   11| */
-   12|
-   13|@set_time_limit(0);
-   14|@ini_set('memory_limit', '256M');
-   15|
-   16|require __DIR__ . '/../app/bootstrap.php';
-   17|
-   18|if (!app_installed()) {
-   19|    fwrite(STDERR, "VPN Shop is not installed yet.\n");
-   20|    exit(1);
-   21|}
-   22|
-   23|boot();
-   24|
-   25|/* ضربان اجرا برای صفحه سلامت سیستم */
-   26|if (!is_dir(APP_ROOT . '/storage')) @mkdir(APP_ROOT . '/storage', 0755, true);
-   27|@file_put_contents(APP_ROOT . '/storage/last-cron.txt', date('Y-m-d H:i:s'));
-   28|
----- end dump cron_head ----
----- dump inst (install/index.php:196-245 of 594) ----
-  196|                        // کلید رمزنگاری داده‌های حساس — پس از نصب هرگز تغییرش ندهید
-  197|                        'key'        => bin2hex(random_bytes(32)),
-  198|                        'ssl_verify' => true,
-  199|                    ],
-  200|                ];
-  201|                $code = "<?php\n// این فایل توسط نصاب ساخته شده است\nreturn " . var_export($config, true) . ";\n";
-  202|                if (@file_put_contents(APP_ROOT . '/config.php', $code) === false) {
-  203|                    throw new RuntimeException('فایل config.php قابل نوشتن نیست. دسترسی پوشه را به ۷۵۵ تغییر دهید.');
-  204|                }
-  205|
-  206|                DB::init($D['db']);
-  207|                DB::runSqlFile(APP_ROOT . '/database/schema.sql');
-  208|                /* اطمینان از ساخته شدن جدول‌ها */
-  209|                $needTables = ['settings', 'admins', 'users', 'panels', 'products', 'services',
-  210|                                'orders', 'transactions', 'tickets', 'ticket_messages', 'tutorials', 'logs'];
-  211|                $havePre    = DB::prefix();
-  212|                $haveRows   = DB::all('SELECT table_name AS t FROM information_schema.tables WHERE table_schema = DATABASE()');
-  213|                $haveNames  = [];
-  214|                foreach ($haveRows as $hr) $haveNames[] = strtolower((string)($hr['t'] ?? ''));
-  215|                $missTables = [];
-  216|                foreach ($needTables as $nt) {
-  217|                    if (!in_array(strtolower($havePre . $nt), $haveNames, true)) $missTables[] = $havePre . $nt;
-  218|                }
-  219|                if ($missTables) {
-  220|                    throw new RuntimeException('جدول‌های زیر ساخته نشدند: ' . implode('، ', $missTables)
-  221|                        . ' — فایل database/schema.sql را کامل آپلود کنید یا همان فایل را در phpMyAdmin اجرا کنید.');
-  222|                }
-  223|
-  224|                $exists = DB::one('SELECT id FROM {p}admins WHERE username = :u', [':u' => $D['admin']['user']]);
-  225|                if ($exists) {
-  226|                    DB::update('admins', ['password_hash' => password_hash($D['admin']['pass'], PASSWORD_DEFAULT)],
-  227|                        'id = :id', [':id' => (int)$exists['id']]);
-  228|                } else {
-  229|                    DB::insert('admins', [
-  230|                        'username'      => $D['admin']['user'],
-  231|                        'password_hash' => password_hash($D['admin']['pass'], PASSWORD_DEFAULT),
-  232|                        'name'          => 'مدیر اصلی',
-  233|                        'role'          => 'owner',
-  234|                        'created_at'    => now(),
-  235|                    ]);
+---- dump boot (app/bootstrap.php:143-163 of 268) ----
+  143|{
+  144|    static $booted = false;
+  145|    if ($booted) return;
+  146|
+  147|    date_default_timezone_set((string)cfg('app.timezone', 'Asia/Tehran'));
+  148|
+  149|    if (!app_installed()) {
+  150|        if (!$requireInstall) { $booted = true; return; }
+  151|        if (PHP_SAPI === 'cli') { fwrite(STDERR, "برنامه نصب نشده است. ابتدا نصاب را اجرا کنید.\n"); exit(1); }
+  152|        header('Location: install/index.php');
+  153|        exit;
+  154|    }
+  155|
+  156|    DB::init((array)cfg('db', []));
+  157|    Tg::setToken((string)cfg('bot.token', ''));
+  158|    DB::loadSettings();
+  159|    if (class_exists('Migrate') && method_exists('Migrate', 'ensureBuild')) Migrate::ensureBuild(); /* 0.0.2 #auto-schema-boot */
+  160|    $booted = true;
+  161|
+  162|    /*
+  163|     * اگر نام یا مسیر پوشهٔ برنامه عوض شده باشد، آدرس ذخیره‌شده
+---- end dump boot ----
+---- dump inst (install/index.php:236-244 of 596) ----
   236|                }
   237|
   238|                DB::loadSettings(true);
   239|                if (!empty($D['shop_title'])) DB::setSetting('shop_title', $D['shop_title']);
-  240|
-  241|                Tg::setToken($D['bot']['token']);
-  242|                $hook = Tg::setWebhook(rtrim($D['app_url'], '/') . '/index.php', $D['bot']['secret']);
-  243|                $D['webhook_ok'] = !empty($hook['ok']);
-  244|                $D['webhook_msg'] = (string)($hook['description'] ?? ($hook['error'] ?? ''));
-  245|
+  240|                /* 0.0.2 #install-schema: ستون‌ها، جدول‌ها و ایندکس‌هایی که فقط Migrate می‌شناسد همین حالا ساخته می‌شوند */
+  241|                if (class_exists('Migrate') && method_exists('Migrate', 'ensureBuild')) Migrate::ensureBuild();
+  242|
+  243|                Tg::setToken($D['bot']['token']);
+  244|                $hook = Tg::setWebhook(rtrim($D['app_url'], '/') . '/index.php', $D['bot']['secret']);
 ---- end dump inst ----
-  admin/pages/settings.php        1941| <div class="hint">اگر خالی بماند، از changelog مخزن یا فایل <span class="mono">version.json</span> استفاده می‌شود.</div>
-  admin/pages/update.php           195| • کد <b>۴۰۴</b>: نام مخزن یا شاخه اشتباه است، یا مخزن خصوصی است و توکن ثبت نشده، یا فایل version.json در ریشهٔ مخزن نیست
-  app/Service/Migrate.php          389| $vj   = json_decode((string)@file_get_contents($root . '/version.json'), true);
-  app/Service/Release.php          300| /** لیست تغییرات آماده: پیش‌نویس ادمین ← تنظیم مخزن ← version.json محلی */
-  app/Service/Release.php          309| /* fixed79: بخش بالای CHANGELOG.md (بستهٔ fixedNN فعلی) قبل از version.json */
-  app/Service/Release.php          316| /** خواندن changelog از version.json کنار پروژه */
-  app/Service/Release.php          319| $f = (defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__, 2)) . '/version.json';
-  app/Service/Updater.php            6| *  - بررسی نسخه جدید از گیت‌هاب (version.json)
-  app/Service/Updater.php           55| /** fixed80: build محلی از version.json پروژه */
-  app/Service/Updater.php           60| $f = APP_ROOT . '/version.json';
-  app/Service/Updater.php          135| /** fixed80: خواندن version.json از یک آدرس؛ نتیجهٔ تلاش در $diag ثبت می‌شود */
-  app/Service/Updater.php          147| $row['note'] = 'ساختار version.json نامعتبر است';
-  app/Service/Updater.php          158| * fixed80: تشخیص خودکار شاخه (default_branch / main / master)، پیدا کردن version.json در پوشه‌های داخلی،
-  app/Service/Updater.php          183| $data  = self::fetchVersion('api:' . $branch, $api($branch, $sub . 'version.json'), $rawAccept, $diag);
-  app/Service/Updater.php          207| ['raw',      'https://raw.githubusercontent.com/' . $repo . '/' . rawurlencode($branch) . '/' . $sub . 'version.json'],
----- grep: version.json (27) ----
-tests/: .htaccess, HelpersTest.php, StaticIntegrityTest.php, bootstrap.php, run.php
----- dump phpunit_xml (phpunit.xml.dist:1-40 of 21) ----
-    1|<?xml version="1.0" encoding="UTF-8"?>
-    2|<!--
-    3|  تست واحد پروژه (0.0.2 #34)
-    4|  نصب:  composer install
-    5|  اجرا:  composer test      یا   vendor/bin/phpunit
-    6|  بدون PHPUnit:  php tests/run.php
-    7|-->
-    8|<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    9|         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
-   10|         bootstrap="tests/bootstrap.php"
-   11|         colors="true"
-   12|         cacheDirectory=".phpunit.cache"
-   13|         failOnWarning="true"
-   14|         failOnNotice="true">
-   15|  <testsuites>
-   16|    <testsuite name="unit">
-   17|      <directory>tests</directory>
-   18|    </testsuite>
-   19|  </testsuites>
-   20|</phpunit>
-   21|
----- end dump phpunit_xml ----
----- dump ci (.github/workflows/ci.yml:1-90 of 56) ----
-    1|name: CI
-    2|
-    3|on:
-    4|  push:
-    5|    branches: [ main, dev ]
-    6|  pull_request:
-    7|  workflow_dispatch:
-    8|
-    9|permissions:
-   10|  contents: read
-   11|
-   12|jobs:
-   13|  lint:
-   14|    name: PHP ${{ matrix.php }} syntax check
-   15|    runs-on: ubuntu-latest
-   16|    strategy:
-   17|      fail-fast: false
-   18|      matrix:
-   19|        php: [ '8.1', '8.2', '8.3' ]
-   20|    steps:
-   21|      - uses: actions/checkout@v7
-   22|
-   23|      - name: Setup PHP
-   24|        uses: shivammathur/setup-php@v2
-   25|        with:
-   26|          php-version: ${{ matrix.php }}
-   27|          extensions: pdo_mysql, curl, mbstring, json, zip, openssl
-   28|          coverage: none
-   29|          tools: none
-   30|
-   31|      - name: php -l (tools/lint.sh)
-   32|        run: bash tools/lint.sh
-   33|
-   34|      - name: version.json is valid JSON
-   35|        run: php -r '$j = json_decode(file_get_contents("version.json"), true); if (!is_array($j) || empty($j["version"]) || empty($j["build"])) { fwrite(STDERR, "version.json invalid\\n"); exit(1);} echo "version={$j["version"]} build={$j["build"]}\\n";'
-   36|
-   37|      - name: Migrations are numbered and unique
-   38|        run: |
-   39|          set -e
-   40|          ls database/migrations/*.sql | sed 's#.*/##' | cut -d_ -f1 | sort | uniq -d | grep . && { echo 'duplicate migration number'; exit 1; } || echo 'migration numbers OK'
-   41|
-   42|  phpstan:
-   43|    name: PHPStan (level from phpstan.neon.dist)
-   44|    runs-on: ubuntu-latest
-   45|    continue-on-error: true
-   46|    steps:
-   47|      - uses: actions/checkout@v7
-   48|      - uses: shivammathur/setup-php@v2
-   49|        with:
-   50|          php-version: '8.2'
-   51|          extensions: pdo_mysql, curl, mbstring, json
-   52|          coverage: none
-   53|          tools: phpstan
-   54|      - name: Analyse
-   55|        run: phpstan analyse -c phpstan.neon.dist --no-progress --error-format=github || true
-   56|
----- end dump ci ----
+$ php tools/schema-check.php -> exit 0
+  schema tables: 19, Migrate::COLUMNS tables: 11, problems: 0
+$ php tools/integrity.php -> exit 0
+  ---
+  files checked: 53, skipped(extends): 2, problems: 0
 changelog: entry added
-build: fixed174 (was fixed173)
+build: fixed175 (was fixed174)
 exit: 0
 exit: 0

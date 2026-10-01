@@ -237,6 +237,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$alreadyInstalled) {
 
                 DB::loadSettings(true);
                 if (!empty($D['shop_title'])) DB::setSetting('shop_title', $D['shop_title']);
+                /* 0.0.2 #install-schema: ستون‌ها، جدول‌ها و ایندکس‌هایی که فقط Migrate می‌شناسد همین حالا ساخته می‌شوند */
+                if (class_exists('Migrate') && method_exists('Migrate', 'ensureBuild')) Migrate::ensureBuild();
 
                 Tg::setToken($D['bot']['token']);
                 $hook = Tg::setWebhook(rtrim($D['app_url'], '/') . '/index.php', $D['bot']['secret']);
