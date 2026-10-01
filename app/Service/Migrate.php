@@ -314,6 +314,66 @@ class Migrate
 
     /* ==================== بررسی وجود ==================== */
 
+    /**
+     * 0.0.2 #heal-cols — پیش از ذخیره (INSERT/UPDATE) صدا زده می‌شود:
+     * اگر ستونی از داده در جدول نباشد، یک بار «تکمیل ساختار» (run) اجرا می‌شود؛ اگر باز هم
+     * نبود و تعریفش در COLUMNS هست همان ستون ساخته می‌شود؛ وگرنه از داده حذف می‌شود
+     * تا ذخیره با خطای «Unknown column» متوقف نشود.
+     */
+    public static function healData(string $table, array $data): array
+    {
+        static $ran = false;
+        if ($data === [] || !preg_match('/^[A-Za-z0-9_]+$/', $table)) return $data;
+
+        $cols = static function () use ($table): ?array {
+            try {
+                $out = [];
+                foreach (DB::all('SHOW COLUMNS FROM {p}' . $table) as $r) {
+                    $out[strtolower((string)($r['Field'] ?? ''))] = true;
+                }
+                return $out;
+            } catch (Throwable $e) {
+                return null;
+            }
+        };
+
+        $set = $cols();
+        if ($set === null) return $data;
+        $want = self::COLUMNS[$table] ?? [];
+
+        foreach (array_keys($data) as $col) {
+            $col = (string)$col;
+            if (isset($set[strtolower($col)]) || !preg_match('/^[A-Za-z0-9_]+$/', $col)) continue;
+
+            if (!$ran) {
+                $ran = true;
+                try {
+                    self::run();
+                    if (function_exists('app_log')) app_log('db', 'heal: schema completed (missing ' . $table . '.' . $col . ')');
+                } catch (Throwable $e) {
+                    if (function_exists('app_log')) app_log('db', 'heal: run failed: ' . $e->getMessage());
+                }
+                $set = $cols() ?? $set;
+                if (isset($set[strtolower($col)])) continue;
+            }
+
+            if (isset($want[$col]) && is_string($want[$col])) {
+                try {
+                    DB::q('ALTER TABLE {p}' . $table . ' ADD COLUMN `' . $col . '` ' . $want[$col]);
+                    $set[strtolower($col)] = true;
+                    continue;
+                } catch (Throwable $e) {
+                    if (stripos($e->getMessage(), 'Duplicate column') !== false) continue;
+                    if (function_exists('app_log')) app_log('db', 'heal: add ' . $table . '.' . $col . ' failed: ' . $e->getMessage());
+                }
+            }
+
+            if (function_exists('app_log')) app_log('db', 'heal: dropped unknown column ' . $table . '.' . $col);
+            unset($data[$col]);
+        }
+        return $data;
+    }
+
     public static function hasTable(string $table): bool
     {
         return (int)DB::val(

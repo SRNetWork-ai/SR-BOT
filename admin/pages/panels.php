@@ -112,11 +112,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_ok()) {
             if ($data['password'] === '') unset($data['password']);
             else                          $data['password'] = app_encrypt($data['password']);
             $data['session'] = null;
+            if (class_exists('Migrate') && method_exists('Migrate', 'healData')) $data = Migrate::healData('panels', $data); /* 0.0.2 #heal-cols-up */
             DB::update('panels', $data, 'id = :id', [':id' => $id]);
             flash('ok', '✅ پنل <b>' . h($data['name']) . '</b> به‌روز شد.');
         } else {
             $data['password']   = app_encrypt($data['password']);
             $data['created_at'] = now();
+            if (class_exists('Migrate') && method_exists('Migrate', 'healData')) $data = Migrate::healData('panels', $data); /* 0.0.2 #heal-cols-ins */
             $id = DB::insert('panels', $data);
             flash('ok', '✅ پنل جدید افزوده شد. دکمه‌ی «تست اتصال» را بزنید.');
         }

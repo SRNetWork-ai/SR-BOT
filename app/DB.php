@@ -67,10 +67,38 @@ class DB
     }
 
     /** خطاهایی که ارزش تکرار دارند (مشکل پروتکل/مقدار بزرگ، نه خطای منطقی) */
+    /** 0.0.2 #auto-migrate: تکمیل خودکار ساختار در همین درخواست امتحان شده است؟ */
+    private static bool $migTried = false;
+
+    /**
+     * خطای ستون/جدول ناموجود (1054/1146): یک بار در هر درخواست «تکمیل ساختار» (Migrate::run)
+     * اجرا می‌شود و همان کوئری دوباره امتحان می‌شود. داخل تراکنش باز اجرا نمی‌شود، چون
+     * ALTER TABLE در MySQL تراکنش را خودکار commit می‌کند. حداکثر هر ۵ دقیقه یک بار.
+     */
+    private static function autoMigrate(): bool
+    {
+        if (self::$migTried) return false;
+        self::$migTried = true;
+        if (!class_exists('Migrate') || !method_exists('Migrate', 'run')) return false;
+        try {
+            if (self::$pdo instanceof PDO && self::$pdo->inTransaction()) return false;
+            $flag = rtrim(sys_get_temp_dir(), '/') . '/srbot-automig-' . substr(md5(__FILE__), 0, 10);
+            if (is_file($flag) && (time() - (int)@filemtime($flag)) < 300) return false;
+            @touch($flag);
+            Migrate::run();
+            if (function_exists('app_log')) app_log('db', 'auto-migrate: schema completed after unknown column/table');
+            return true;
+        } catch (Throwable $e) {
+            if (function_exists('app_log')) app_log('db', 'auto-migrate failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+
     private static function retryable(PDOException $e): bool
     {
         $code = (int)($e->errorInfo[1] ?? 0);
         if (in_array($code, [2000, 1153, 2006, 2013], true)) return true;
+        if (($code === 1054 || $code === 1146) && self::autoMigrate()) return true; /* 0.0.2 #auto-migrate */
         $m = $e->getMessage();
         return stripos($m, 'Unknown or undefined error code') !== false
             || stripos($m, 'gone away') !== false;
