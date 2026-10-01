@@ -175,7 +175,12 @@ class Bot
             try {
                 $bm = Btn::match($text);
                 if ($bm !== null && self::runButton($chatId, null, $bm)) return;
-            } catch (Throwable $e) {
+            } catch (Throwable $e) { /* #btn-guard */
+                app_log('bot', 'button handler failed: ' . $e->getMessage());
+                if (stripos($e->getMessage(), 'undefined method') !== false) {
+                    Tg::send($chatId, '⚠️ این بخش موقتاً در دسترس نیست. لطفاً به پشتیبانی اطلاع دهید.');
+                    return;
+                }
             }
         }
 
